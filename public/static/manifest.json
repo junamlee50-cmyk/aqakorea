@@ -1,0 +1,44 @@
+{
+  "name": "아쿠아모빌리티코리아",
+  "short_name": "아쿠아모빌리티",
+  "description": "전국 수륙양용투어 통합예약 플랫폼 - 통영·부여·합천",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#071f4e",
+  "theme_color": "#06b6d4",
+  "lang": "ko-KR",
+  "categories": ["travel", "lifestyle"],
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "통영 예약",
+      "short_name": "통영",
+      "description": "통영 수륙양용투어 바로 예약",
+      "url": "/reservation/tongyeong",
+      "icons": [{ "src": "/static/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "부여 예약",
+      "short_name": "부여",
+      "description": "부여 수륙양용투어 바로 예약",
+      "url": "/reservation/buyeo",
+      "icons": [{ "src": "/static/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "예약 확인",
+      "short_name": "예약확인",
+      "description": "내 예약 확인 및 취소",
+      "url": "/booking-check",
+      "icons": [{ "src": "/static/favicon.svg", "sizes": "any" }]
+    }
+  ]
+}

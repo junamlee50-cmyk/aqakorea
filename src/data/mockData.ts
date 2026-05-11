@@ -1,0 +1,296 @@
+// ============================================================
+// 아쿠아모빌리티코리아 - 목업 데이터
+// ============================================================
+
+export const REGIONS = [
+  {
+    id: 'tongyeong',
+    name: '통영해양관광',
+    shortName: '통영',
+    code: 'TYG',
+    status: 'active',
+    tagline: '한려해상 수륙양용 어드벤처',
+    description: '아름다운 한려해상국립공원을 수륙양용버스로 체험하는 특별한 해양관광',
+    image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=800',
+    heroImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200',
+    location: '경남 통영시 항남동 도남관광단지',
+    mapLat: 34.8544,
+    mapLng: 128.4334,
+    boardingPlace: '통영 도남관광단지 수상레저 선착장',
+    parkingInfo: '도남관광단지 공영주차장 (무료)',
+    customerService: '055-640-0000',
+    onlineRatio: 80,
+    offlineRatio: 20,
+    company: {
+      name: '통영해양관광 주식회사',
+      bizNo: '412-81-00001',
+      representative: '김통영',
+      address: '경남 통영시 항남동 123',
+      phone: '055-640-0000',
+      email: 'info@tongyeong-aqua.kr',
+      bankAccount: '기업은행 123-456789-01-001',
+    },
+    pgMerchant: {
+      pgName: 'KG이니시스',
+      merchantId: 'tongyeong_pg_mid',
+      testMode: true,
+    },
+    fares: [
+      { id: 't1', type: 'adult', label: '성인', price: 35000, discountPrice: null },
+      { id: 't2', type: 'youth', label: '청소년', price: 30000, discountPrice: null },
+      { id: 't3', type: 'child', label: '어린이', price: 25000, discountPrice: null },
+      { id: 't4', type: 'senior', label: '경로', price: 30000, discountPrice: null },
+      { id: 't5', type: 'local', label: '지역민', price: 28000, discountPrice: null },
+      { id: 't6', type: 'group', label: '단체(20인↑)', price: 30000, discountPrice: null },
+      { id: 't7', type: 'disabled', label: '장애인', price: 18000, discountPrice: null },
+      { id: 't8', type: 'veteran', label: '국가유공자', price: 18000, discountPrice: null },
+      { id: 't9', type: 'infant', label: '유아(36개월미만)', price: 0, discountPrice: null },
+    ],
+  },
+  {
+    id: 'buyeo',
+    name: '부여수륙양용투어',
+    shortName: '부여',
+    code: 'BYO',
+    status: 'active',
+    tagline: '백제문화의 숨결, 수상과 육상을 넘나드는 여행',
+    description: '백제의 고도 부여에서 금강과 백마강을 수륙양용버스로 만나는 역사문화 투어',
+    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800',
+    heroImage: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200',
+    location: '충남 부여군 부여읍 구드래로',
+    mapLat: 36.2756,
+    mapLng: 126.9099,
+    boardingPlace: '부여 구드래 나루터 수변공원',
+    parkingInfo: '구드래 공영주차장 (무료 2시간)',
+    customerService: '041-830-0000',
+    onlineRatio: 70,
+    offlineRatio: 30,
+    company: {
+      name: '부여수륙양용투어 운영법인',
+      bizNo: '312-81-00002',
+      representative: '이부여',
+      address: '충남 부여군 부여읍 사비로 123',
+      phone: '041-830-0000',
+      email: 'info@buyeo-aqua.kr',
+      bankAccount: '농협은행 301-0012-3456-71',
+    },
+    pgMerchant: {
+      pgName: 'NHN KCP',
+      merchantId: 'buyeo_pg_mid',
+      testMode: true,
+    },
+    fares: [
+      { id: 'b1', type: 'adult', label: '성인', price: 30000, discountPrice: null },
+      { id: 'b2', type: 'youth', label: '청소년', price: 25000, discountPrice: null },
+      { id: 'b3', type: 'child', label: '어린이', price: 20000, discountPrice: null },
+      { id: 'b4', type: 'senior', label: '경로', price: 25000, discountPrice: null },
+      { id: 'b5', type: 'local', label: '지역민', price: 20000, discountPrice: null },
+      { id: 'b6', type: 'group', label: '단체(20인↑)', price: 25000, discountPrice: null },
+      { id: 'b7', type: 'disabled', label: '장애인', price: 15000, discountPrice: null },
+      { id: 'b8', type: 'veteran', label: '국가유공자', price: 15000, discountPrice: null },
+      { id: 'b9', type: 'infant', label: '유아(36개월미만)', price: 0, discountPrice: null },
+    ],
+  },
+  {
+    id: 'hapcheon',
+    name: '합천수륙양용투어',
+    shortName: '합천',
+    code: 'HPC',
+    status: 'active',
+    tagline: '합천호의 비경, 수륙양용으로 만나는 내륙 바다',
+    description: '합천호의 아름다운 경관을 수륙양용버스로 즐기는 내륙 수상 어드벤처',
+    image: 'https://images.unsplash.com/photo-1518623489648-a173ef7824f3?w=800',
+    heroImage: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1200',
+    location: '경남 합천군 대양면 합천호변',
+    mapLat: 35.5665,
+    mapLng: 128.1665,
+    boardingPlace: '합천호 수변공원 선착장',
+    parkingInfo: '합천호 수변공원 주차장 (무료)',
+    customerService: '055-930-0000',
+    onlineRatio: 60,
+    offlineRatio: 40,
+    company: {
+      name: '합천수륙양용투어 운영법인',
+      bizNo: '512-81-00003',
+      representative: '박합천',
+      address: '경남 합천군 합천읍 합천리 123',
+      phone: '055-930-0000',
+      email: 'info@hapcheon-aqua.kr',
+      bankAccount: '경남은행 501-0023-4567-81',
+    },
+    pgMerchant: {
+      pgName: 'NICE페이먼츠',
+      merchantId: 'hapcheon_pg_mid',
+      testMode: true,
+    },
+    fares: [
+      { id: 'h1', type: 'adult', label: '성인', price: 28000, discountPrice: null },
+      { id: 'h2', type: 'youth', label: '청소년', price: 23000, discountPrice: null },
+      { id: 'h3', type: 'child', label: '어린이', price: 18000, discountPrice: null },
+      { id: 'h4', type: 'senior', label: '경로', price: 23000, discountPrice: null },
+      { id: 'h5', type: 'local', label: '지역민', price: 20000, discountPrice: null },
+      { id: 'h6', type: 'group', label: '단체(20인↑)', price: 23000, discountPrice: null },
+      { id: 'h7', type: 'disabled', label: '장애인', price: 14000, discountPrice: null },
+      { id: 'h8', type: 'veteran', label: '국가유공자', price: 14000, discountPrice: null },
+      { id: 'h9', type: 'infant', label: '유아(36개월미만)', price: 0, discountPrice: null },
+    ],
+  },
+  {
+    id: 'mokpo',
+    name: '목포해상투어',
+    shortName: '목포',
+    code: 'MKP',
+    status: 'preparing',
+    tagline: '준비중',
+    description: '목포 해상 수륙양용투어 - 곧 오픈 예정',
+    image: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=800',
+    heroImage: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1200',
+    location: '전남 목포시',
+    mapLat: 34.8118,
+    mapLng: 126.3922,
+    boardingPlace: '목포 평화광장',
+    parkingInfo: '준비중',
+    customerService: '061-270-0000',
+    onlineRatio: 70,
+    offlineRatio: 30,
+    company: null,
+    pgMerchant: null,
+    fares: [],
+  },
+];
+
+export const SCHEDULES = {
+  tongyeong: [
+    { id: 'sch-t1', time: '09:30', endTime: '11:00', capacity: 40, online: 32, offline: 8, onlineBooked: 24, offlineBooked: 5, status: 'available', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환' },
+    { id: 'sch-t2', time: '11:30', endTime: '13:00', capacity: 40, online: 32, offline: 8, onlineBooked: 32, offlineBooked: 8, status: 'soldout', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환' },
+    { id: 'sch-t3', time: '13:30', endTime: '15:00', capacity: 40, online: 32, offline: 8, onlineBooked: 15, offlineBooked: 3, status: 'available', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환' },
+    { id: 'sch-t4', time: '15:30', endTime: '17:00', capacity: 40, online: 32, offline: 8, onlineBooked: 8, offlineBooked: 2, status: 'available', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환' },
+  ],
+  buyeo: [
+    { id: 'sch-b1', time: '09:30', endTime: '11:00', capacity: 39, online: 27, offline: 12, onlineBooked: 20, offlineBooked: 8, status: 'available', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환' },
+    { id: 'sch-b2', time: '11:30', endTime: '13:00', capacity: 39, online: 27, offline: 12, onlineBooked: 27, offlineBooked: 10, status: 'soldout', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환' },
+    { id: 'sch-b3', time: '13:30', endTime: '15:00', capacity: 39, online: 27, offline: 12, onlineBooked: 18, offlineBooked: 5, status: 'available', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환' },
+    { id: 'sch-b4', time: '15:30', endTime: '17:00', capacity: 39, online: 27, offline: 12, onlineBooked: 5, offlineBooked: 2, status: 'available', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환' },
+  ],
+  hapcheon: [
+    { id: 'sch-h1', time: '10:00', endTime: '11:30', capacity: 35, online: 21, offline: 14, onlineBooked: 15, offlineBooked: 8, status: 'available', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환' },
+    { id: 'sch-h2', time: '13:00', endTime: '14:30', capacity: 35, online: 21, offline: 14, onlineBooked: 21, offlineBooked: 12, status: 'available', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환' },
+    { id: 'sch-h3', time: '15:00', endTime: '16:30', capacity: 35, online: 21, offline: 14, onlineBooked: 10, offlineBooked: 4, status: 'available', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환' },
+  ],
+};
+
+export const SAMPLE_RESERVATIONS = [
+  { id: 'RES-2025-001234', region: 'buyeo', regionName: '부여', date: '2025-05-20', time: '09:30', name: '김민수', phone: '010-1234-5678', passengers: [{type:'adult',count:2},{type:'child',count:1}], total: 80000, status: 'confirmed', payStatus: 'paid', wristband: 'issued', checkin: 'checked' },
+  { id: 'RES-2025-001235', region: 'tongyeong', regionName: '통영', date: '2025-05-20', time: '11:30', name: '이지영', phone: '010-2345-6789', passengers: [{type:'adult',count:2}], total: 70000, status: 'confirmed', payStatus: 'paid', wristband: 'pending', checkin: 'waiting' },
+  { id: 'RES-2025-001236', region: 'hapcheon', regionName: '합천', date: '2025-05-21', time: '13:00', name: '박상호', phone: '010-3456-7890', passengers: [{type:'adult',count:3},{type:'senior',count:1}], total: 107000, status: 'confirmed', payStatus: 'paid', wristband: 'pending', checkin: 'waiting' },
+  { id: 'RES-2025-001237', region: 'buyeo', regionName: '부여', date: '2025-05-21', time: '13:30', name: '최수진', phone: '010-4567-8901', passengers: [{type:'adult',count:2},{type:'youth',count:2}], total: 110000, status: 'confirmed', payStatus: 'paid', wristband: 'pending', checkin: 'waiting' },
+  { id: 'RES-2025-001238', region: 'tongyeong', regionName: '통영', date: '2025-05-22', time: '09:30', name: '정현우', phone: '010-5678-9012', passengers: [{type:'adult',count:4}], total: 140000, status: 'confirmed', payStatus: 'paid', wristband: 'pending', checkin: 'waiting' },
+];
+
+export const SAMPLE_STATS = {
+  today: {
+    totalReservations: 87,
+    totalPassengers: 213,
+    totalSales: 6840000,
+    onlineSales: 5120000,
+    offlineSales: 1720000,
+    cancelCount: 3,
+    noShowCount: 2,
+    wristbandsIssued: 198,
+  },
+  monthly: {
+    totalReservations: 1842,
+    totalPassengers: 4531,
+    totalSales: 142800000,
+    byRegion: {
+      tongyeong: 58000000,
+      buyeo: 52000000,
+      hapcheon: 32800000,
+    },
+  },
+  byRegion: [
+    { region: '통영', reservations: 720, passengers: 1820, sales: 58000000, rate: 87 },
+    { region: '부여', reservations: 680, passengers: 1650, sales: 52000000, rate: 82 },
+    { region: '합천', reservations: 442, passengers: 1061, sales: 32800000, rate: 76 },
+  ],
+};
+
+export const POPUPS = [
+  {
+    id: 'pop1',
+    title: '🎉 2025 여름 수륙양용 어드벤처 시즌 오픈!',
+    content: '통영·부여·합천 수륙양용투어가 2025 여름 시즌을 시작합니다.\n지금 예약하시면 얼리버드 특가 혜택!',
+    type: 'event',
+    template: 'modal',
+    active: true,
+    urgent: false,
+    showFrom: '2025-05-01',
+    showTo: '2025-08-31',
+    showOnPC: true,
+    showOnMobile: true,
+    allowHideToday: true,
+    views: 1240,
+    clicks: 387,
+    regions: ['all'],
+  },
+  {
+    id: 'pop2',
+    title: '⚠️ 5월 20일(화) 부여 13:30 회차 운휴 안내',
+    content: '기상악화(강풍)로 인해 5월 20일 부여 13:30 회차가 운휴됩니다.\n예약하신 고객님께는 전액 환불 또는 일정변경 처리해 드립니다.',
+    type: 'suspension',
+    template: 'urgent',
+    active: true,
+    urgent: true,
+    showFrom: '2025-05-19',
+    showTo: '2025-05-21',
+    showOnPC: true,
+    showOnMobile: true,
+    allowHideToday: false,
+    views: 892,
+    clicks: 234,
+    regions: ['buyeo'],
+  },
+];
+
+export const NOTICES = [
+  { id: 'n1', title: '[운행안내] 2025 여름시즌 운행일정 안내', type: '일반공지', region: 'all', date: '2025-05-10', important: true, pinned: true, active: true },
+  { id: 'n2', title: '[요금변경] 2025년 6월 1일부터 성수기 요금 적용', type: '요금변경공지', region: 'all', date: '2025-05-08', important: true, pinned: false, active: true },
+  { id: 'n3', title: '[통영] 도남항 선착장 시설 개선 공사 안내', type: '안전공지', region: 'tongyeong', date: '2025-05-05', important: false, pinned: false, active: true },
+  { id: 'n4', title: '[부여] 단체예약 할인 이벤트 (6월 한정)', type: '이벤트공지', region: 'buyeo', date: '2025-05-03', important: false, pinned: false, active: true },
+];
+
+export const VEHICLES = {
+  tongyeong: [
+    { id: 'v-t1', name: '통영1호', plateNo: '12가3456', capacity: 40, status: 'active', insurance: '2025-12-31', inspection: '2025-08-15' },
+    { id: 'v-t2', name: '통영2호', plateNo: '12나3457', capacity: 40, status: 'active', insurance: '2025-11-30', inspection: '2025-09-20' },
+  ],
+  buyeo: [
+    { id: 'v-b1', name: '부여1호', plateNo: '34다5678', capacity: 39, status: 'active', insurance: '2025-10-15', inspection: '2025-07-10' },
+    { id: 'v-b2', name: '부여2호', plateNo: '34라5679', capacity: 39, status: 'inspection', insurance: '2025-12-20', inspection: '2025-06-05' },
+  ],
+  hapcheon: [
+    { id: 'v-h1', name: '합천1호', plateNo: '56마7890', capacity: 35, status: 'active', insurance: '2025-09-30', inspection: '2025-10-01' },
+  ],
+};
+
+export const WRISTBANDS = [
+  { id: 'WB-001', reservationId: 'RES-2025-001234', region: '부여', date: '2025-05-20', time: '09:30', round: '1회차', type: '성인', status: 'boarding_complete', issuedAt: '09:15', issuedBy: '매표소1' },
+  { id: 'WB-002', reservationId: 'RES-2025-001234', region: '부여', date: '2025-05-20', time: '09:30', round: '1회차', type: '어린이', status: 'boarding_complete', issuedAt: '09:15', issuedBy: '매표소1' },
+  { id: 'WB-003', reservationId: 'RES-2025-001235', region: '통영', date: '2025-05-20', time: '11:30', round: '2회차', type: '성인', status: 'issued', issuedAt: '11:20', issuedBy: '매표소1' },
+  { id: 'WB-004', reservationId: 'RES-2025-001235', region: '통영', date: '2025-05-20', time: '11:30', round: '2회차', type: '성인', status: 'issued', issuedAt: '11:20', issuedBy: '매표소1' },
+];
+
+export const INQUIRIES = [
+  { id: 'INQ-001', type: '예약문의', name: '홍길동', phone: '010-1111-2222', region: '부여', subject: '단체예약 가능한가요?', status: 'completed', date: '2025-05-10', assignee: '관리자1' },
+  { id: 'INQ-002', type: '환불문의', name: '김영희', phone: '010-3333-4444', region: '통영', subject: '기상악화로 취소 환불 문의', status: 'processing', date: '2025-05-12', assignee: '관리자2' },
+  { id: 'INQ-003', type: '운휴문의', name: '이철수', phone: '010-5555-6666', region: '합천', subject: '내일 운휴 여부 확인', status: 'pending', date: '2025-05-15', assignee: null },
+  { id: 'INQ-004', type: '분실물문의', name: '박민지', phone: '010-7777-8888', region: '부여', subject: '손목밴드 분실, 재탑승 가능한가요?', status: 'pending', date: '2025-05-16', assignee: null },
+];
+
+export const ADMIN_USERS = [
+  { id: 'adm1', name: '본사관리자', email: 'super@aquamobility.kr', role: 'super', region: null, lastLogin: '2025-05-16 09:30' },
+  { id: 'adm2', name: '통영관리자', email: 'tongyeong@aquamobility.kr', role: 'region', region: 'tongyeong', lastLogin: '2025-05-16 08:45' },
+  { id: 'adm3', name: '부여관리자', email: 'buyeo@aquamobility.kr', role: 'region', region: 'buyeo', lastLogin: '2025-05-16 09:10' },
+  { id: 'adm4', name: '합천관리자', email: 'hapcheon@aquamobility.kr', role: 'region', region: 'hapcheon', lastLogin: '2025-05-15 17:20' },
+  { id: 'adm5', name: '부여매표소1', email: 'buyeo-ticket1@aquamobility.kr', role: 'staff', region: 'buyeo', lastLogin: '2025-05-16 09:00' },
+];
