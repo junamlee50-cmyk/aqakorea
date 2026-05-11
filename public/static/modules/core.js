@@ -55,21 +55,44 @@ const API = {
 
 // ── 라우터 ──────────────────────────────────────────────────
 const Router = (() => {
-  const routes = {};
+  // ── 배열로 관리하여 등록 순서 + 우선순위 정렬 보장 ──────────
+  // 고정 세그먼트가 많을수록 먼저 매칭 (구체적 경로 우선)
+  const _routes = []; // [{ pattern, handler, priority }]
   let _current = '';
 
+  // 패턴의 고정 세그먼트 수로 우선순위 계산 (높을수록 먼저)
+  const _calcPriority = (pattern) => {
+    if (pattern === '*') return -1;
+    return pattern.split('/').filter(p => p && !p.startsWith(':')).length;
+  };
+
+  const matchRoute = (pattern, path) => {
+    if (pattern === '*') return {};
+    const pParts = pattern.split('/').filter(Boolean);
+    const rParts = path.split('/').filter(Boolean);
+    if (pParts.length !== rParts.length) return null;
+    const params = {};
+    for (let i = 0; i < pParts.length; i++) {
+      if (pParts[i].startsWith(':')) { params[pParts[i].slice(1)] = decodeURIComponent(rParts[i]); }
+      else if (pParts[i] !== rParts[i]) return null;
+    }
+    return params;
+  };
+
   const go = (path, pushState=true) => {
+    // 쿼리스트링 분리 (매칭은 pathname만)
+    const [pathname] = path.split('?');
     _current = path;
-    if (pushState && window.location.pathname !== path) {
+    if (pushState && window.location.pathname !== pathname) {
       history.pushState({}, '', path);
     }
     const app = document.getElementById('app');
     if (!app) return;
 
-    // 라우트 매칭 (와일드카드 지원)
+    // 우선순위 정렬된 배열에서 순서대로 매칭
     let matched = null, params = {};
-    for (const [pattern, handler] of Object.entries(routes)) {
-      const result = matchRoute(pattern, path);
+    for (const { pattern, handler } of _routes) {
+      const result = matchRoute(pattern, pathname);
       if (result !== null) { matched = handler; params = result; break; }
     }
     if (matched) {
@@ -84,22 +107,15 @@ const Router = (() => {
     }
   };
 
-  const matchRoute = (pattern, path) => {
-    const pParts = pattern.split('/').filter(Boolean);
-    const rParts = path.split('/').filter(Boolean);
-    if (pParts.length !== rParts.length) return null;
-    const params = {};
-    for (let i = 0; i < pParts.length; i++) {
-      if (pParts[i].startsWith(':')) { params[pParts[i].slice(1)] = rParts[i]; }
-      else if (pParts[i] !== rParts[i]) return null;
-    }
-    return params;
-  };
-
-  window.addEventListener('popstate', () => go(location.pathname, false));
+  window.addEventListener('popstate', () => go(location.pathname + location.search, false));
 
   return {
-    add: (pattern, handler) => { routes[pattern] = handler; },
+    add: (pattern, handler) => {
+      const priority = _calcPriority(pattern);
+      _routes.push({ pattern, handler, priority });
+      // 우선순위 내림차순 정렬: 고정 세그먼트 많을수록 앞으로
+      _routes.sort((a, b) => b.priority - a.priority);
+    },
     go,
     current: () => _current,
   };
