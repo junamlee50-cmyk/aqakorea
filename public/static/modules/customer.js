@@ -301,9 +301,59 @@ ${Footer.render()}
     ]);
     if (!regRes.success) return CustomerPages._404();
     const region = regRes.data;
-    const schedules = schRes.data || [];
     if (region.status === 'hidden') return CustomerPages._404();
     if (region.status === 'preparing') return CustomerPages._preparingPage(region);
+
+    // ★ localStorage 저장 스케줄 우선 참조 (관리자 자동 생성 반영)
+    const savedSchedules = (() => {
+      try {
+        const s = JSON.parse(localStorage.getItem('amk_settings') || '{}');
+        const saved = (s.schedules || {})[regionId];
+        if (saved && saved.length > 0) return saved;
+      } catch(e) {}
+      return null;
+    })();
+    let rawSchedules = savedSchedules || schRes.data || [];
+
+    // ★ 오늘 날짜 기준 운영/예약가능 상태 필터링 (고객화면: active만 표시)
+    const today = new Date().toISOString().slice(0,10);
+    rawSchedules = rawSchedules.filter(s => {
+      if (s.status !== 'active') return false;
+      if (s.startDate && s.startDate > today) return false;
+      if (s.endDate && s.endDate < today) return false;
+      return true;
+    });
+
+    // ★ 스케줄 객체를 고객화면 형식으로 변환
+    const schedules = rawSchedules.map((s, i) => {
+      const onl = s.onlineSeats || Math.round((s.capacity||45)*0.7);
+      const off = s.offlineSeats || Math.round((s.capacity||45)*0.3);
+      const booked = Math.floor(Math.random() * Math.floor(onl * 0.6)); // 시뮬레이션
+      return {
+        id: s.id || `${regionId}-${(s.time||'').replace(':','')}`,
+        time: s.time || '-',
+        endTime: s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-',
+        capacity: s.capacity || 45,
+        online: onl,
+        offline: off,
+        onlineBooked: booked,
+        status: booked >= onl ? 'soldout' : 'active',
+        course: s.course || `${region.name} 수륙양용 코스`,
+        vehicle: s.vehicle || '',
+        operatingDays: s.operatingDays || ['월','화','수','목','금','토','일'],
+      };
+    });
+
+    // ★ localStorage 저장 요금 우선 참조 (승인완료·active 상태만 고객화면 표시)
+    const savedFares = (() => {
+      try {
+        const f = JSON.parse(localStorage.getItem('amk_fares') || '{}');
+        if (f[regionId] && f[regionId].length > 0) return f[regionId].filter(f => f.status === 'active');
+      } catch(e) {}
+      return null;
+    })();
+    if (savedFares && savedFares.length > 0) region.fares = savedFares;
+
     setTimeout(() => { Navbar.init(); CustomerPages.initRegionPage(region, schedules); }, 100);
     return `
 ${Navbar.render('reservation')}

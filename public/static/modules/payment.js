@@ -4,6 +4,23 @@
 
 const PaymentModule = {
 
+  // ── 스케줄 시간 추출 헬퍼 (24시간제) ──────────────────────
+  // scheduleId에서 실제 시간 추출 (localStorage 저장 스케줄 우선)
+  _getScheduleTime: (scheduleId, regionId) => {
+    if (!scheduleId) return '-';
+    // localStorage에 저장된 스케줄 데이터에서 검색
+    try {
+      const allSch = JSON.parse(localStorage.getItem('amk_settings') || '{}').schedules || {};
+      const regionSch = allSch[regionId] || [];
+      const found = regionSch.find(s => s.id === scheduleId);
+      if (found?.time) return found.time;
+      // ID 패턴에서 추출: 예) tongyeong-0900 → 09:00
+      const match = scheduleId.match(/[-_](\d{4})$/);
+      if (match) { const t = match[1]; return `${t.slice(0,2)}:${t.slice(2,4)}`; }
+    } catch(e) {}
+    return '-';
+  },
+
   // ── 결제 페이지 ────────────────────────────────────────────
   page: async () => {
     const cart = Store.get('cart');
@@ -59,7 +76,7 @@ ${Navbar.render()}
           <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500 w-28">상품명</td><td class="py-2.5 font-medium">${region.name} 수륙양용 시티투어 탑승권</td></tr>
           <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500">예약지역</td><td class="py-2.5 font-medium">${region.location || region.name}</td></tr>
           <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500">탑승일자</td><td class="py-2.5 font-bold">${Utils.dateKo(cart.date)}</td></tr>
-          <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500">탑승시간</td><td class="py-2.5 font-bold">${cart.scheduleId?.includes('1')?'09:30':cart.scheduleId?.includes('2')?'11:30':cart.scheduleId?.includes('3')?'13:30':'15:30'}</td></tr>
+          <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500">탑승시간</td><td class="py-2.5 font-bold">${PaymentModule._getScheduleTime(cart.scheduleId, cart.regionId)}</td></tr>
           <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500">탑승인원</td><td class="py-2.5">${cart.paxList?.join(', ') || cart.pax+'명'}</td></tr>
           <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500">탑승장</td><td class="py-2.5 text-xs">${region.boardingPlace}</td></tr>
           <tr class="border-b border-gray-100"><td class="py-2.5 text-gray-500">예약자</td><td class="py-2.5">${cart.name} / ${Utils.maskPhone(cart.phone)}</td></tr>
@@ -245,7 +262,7 @@ ${Navbar.render()}
     <div class="px-6 py-4">
       <div class="grid grid-cols-2 gap-3 text-sm mb-4">
         <div><div class="text-gray-400 text-xs mb-1">탑승일자</div><div class="font-bold text-navy-800">${Utils.dateKo(cart?.date||'')}</div></div>
-        <div><div class="text-gray-400 text-xs mb-1">탑승시간</div><div class="font-bold text-navy-800 text-xl">${cart?.scheduleId?.includes('1')?'09:30':cart?.scheduleId?.includes('2')?'11:30':cart?.scheduleId?.includes('3')?'13:30':'15:30'}</div></div>
+        <div><div class="text-gray-400 text-xs mb-1">탑승시간</div><div class="font-bold text-navy-800 text-xl">${PaymentModule._getScheduleTime(cart?.scheduleId, cart?.regionId)}</div></div>
         <div><div class="text-gray-400 text-xs mb-1">탑승인원</div><div class="font-bold text-navy-800">${cart?.pax}명</div></div>
         <div><div class="text-gray-400 text-xs mb-1">예약자</div><div class="font-bold text-navy-800">${cart?.name}</div></div>
         <div class="col-span-2"><div class="text-gray-400 text-xs mb-1">탑승장</div><div class="font-medium text-navy-800 text-xs">${region.boardingPlace}</div></div>
@@ -277,7 +294,7 @@ ${Navbar.render()}
     ${PaymentModule.renderWristbandPreview({
       region: region.name,
       date: cart?.date,
-      time: cart?.scheduleId?.includes('1')?'09:30':cart?.scheduleId?.includes('2')?'11:30':cart?.scheduleId?.includes('3')?'13:30':'15:30',
+      time: PaymentModule._getScheduleTime(cart?.scheduleId, cart?.regionId),
       round: '1회차',
       type: '성인',
       reservationId: reservation.reservationId,
@@ -385,7 +402,7 @@ ${Navbar.render()}
       <div class="form-group">
         <label class="form-label required">희망 회차</label>
         <select class="form-select" id="wl-time">
-          <option>09:30</option><option>11:30</option><option>13:30</option><option>15:30</option>
+          <option value="09:00">09:00</option><option value="09:30">09:30</option><option value="10:00">10:00</option><option value="11:00">11:00</option><option value="12:00">12:00</option><option value="13:00">13:00</option><option value="14:00">14:00</option><option value="15:00">15:00</option><option value="15:30">15:30</option><option value="16:00">16:00</option><option value="17:00">17:00</option>
         </select>
       </div>
       <div class="form-group">

@@ -438,7 +438,7 @@ const AdminModule = (() => {
             <div class="text-xs text-gray-500">${r.code}</div>
           </td>
           <td class="px-4 py-3 text-center">
-            <span class="badge-active px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">운영중</span>
+            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">운영중</span>
           </td>
           <td class="px-4 py-3 text-right font-medium">${todayRes.toLocaleString()}명</td>
           <td class="px-4 py-3 text-right font-medium text-blue-600">₩${revenue.toLocaleString()}</td>
@@ -452,22 +452,31 @@ const AdminModule = (() => {
       `;
     }).join('');
 
-    const fareApprovals = [
-      { region: '통영', type: '성인', oldPrice: 35000, newPrice: 37000, requestedAt: '2025-05-08', status: 'pending' },
-      { region: '부여', type: '단체', oldPrice: 25000, newPrice: 23000, requestedAt: '2025-05-09', status: 'pending' },
-    ];
-    const approvalRows = fareApprovals.map((a, i) => `
-      <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3 text-sm">${a.region}</td>
-        <td class="px-4 py-3 text-sm">${a.type} 요금</td>
-        <td class="px-4 py-3 text-sm text-center">₩${a.oldPrice.toLocaleString()} → <strong class="${a.newPrice > a.oldPrice ? 'text-red-600' : 'text-blue-600'}">₩${a.newPrice.toLocaleString()}</strong></td>
-        <td class="px-4 py-3 text-sm text-center text-gray-500">${a.requestedAt}</td>
-        <td class="px-4 py-3 text-center">
-          <button onclick="AdminModule.approveFare(${i}, true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1">승인</button>
-          <button onclick="AdminModule.approveFare(${i}, false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs">반려</button>
-        </td>
-      </tr>
-    `).join('');
+    // ★ localStorage에서 실제 승인 대기 목록 로드
+    const fareApprovals = _getFareApprovals().filter(a => a.status === 'pending');
+    const approvalRows = fareApprovals.length === 0
+      ? '<tr><td colspan="7" class="text-center py-6 text-gray-400 text-sm">대기 중인 승인 요청이 없습니다.</td></tr>'
+      : fareApprovals.map((a, i) => {
+        const regionName = (window.REGIONS||[]).find(r=>r.id===a.regionId)?.name || a.regionId || '알 수 없음';
+        return `
+        <tr class="hover:bg-orange-50" id="hq-appr-row-${i}">
+          <td class="px-4 py-3 text-sm font-medium">${regionName}</td>
+          <td class="px-4 py-3 text-sm">${a.label}</td>
+          <td class="px-4 py-3 text-sm text-center text-gray-500">${a.type||'일반'}</td>
+          <td class="px-4 py-3 text-sm text-right font-semibold text-blue-700">₩${(a.price||0).toLocaleString()}</td>
+          <td class="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">${a.reason||'-'}</td>
+          <td class="px-4 py-3 text-xs text-gray-400 text-center">${a.requestedBy||'지역관리자'}<br>${a.requestedAt||'-'}</td>
+          <td class="px-4 py-3 text-center">
+            <button onclick="AdminModule.approvefare(${i}, true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 hover:bg-green-600">승인</button>
+            <button onclick="AdminModule.approvefare(${i}, false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">반려</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+    const pendingScheduleCount = (() => {
+      const allSch = Settings.get('schedules') || {};
+      return Object.values(allSch).reduce((sum, arr) => sum + (arr||[]).filter(s=>s.status==='active').length, 0);
+    })();
 
     const content = `
       <div class="space-y-6">
@@ -476,7 +485,31 @@ const AdminModule = (() => {
           ${statCard('fas fa-map-marker-alt', '운영 지역', `${activeRegions.length}개`, `전체 ${regions.length}개 중`, 'blue')}
           ${statCard('fas fa-users', '오늘 총 예약', '1,247명', '전일 대비 +12%', 'green')}
           ${statCard('fas fa-won-sign', '오늘 총 매출', '₩38,450,000', '결제 완료 기준', 'purple')}
-          ${statCard('fas fa-hourglass-half', '요금 승인 대기', `${fareApprovals.length}건`, '즉시 처리 필요', 'orange')}
+          ${statCard('fas fa-hourglass-half', '요금 승인 대기', `${fareApprovals.length}건`, fareApprovals.length > 0 ? '⚠ 즉시 처리 필요' : '대기 없음', fareApprovals.length > 0 ? 'orange' : 'gray')}
+        </div>
+
+        <!-- 요금 변경 승인 대기 (실시간 연동) -->
+        <div class="bg-white rounded-xl shadow-sm p-6 ${fareApprovals.length > 0 ? 'ring-2 ring-orange-200' : ''}">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-bell ${fareApprovals.length > 0 ? 'text-orange-500 animate-pulse' : 'text-gray-400'}"></i>
+              요금 변경 승인 대기
+              ${fareApprovals.length > 0 ? `<span class="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">${fareApprovals.length}</span>` : ''}
+            </h2>
+            <button onclick="AdminModule.navigate('fares')" class="text-blue-600 hover:underline text-xs flex items-center gap-1">
+              <i class="fas fa-external-link-alt"></i> 요금 관리로 이동
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="admin-table w-full">
+              <thead>
+                <tr class="bg-gray-50">
+                  ${['지역','구분명','유형','정가','변경사유','요청자·일시','처리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100" id="hq-fare-approval-body">${approvalRows}</tbody>
+            </table>
+          </div>
         </div>
 
         <!-- 지역별 현황 -->
@@ -502,35 +535,13 @@ const AdminModule = (() => {
           </div>
         </div>
 
-        <!-- 요금 변경 승인 대기 -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h2 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <i class="fas fa-bell text-orange-500"></i> 요금 변경 승인 대기
-          </h2>
-          ${fareApprovals.length ? `
-          <div class="overflow-x-auto">
-            <table class="admin-table w-full" id="fare-approval-table">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">지역</th>
-                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">항목</th>
-                  <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">변경 내용</th>
-                  <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">요청일</th>
-                  <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600">처리</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100" id="fare-approval-body">${approvalRows}</tbody>
-            </table>
-          </div>` : '<p class="text-gray-500 text-sm text-center py-4">대기 중인 승인 요청이 없습니다.</p>'}
-        </div>
-
         <!-- 빠른 작업 -->
         <div class="bg-white rounded-xl shadow-sm p-6">
           <h2 class="font-semibold text-gray-800 mb-4">빠른 작업</h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             ${[
               {icon:'fas fa-plus-circle', label:'새 지역 추가', fn:"AdminModule.navigate('regions')", color:'blue'},
-              {icon:'fas fa-calendar-plus', label:'일정 추가', fn:"AdminModule.navigate('schedules')", color:'green'},
+              {icon:'fas fa-calendar-plus', label:'일정 관리', fn:"AdminModule.navigate('schedules')", color:'green'},
               {icon:'fas fa-bullhorn', label:'공지 작성', fn:"AdminModule.navigate('popups')", color:'purple'},
               {icon:'fas fa-chart-line', label:'통계 보기', fn:"AdminModule.navigate('stats-admin')", color:'orange'},
             ].map(a => `
@@ -546,12 +557,12 @@ const AdminModule = (() => {
     return renderAdminLayout('hq-dashboard', content, '본사 슈퍼 대시보드');
   };
 
+  // hqDashboard의 approveFare - faresPage의 approvefare와 동일 로직 공유
   const approveFare = (idx, approve) => {
-    const tbody = document.getElementById('fare-approval-body');
-    if (!tbody) return;
-    const rows = tbody.querySelectorAll('tr');
-    if (rows[idx]) rows[idx].remove();
-    Utils.toast(approve ? '요금 변경이 승인되었습니다.' : '요금 변경이 반려되었습니다.', approve ? 'success' : 'info');
+    // hqDashboard에서 호출되는 경우 → approvefare 위임
+    approvefare(idx, approve);
+    // 대시보드 갱신
+    hqDashboard().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
   // ── 지역 대시보드 (지역별 독립 데이터) ───────────────────────
@@ -1091,12 +1102,39 @@ const AdminModule = (() => {
   };
 
   // ── 일정 관리 ──────────────────────────────────────────────
+  // ── 시간 유틸 ────────────────────────────────────────────────
+  // HH:mm 형식 검증
+  const _isValidTime = (t) => /^\d{2}:\d{2}$/.test(t) && parseInt(t.split(':')[0]) < 24 && parseInt(t.split(':')[1]) < 60;
+  // 분 더하기 → HH:mm
+  const _addMinutes = (hhmm, mins) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    const total = h * 60 + m + mins;
+    const rh = Math.floor(total / 60) % 24;
+    const rm = total % 60;
+    return `${String(rh).padStart(2,'0')}:${String(rm).padStart(2,'0')}`;
+  };
+  // HH:mm → 분 단위 정수
+  const _toMinutes = (hhmm) => { const [h,m] = (hhmm||'00:00').split(':').map(Number); return h*60+m; };
+  // 예약 존재 여부 확인 (regionId + scheduleId)
+  const _hasReservations = (regionId, scheduleId) => {
+    const res = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
+    return res.some(r => r.regionId === regionId && r.scheduleId === scheduleId && r.status !== 'cancelled');
+  };
+  // 스케줄 ID 생성
+  const _makeScheduleId = (regionId, time) => `${regionId}-${time.replace(':','')}`;
+  // 차량 목록 가져오기
+  const _getVehicles = (regionId) => {
+    const all = Settings.get('vehicles') || {};
+    return (all[regionId] || []).filter(v => v.status !== 'inactive');
+  };
+
   const schedulesPage = async () => {
     _adminState.currentSection = 'schedules';
     const regions = (window.REGIONS||[]).filter(r=>r.status==='active');
     const activeRegionId = _adminState.selectedRegion || regions[0]?.id || 'tongyeong';
     const allSchedules = Settings.get('schedules') || window.SCHEDULES || {};
     const schedules = allSchedules[activeRegionId] || [];
+    const vehicles = _getVehicles(activeRegionId);
 
     const regionTabs = regions.map(r=>`
       <button onclick="AdminModule.selectScheduleRegion('${r.id}')"
@@ -1105,33 +1143,57 @@ const AdminModule = (() => {
       </button>
     `).join('');
 
-    const scheduleRows = schedules.map((s, i) => `
+    const scheduleRows = schedules.map((s, i) => {
+      const sid = s.id || _makeScheduleId(activeRegionId, s.time);
+      const hasRes = _hasReservations(activeRegionId, sid);
+      const endTime = s.time ? _addMinutes(s.time, s.duration||70) : '-';
+      const statusClass = s.status==='active'?'bg-green-100 text-green-700':s.status==='suspended'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-500';
+      const statusLabel = s.status==='active'?'운영':s.status==='suspended'?'운휴':'중단';
+      return `
       <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3 font-medium text-sm">${s.time || s.name}</td>
+        <td class="px-4 py-3 font-medium text-sm text-center">${s.time || '-'}</td>
+        <td class="px-4 py-3 text-sm text-center text-gray-500">${endTime}</td>
         <td class="px-4 py-3 text-sm text-center">${s.duration || 70}분</td>
+        <td class="px-4 py-3 text-sm text-center">${s.vehicle || (vehicles[i%vehicles.length]?.name) || '-'}</td>
         <td class="px-4 py-3 text-sm text-center">${s.capacity || 45}석</td>
         <td class="px-4 py-3 text-sm text-center">${s.onlineSeats || Math.round((s.capacity||45)*0.7)}석 / ${s.offlineSeats || Math.round((s.capacity||45)*0.3)}석</td>
-        <td class="px-4 py-3 text-sm text-center">
-          ${(s.operatingDays||['월','화','수','목','금','토','일']).join(', ')}
-        </td>
+        <td class="px-4 py-3 text-sm text-center text-xs">${(s.operatingDays||['월','화','수','목','금','토','일']).join('')}</td>
         <td class="px-4 py-3 text-center">
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${s.status==='active'?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">
-            ${s.status==='active'?'운영':'중단'}
-          </span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${statusLabel}</span>
+          ${hasRes?'<span class="ml-1 text-xs text-orange-500" title="예약 있음">●</span>':''}
         </td>
-        <td class="px-4 py-3 text-center">
-          <button onclick="AdminModule.editSchedule('${activeRegionId}',${i})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
-          <button onclick="AdminModule.toggleScheduleStatus('${activeRegionId}',${i})" class="text-orange-500 hover:underline text-xs mr-2">${s.status==='active'?'중단':'재개'}</button>
+        <td class="px-4 py-3 text-center whitespace-nowrap">
+          <button onclick="AdminModule.editSchedule('${activeRegionId}',${i})" class="text-blue-600 hover:underline text-xs mr-1">수정</button>
+          <button onclick="AdminModule.toggleScheduleStatus('${activeRegionId}',${i})" class="text-orange-500 hover:underline text-xs mr-1">${s.status==='active'?'운휴':'재개'}</button>
           <button onclick="AdminModule.deleteSchedule('${activeRegionId}',${i})" class="text-red-500 hover:underline text-xs">삭제</button>
         </td>
-      </tr>
-    `).join('') || '<tr><td colspan="7" class="text-center py-4 text-gray-500 text-sm">일정이 없습니다.</td></tr>';
+      </tr>`;
+    }).join('') || '<tr><td colspan="10" class="text-center py-6 text-gray-400 text-sm">등록된 일정이 없습니다.</td></tr>';
+
+    // 24시간제 시간 select 옵션 (08:00~19:30, 30분 단위)
+    const timeOptions = (() => {
+      let opts = '<option value="">시간 선택</option>';
+      for (let h = 6; h <= 21; h++) {
+        for (let m of [0, 30]) {
+          const hh = String(h).padStart(2,'0');
+          const mm = String(m).padStart(2,'0');
+          opts += `<option value="${hh}:${mm}">${hh}:${mm}</option>`;
+        }
+      }
+      return opts;
+    })();
+
+    // 반복모달 차량 옵션
+    const vehicleOpts = vehicles.map(v=>`<option value="${v.name||v.id}">${v.name||v.id} (${v.capacity||45}석)</option>`).join('') || '<option value="1호차">1호차</option><option value="2호차">2호차</option>';
 
     const content = `
       <div class="space-y-4">
         <div class="flex flex-wrap gap-3 items-center justify-between">
           <div class="flex gap-2 flex-wrap">${regionTabs}</div>
           <div class="flex gap-2">
+            <button onclick="AdminModule.showAutoScheduleModal('${activeRegionId}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 flex items-center gap-2">
+              <i class="fas fa-magic"></i> 자동 스케줄 생성
+            </button>
             <button onclick="AdminModule.showRecurringModal('${activeRegionId}')" class="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 flex items-center gap-2">
               <i class="fas fa-redo"></i> 반복 일정 생성
             </button>
@@ -1140,12 +1202,16 @@ const AdminModule = (() => {
             </button>
           </div>
         </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-xs text-blue-700 flex items-center gap-2">
+          <i class="fas fa-info-circle"></i>
+          시간은 24시간제(HH:mm)로 표시됩니다. <strong>●</strong> 표시는 예약이 있는 회차로 시간 변경 시 주의가 필요합니다.
+        </div>
         <div class="bg-white rounded-xl shadow-sm overflow-hidden">
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
               <thead>
                 <tr class="bg-gray-50">
-                  ${['출발시간','소요시간','총 정원','온라인/현장','운영요일','상태','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+                  ${['출발시간','종료예상','소요시간','배정차량','총정원','온라인/현장','운영요일','상태','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100" id="schedule-table-body">${scheduleRows}</tbody>
@@ -1155,28 +1221,56 @@ const AdminModule = (() => {
       </div>
 
       <!-- 일정 추가/수정 모달 -->
-      <div id="schedule-modal" class="modal-overlay hidden">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
-          <h3 class="font-semibold text-gray-800 text-lg mb-4" id="schedule-modal-title">일정 추가</h3>
+      <div id="schedule-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg" onclick="event.stopPropagation()">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800 text-lg" id="schedule-modal-title">일정 추가</h3>
+            <button onclick="document.getElementById('schedule-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          </div>
+          <div id="sch-res-warn" class="hidden mb-3 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            이 회차에 예약이 있습니다. 시간 변경 시 기존 예약자에게 별도 안내가 필요합니다.
+          </div>
           <div class="space-y-3">
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">출발 시간</label>
-                <input id="s-time" type="time" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <label class="block text-xs font-medium text-gray-700 mb-1">출발 시간 (24시간제)</label>
+                <div class="flex gap-1">
+                  <select id="s-time-select" class="flex-1 border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" onchange="document.getElementById('s-time').value=this.value">
+                    ${timeOptions}
+                  </select>
+                  <input id="s-time" type="text" placeholder="HH:mm" maxlength="5"
+                    class="w-20 border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-center font-mono"
+                    oninput="this.value=this.value.replace(/[^0-9:]/g,'');if(this.value.length===2&&!this.value.includes(':'))this.value+=':';document.getElementById('s-time-select').value=this.value">
+                </div>
+                <p class="text-xs text-gray-400 mt-1">예: 09:00, 14:30</p>
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">소요 시간 (분)</label>
-                <input id="s-duration" type="number" value="70" min="10" max="300" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <input id="s-duration" type="number" value="70" min="10" max="300"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  oninput="AdminModule.updateSeatPreview()">
               </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">배정 차량</label>
+              <select id="s-vehicle" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">자동 배정</option>
+                ${vehicleOpts}
+              </select>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">총 정원</label>
-                <input id="s-capacity" type="number" value="45" min="1" max="200" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" oninput="AdminModule.updateSeatPreview()">
+                <input id="s-capacity" type="number" value="45" min="1" max="200"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  oninput="AdminModule.updateSeatPreview()">
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">온라인 비율 (%)</label>
-                <input id="s-online-ratio" type="number" value="70" min="0" max="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" oninput="AdminModule.updateSeatPreview()">
+                <input id="s-online-ratio" type="number" value="70" min="0" max="100"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  oninput="AdminModule.updateSeatPreview()">
               </div>
             </div>
             <div class="bg-gray-50 rounded-lg p-3 text-sm" id="seat-preview">
@@ -1199,7 +1293,7 @@ const AdminModule = (() => {
                 <input id="s-start-date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
               </div>
               <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">적용 종료일 (미입력 시 무기한)</label>
+                <label class="block text-xs font-medium text-gray-700 mb-1">적용 종료일 (미입력=무기한)</label>
                 <input id="s-end-date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
               </div>
             </div>
@@ -1211,13 +1305,138 @@ const AdminModule = (() => {
         </div>
       </div>
 
-      <!-- 반복 일정 생성 모달 -->
-      <div id="recurring-modal" class="modal-overlay hidden">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
-          <h3 class="font-semibold text-gray-800 text-lg mb-4"><i class="fas fa-redo text-purple-500 mr-2"></i>반복 일정 자동 생성</h3>
+      <!-- 자동 스케줄 생성 모달 -->
+      <div id="auto-schedule-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-screen overflow-y-auto" onclick="event.stopPropagation()">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800 text-lg"><i class="fas fa-magic text-green-500 mr-2"></i>자동 스케줄 생성</h3>
+            <button onclick="document.getElementById('auto-schedule-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          </div>
+          <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 mb-4">
+            <i class="fas fa-info-circle mr-1"></i>
+            첫차·막차·배차간격을 입력하면 전체 회차가 자동으로 계산됩니다. 차량이 2대 이상이면 교대 배정됩니다.
+          </div>
+          <div class="space-y-4">
+            <!-- 기본 설정 -->
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">첫차 시간</label>
+                <select id="auto-first" class="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" onchange="AdminModule.previewAutoSchedule()">
+                  ${timeOptions}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">막차 시간</label>
+                <select id="auto-last" class="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" onchange="AdminModule.previewAutoSchedule()">
+                  ${timeOptions}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">배차 간격 (분)</label>
+                <select id="auto-interval" class="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" onchange="AdminModule.previewAutoSchedule()">
+                  <option value="30">30분</option>
+                  <option value="60" selected>60분</option>
+                  <option value="90">90분</option>
+                  <option value="120">120분</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">소요 시간 (분)</label>
+                <input id="auto-duration" type="number" value="70" min="10" max="300"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  oninput="AdminModule.previewAutoSchedule()">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">총 정원</label>
+                <input id="auto-capacity" type="number" value="45" min="1" max="200"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  oninput="AdminModule.previewAutoSchedule()">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">온라인 비율 (%)</label>
+                <input id="auto-online-ratio" type="number" value="70" min="0" max="100"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  oninput="AdminModule.previewAutoSchedule()">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">운영 요일</label>
+              <div class="flex flex-wrap gap-2">
+                ${['월','화','수','목','금','토','일'].map(d=>`
+                  <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" name="auto-days" value="${d}" checked class="rounded text-green-600" onchange="AdminModule.previewAutoSchedule()">
+                    <span class="text-sm">${d}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">적용 시작일</label>
+                <input id="auto-start-date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">적용 종료일 (미입력=무기한)</label>
+                <input id="auto-end-date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none">
+              </div>
+            </div>
+            <!-- 미리보기 -->
+            <div id="auto-preview-wrap" class="hidden">
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="text-sm font-semibold text-gray-700"><i class="fas fa-eye mr-1 text-green-500"></i>생성 미리보기</h4>
+                <span id="auto-preview-count" class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full"></span>
+              </div>
+              <div id="auto-conflict-warn" class="hidden mb-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
+                <i class="fas fa-exclamation-triangle mr-1"></i>
+                <span id="auto-conflict-msg"></span>
+              </div>
+              <div class="overflow-x-auto max-h-56 overflow-y-auto border rounded-lg">
+                <table class="w-full text-xs">
+                  <thead class="bg-gray-50 sticky top-0">
+                    <tr>
+                      ${['회차','출발','종료예상','배정차량','온라인석','현장석','상태'].map(h=>`<th class="px-3 py-2 text-gray-600 text-center font-semibold">${h}</th>`).join('')}
+                    </tr>
+                  </thead>
+                  <tbody id="auto-preview-body" class="divide-y divide-gray-100"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button onclick="AdminModule.previewAutoSchedule()" class="border border-green-500 text-green-600 px-4 py-2 rounded-lg text-sm hover:bg-green-50 flex items-center gap-1">
+              <i class="fas fa-eye"></i> 미리보기
+            </button>
+            <button onclick="AdminModule.confirmAutoSchedule()" class="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm hover:bg-green-700 font-medium">
+              <i class="fas fa-check mr-1"></i> 생성 확정
+            </button>
+            <button onclick="document.getElementById('auto-schedule-modal').classList.add('hidden')" class="flex-1 border py-2 rounded-lg text-sm hover:bg-gray-50">취소</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 반복 일정 생성 모달 (개선) -->
+      <div id="recurring-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xl max-h-screen overflow-y-auto" onclick="event.stopPropagation()">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800 text-lg"><i class="fas fa-redo text-purple-500 mr-2"></i>반복 일정 생성</h3>
+            <button onclick="document.getElementById('recurring-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          </div>
+          <!-- 모드 선택 -->
+          <div class="flex gap-2 mb-4 bg-gray-100 p-1 rounded-lg">
+            <button id="rec-mode-manual-btn" onclick="AdminModule.switchRecMode('manual')"
+              class="flex-1 py-1.5 rounded-lg text-xs font-medium bg-white shadow text-purple-700 transition-all">
+              ✏️ 직접 입력
+            </button>
+            <button id="rec-mode-auto-btn" onclick="AdminModule.switchRecMode('auto')"
+              class="flex-1 py-1.5 rounded-lg text-xs font-medium text-gray-500 transition-all">
+              ⚡ 자동 계산 (첫차/막차/배차간격)
+            </button>
+          </div>
           <div class="space-y-3">
             <div class="p-3 bg-purple-50 rounded-lg text-sm text-purple-700">
-              설정한 시간대를 지정 기간 동안 매일 반복 생성합니다. 운영요일 외에는 자동 제외됩니다.
+              설정한 시간대를 지정 기간 동안 반복 생성합니다. 운영요일 외에는 자동 제외됩니다.
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -1229,14 +1448,45 @@ const AdminModule = (() => {
                 <input id="rec-end" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none">
               </div>
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-2">운행 시간대 (여러 개 입력 가능)</label>
+            <!-- 직접 입력 모드 -->
+            <div id="rec-manual-section">
+              <label class="block text-xs font-medium text-gray-700 mb-2">운행 시간 (24시간제, 여러 개 가능)</label>
               <div id="rec-times" class="space-y-2">
-                <div class="flex gap-2"><input type="time" value="10:00" class="rec-time-input border rounded px-2 py-1 text-sm flex-1 focus:ring-2 focus:ring-purple-500 outline-none"><button onclick="this.parentElement.remove()" class="text-red-500 text-xs">삭제</button></div>
-                <div class="flex gap-2"><input type="time" value="13:00" class="rec-time-input border rounded px-2 py-1 text-sm flex-1 focus:ring-2 focus:ring-purple-500 outline-none"><button onclick="this.parentElement.remove()" class="text-red-500 text-xs">삭제</button></div>
-                <div class="flex gap-2"><input type="time" value="15:30" class="rec-time-input border rounded px-2 py-1 text-sm flex-1 focus:ring-2 focus:ring-purple-500 outline-none"><button onclick="this.parentElement.remove()" class="text-red-500 text-xs">삭제</button></div>
+                <div class="flex gap-2 items-center">
+                  <select class="rec-time-select border rounded px-2 py-1.5 text-sm w-24 focus:ring-2 focus:ring-purple-500 outline-none" onchange="this.nextElementSibling.value=this.value">${timeOptions}</select>
+                  <input type="text" value="09:00" placeholder="HH:mm" maxlength="5" class="rec-time-input border rounded px-2 py-1.5 text-sm w-20 text-center font-mono focus:ring-2 focus:ring-purple-500 outline-none" oninput="this.previousElementSibling.value=this.value">
+                  <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xs px-1">삭제</button>
+                </div>
+                <div class="flex gap-2 items-center">
+                  <select class="rec-time-select border rounded px-2 py-1.5 text-sm w-24 focus:ring-2 focus:ring-purple-500 outline-none" onchange="this.nextElementSibling.value=this.value">${timeOptions}</select>
+                  <input type="text" value="13:00" placeholder="HH:mm" maxlength="5" class="rec-time-input border rounded px-2 py-1.5 text-sm w-20 text-center font-mono focus:ring-2 focus:ring-purple-500 outline-none" oninput="this.previousElementSibling.value=this.value">
+                  <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xs px-1">삭제</button>
+                </div>
               </div>
-              <button onclick="AdminModule.addRecTime()" class="mt-2 text-purple-600 text-xs hover:underline">+ 시간 추가</button>
+              <button onclick="AdminModule.addRecTime()" class="mt-2 text-purple-600 text-xs hover:underline flex items-center gap-1"><i class="fas fa-plus-circle"></i> 시간 추가</button>
+            </div>
+            <!-- 자동 계산 모드 -->
+            <div id="rec-auto-section" class="hidden space-y-3">
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">첫차</label>
+                  <select id="rec-auto-first" class="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 outline-none" onchange="AdminModule.calcRecAutoTimes()">${timeOptions}</select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">막차</label>
+                  <select id="rec-auto-last" class="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 outline-none" onchange="AdminModule.calcRecAutoTimes()">${timeOptions}</select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-700 mb-1">배차간격</label>
+                  <select id="rec-auto-interval" class="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-purple-500 outline-none" onchange="AdminModule.calcRecAutoTimes()">
+                    <option value="30">30분</option>
+                    <option value="60" selected>60분</option>
+                    <option value="90">90분</option>
+                    <option value="120">120분</option>
+                  </select>
+                </div>
+              </div>
+              <div id="rec-auto-calc-result" class="hidden bg-purple-50 rounded-lg p-3 text-xs text-purple-700"></div>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -1248,15 +1498,67 @@ const AdminModule = (() => {
                 <input id="rec-ratio" type="number" value="70" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none">
               </div>
             </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">운영 요일</label>
+              <div class="flex flex-wrap gap-2">
+                ${['월','화','수','목','금','토','일'].map(d=>`
+                  <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" name="rec-days" value="${d}" checked class="rounded text-purple-600">
+                    <span class="text-sm">${d}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
           </div>
           <div class="flex gap-2 mt-4">
-            <button onclick="AdminModule.generateRecurring()" class="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm hover:bg-purple-700">자동 생성</button>
+            <button onclick="AdminModule.generateRecurring()" class="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm hover:bg-purple-700 font-medium"><i class="fas fa-magic mr-1"></i>생성</button>
             <button onclick="document.getElementById('recurring-modal').classList.add('hidden')" class="flex-1 border py-2 rounded-lg text-sm hover:bg-gray-50">취소</button>
           </div>
         </div>
       </div>
     `;
     return renderAdminLayout('schedules', content, '일정 관리');
+  };
+
+  // ── 반복모달 모드 전환 ──────────────────────────────────────
+  const switchRecMode = (mode) => {
+    const manualBtn = document.getElementById('rec-mode-manual-btn');
+    const autoBtn   = document.getElementById('rec-mode-auto-btn');
+    const manualSec = document.getElementById('rec-manual-section');
+    const autoSec   = document.getElementById('rec-auto-section');
+    if (!manualBtn) return;
+    if (mode === 'manual') {
+      manualBtn.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium bg-white shadow text-purple-700 transition-all';
+      autoBtn.className   = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-gray-500 transition-all';
+      manualSec.classList.remove('hidden');
+      autoSec.classList.add('hidden');
+    } else {
+      autoBtn.className   = 'flex-1 py-1.5 rounded-lg text-xs font-medium bg-white shadow text-purple-700 transition-all';
+      manualBtn.className = 'flex-1 py-1.5 rounded-lg text-xs font-medium text-gray-500 transition-all';
+      manualSec.classList.add('hidden');
+      autoSec.classList.remove('hidden');
+      calcRecAutoTimes();
+    }
+  };
+  // 자동 계산 모드 - 첫차/막차/간격으로 시간 목록 계산
+  const calcRecAutoTimes = () => {
+    const first = document.getElementById('rec-auto-first')?.value;
+    const last  = document.getElementById('rec-auto-last')?.value;
+    const interval = parseInt(document.getElementById('rec-auto-interval')?.value) || 60;
+    const resultEl = document.getElementById('rec-auto-calc-result');
+    if (!first || !last || !resultEl) return;
+    const firstM = _toMinutes(first);
+    const lastM  = _toMinutes(last);
+    if (firstM >= lastM) { resultEl.className = 'bg-red-50 rounded-lg p-3 text-xs text-red-700'; resultEl.textContent = '첫차가 막차보다 이른 시간이어야 합니다.'; resultEl.classList.remove('hidden'); return; }
+    const times = [];
+    for (let m = firstM; m <= lastM; m += interval) {
+      const h = Math.floor(m/60), min = m%60;
+      times.push(`${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
+    }
+    resultEl.className = 'bg-purple-50 rounded-lg p-3 text-xs text-purple-700';
+    resultEl.innerHTML = `<strong>계산된 운행 시간 ${times.length}회차:</strong> ${times.join(' / ')}`;
+    resultEl.classList.remove('hidden');
+    resultEl.dataset.times = JSON.stringify(times);
   };
 
   const selectScheduleRegion = (regionId) => { _adminState.selectedRegion = regionId; schedulesPage().then(html => { document.getElementById('app').innerHTML = html; }); };
@@ -1269,88 +1571,357 @@ const AdminModule = (() => {
     if(document.getElementById('sp-offline')) document.getElementById('sp-offline').textContent = off;
   };
   let _editingScheduleIdx = null, _editingScheduleRegion = null;
-  const addSchedule = (regionId) => { _editingScheduleIdx = null; _editingScheduleRegion = regionId; document.getElementById('schedule-modal-title').textContent = '일정 추가'; document.getElementById('schedule-modal').classList.remove('hidden'); };
+
+  const addSchedule = (regionId) => {
+    _editingScheduleIdx = null;
+    _editingScheduleRegion = regionId;
+    document.getElementById('schedule-modal-title').textContent = '일정 추가';
+    const warn = document.getElementById('sch-res-warn');
+    if (warn) warn.classList.add('hidden');
+    document.getElementById('schedule-modal').classList.remove('hidden');
+  };
+
   const editSchedule = (regionId, idx) => {
     const allSchedules = Settings.get('schedules') || window.SCHEDULES || {};
-    const s = (allSchedules[regionId]||[])[idx]; if(!s) return;
-    _editingScheduleIdx = idx; _editingScheduleRegion = regionId;
+    const s = (allSchedules[regionId]||[])[idx];
+    if (!s) return;
+    const sid = s.id || _makeScheduleId(regionId, s.time);
+    _editingScheduleIdx = idx;
+    _editingScheduleRegion = regionId;
     document.getElementById('schedule-modal-title').textContent = '일정 수정';
+    // 예약 있는 경우 경고 표시
+    const warn = document.getElementById('sch-res-warn');
+    if (warn) { _hasReservations(regionId, sid) ? warn.classList.remove('hidden') : warn.classList.add('hidden'); }
     const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||''; };
-    set('s-time', s.time||''); set('s-duration', s.duration||70); set('s-capacity', s.capacity||45); set('s-online-ratio', s.onlineRatio||70);
+    set('s-time', s.time||'');
+    set('s-time-select', s.time||'');
+    set('s-duration', s.duration||70);
+    set('s-capacity', s.capacity||45);
+    set('s-online-ratio', s.onlineRatio||70);
+    set('s-vehicle', s.vehicle||'');
+    set('s-start-date', s.startDate||'');
+    set('s-end-date', s.endDate||'');
+    // 운영요일 체크박스 설정
+    const days = s.operatingDays || ['월','화','수','목','금','토','일'];
+    document.querySelectorAll('input[name="s-days"]').forEach(cb => { cb.checked = days.includes(cb.value); });
     document.getElementById('schedule-modal').classList.remove('hidden');
     updateSeatPreview();
   };
+
   const saveSchedule = () => {
     const get = (id) => document.getElementById(id)?.value||'';
+    const timeVal = get('s-time').trim();
+    if (!timeVal || !_isValidTime(timeVal)) { Utils.toast('출발 시간을 올바른 형식(HH:mm)으로 입력하세요', 'error'); return; }
     const days = [...document.querySelectorAll('input[name="s-days"]:checked')].map(c=>c.value);
     const cap = parseInt(get('s-capacity'))||45;
     const ratio = parseInt(get('s-online-ratio'))||70;
-    const sData = { time: get('s-time'), duration: parseInt(get('s-duration'))||70, capacity: cap, onlineRatio: ratio, onlineSeats: Math.round(cap*ratio/100), offlineSeats: cap - Math.round(cap*ratio/100), operatingDays: days, startDate: get('s-start-date'), endDate: get('s-end-date'), status: 'active' };
-    if (!sData.time) { Utils.toast('출발 시간을 입력하세요', 'error'); return; }
+    if (ratio < 0 || ratio > 100) { Utils.toast('온라인 비율은 0~100 사이여야 합니다', 'error'); return; }
+    const regionId = _editingScheduleRegion;
     let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-    if (!allSchedules[_editingScheduleRegion]) allSchedules[_editingScheduleRegion] = [];
-    if (_editingScheduleIdx !== null) allSchedules[_editingScheduleRegion][_editingScheduleIdx] = sData;
-    else allSchedules[_editingScheduleRegion].push(sData);
+    if (!allSchedules[regionId]) allSchedules[regionId] = [];
+
+    // 중복 일정 검증 (동일 지역 + 동일 출발시간, 수정 시 자기 자신 제외)
+    const duplicate = allSchedules[regionId].find((s, i) => s.time === timeVal && i !== _editingScheduleIdx);
+    if (duplicate) { Utils.toast(`이미 ${timeVal} 출발 일정이 존재합니다. 중복 생성이 불가합니다.`, 'error'); return; }
+
+    const sData = {
+      id: (_editingScheduleIdx !== null ? (allSchedules[regionId][_editingScheduleIdx]?.id || _makeScheduleId(regionId, timeVal)) : _makeScheduleId(regionId, timeVal)),
+      time: timeVal,
+      duration: parseInt(get('s-duration'))||70,
+      vehicle: get('s-vehicle')||'',
+      capacity: cap,
+      onlineRatio: ratio,
+      onlineSeats: Math.round(cap*ratio/100),
+      offlineSeats: cap - Math.round(cap*ratio/100),
+      operatingDays: days,
+      startDate: get('s-start-date'),
+      endDate: get('s-end-date'),
+      status: 'active',
+    };
+
+    if (_editingScheduleIdx !== null) {
+      // 예약 있는 회차 시간 변경 시 추가 경고
+      const old = allSchedules[regionId][_editingScheduleIdx];
+      if (old.time !== sData.time && _hasReservations(regionId, old.id || _makeScheduleId(regionId, old.time))) {
+        if (!confirm(`경고: 이 회차에 예약이 있습니다!\n출발시간을 ${old.time} → ${sData.time}으로 변경하면 기존 예약자에게 별도 안내가 필요합니다.\n계속 진행하시겠습니까?`)) return;
+      }
+      allSchedules[regionId][_editingScheduleIdx] = sData;
+    } else {
+      allSchedules[regionId].push(sData);
+    }
     Settings.set('schedules', allSchedules);
     document.getElementById('schedule-modal').classList.add('hidden');
     Utils.toast('일정이 저장되었습니다.', 'success');
     schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
+
   const toggleScheduleStatus = (regionId, idx) => {
     let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-    if (allSchedules[regionId]?.[idx]) { allSchedules[regionId][idx].status = allSchedules[regionId][idx].status === 'active' ? 'suspended' : 'active'; }
+    if (!allSchedules[regionId]?.[idx]) return;
+    const s = allSchedules[regionId][idx];
+    const newStatus = s.status === 'active' ? 'suspended' : 'active';
+    allSchedules[regionId][idx].status = newStatus;
     Settings.set('schedules', allSchedules);
+    Utils.toast(newStatus === 'active' ? '운영 재개되었습니다.' : '운휴 처리되었습니다.', 'info');
     schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
+
   const deleteSchedule = (regionId, idx) => {
+    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
+    const s = allSchedules[regionId]?.[idx];
+    if (!s) return;
+    const sid = s.id || _makeScheduleId(regionId, s.time);
+    // 예약 있으면 삭제 불가 - 운휴 처리 유도
+    if (_hasReservations(regionId, sid)) {
+      Utils.toast('이 회차에 예약이 있어 삭제할 수 없습니다. "운휴" 처리를 이용하세요.', 'error');
+      return;
+    }
     Utils.confirm('이 일정을 삭제하시겠습니까?', () => {
-      let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-      allSchedules[regionId]?.splice(idx, 1);
+      allSchedules[regionId].splice(idx, 1);
       Settings.set('schedules', allSchedules);
       Utils.toast('삭제되었습니다.', 'success');
       schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
     });
   };
-  const showRecurringModal = (regionId) => { _editingScheduleRegion = regionId; document.getElementById('recurring-modal').classList.remove('hidden'); };
+
+  // ── 자동 스케줄 생성 ────────────────────────────────────────
+  let _autoScheduleRegion = null;
+  const showAutoScheduleModal = (regionId) => {
+    _autoScheduleRegion = regionId;
+    // 기본값 세팅
+    setTimeout(() => {
+      const fEl = document.getElementById('auto-first');
+      const lEl = document.getElementById('auto-last');
+      if (fEl) fEl.value = '09:00';
+      if (lEl) lEl.value = '16:00';
+      document.getElementById('auto-preview-wrap')?.classList.add('hidden');
+    }, 50);
+    document.getElementById('auto-schedule-modal').classList.remove('hidden');
+  };
+
+  const previewAutoSchedule = () => {
+    const first    = document.getElementById('auto-first')?.value;
+    const last     = document.getElementById('auto-last')?.value;
+    const interval = parseInt(document.getElementById('auto-interval')?.value) || 60;
+    const duration = parseInt(document.getElementById('auto-duration')?.value) || 70;
+    const cap      = parseInt(document.getElementById('auto-capacity')?.value) || 45;
+    const ratio    = parseInt(document.getElementById('auto-online-ratio')?.value) || 70;
+    if (!first || !last) { Utils.toast('첫차와 막차 시간을 선택하세요', 'warning'); return; }
+
+    const firstM = _toMinutes(first);
+    const lastM  = _toMinutes(last);
+    if (firstM >= lastM) { Utils.toast('첫차가 막차보다 이른 시간이어야 합니다.', 'error'); return; }
+
+    const vehicles = _getVehicles(_autoScheduleRegion);
+    const vCount   = Math.max(vehicles.length, 1);
+    const onl  = Math.round(cap * ratio / 100);
+    const off  = cap - onl;
+
+    // 회차 목록 생성
+    const rows = [];
+    let conflicts = [];
+    const existSchedules = (Settings.get('schedules') || {})[_autoScheduleRegion] || [];
+    const existTimes = new Set(existSchedules.map(s => s.time));
+
+    for (let m = firstM, seq = 0; m <= lastM; m += interval, seq++) {
+      const h = Math.floor(m/60), min = m%60;
+      const depTime = `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+      const endTime = _addMinutes(depTime, duration);
+      const vIdx = seq % vCount;
+      const vName = vehicles[vIdx]?.name || `${vIdx+1}호차`;
+
+      // 차량 충돌 검증: 이전 회차 종료 전에 같은 차량이 다시 배정되는지
+      const prevSameVehicle = rows.filter(r => r.vName === vName).slice(-1)[0];
+      let conflictFlag = false;
+      if (prevSameVehicle) {
+        const prevEndM = _toMinutes(prevSameVehicle.endTime);
+        if (m < prevEndM) { conflictFlag = true; conflicts.push(`${depTime}: ${vName} 소요시간 충돌`); }
+      }
+      // 기존 일정 중복 검증
+      const isDup = existTimes.has(depTime);
+
+      rows.push({ seq: seq+1, depTime, endTime, vName, onl, off, conflictFlag, isDup });
+    }
+
+    // 미리보기 테이블 렌더
+    const wrap  = document.getElementById('auto-preview-wrap');
+    const tbody = document.getElementById('auto-preview-body');
+    const cntEl = document.getElementById('auto-preview-count');
+    const warnEl  = document.getElementById('auto-conflict-warn');
+    const warnMsg = document.getElementById('auto-conflict-msg');
+    if (!wrap || !tbody) return;
+
+    tbody.innerHTML = rows.map(r => {
+      const rowClass = r.conflictFlag ? 'bg-red-50' : r.isDup ? 'bg-yellow-50' : '';
+      const statusTxt = r.conflictFlag ? '<span class="text-red-600 font-bold">⚠ 충돌</span>' : r.isDup ? '<span class="text-yellow-600">중복</span>' : '<span class="text-green-600">정상</span>';
+      return `<tr class="${rowClass}">
+        <td class="px-3 py-1.5 text-center font-medium">${r.seq}회차</td>
+        <td class="px-3 py-1.5 text-center font-mono font-bold">${r.depTime}</td>
+        <td class="px-3 py-1.5 text-center font-mono text-gray-500">${r.endTime}</td>
+        <td class="px-3 py-1.5 text-center">${r.vName}</td>
+        <td class="px-3 py-1.5 text-center">${r.onl}석</td>
+        <td class="px-3 py-1.5 text-center">${r.off}석</td>
+        <td class="px-3 py-1.5 text-center">${statusTxt}</td>
+      </tr>`;
+    }).join('');
+
+    cntEl.textContent = `총 ${rows.length}회차`;
+    wrap.classList.remove('hidden');
+
+    if (conflicts.length > 0) {
+      warnMsg.textContent = `차량 충돌 ${conflicts.length}건: ${conflicts.join(' | ')}`;
+      warnEl.classList.remove('hidden');
+    } else {
+      warnEl.classList.add('hidden');
+    }
+    // 행 데이터 저장
+    wrap.dataset.rows = JSON.stringify(rows);
+  };
+
+  const confirmAutoSchedule = () => {
+    const wrap = document.getElementById('auto-preview-wrap');
+    if (!wrap || wrap.classList.contains('hidden')) {
+      Utils.toast('먼저 미리보기를 확인하세요', 'warning'); return;
+    }
+    const rows = JSON.parse(wrap.dataset.rows || '[]');
+    if (!rows.length) { Utils.toast('생성할 회차가 없습니다', 'error'); return; }
+    const conflictRows = rows.filter(r => r.conflictFlag);
+    if (conflictRows.length > 0 && !confirm(`차량 충돌이 ${conflictRows.length}건 있습니다. 그래도 생성하시겠습니까?`)) return;
+
+    const duration  = parseInt(document.getElementById('auto-duration')?.value) || 70;
+    const cap       = parseInt(document.getElementById('auto-capacity')?.value) || 45;
+    const ratio     = parseInt(document.getElementById('auto-online-ratio')?.value) || 70;
+    const startDate = document.getElementById('auto-start-date')?.value || '';
+    const endDate   = document.getElementById('auto-end-date')?.value || '';
+    const days      = [...document.querySelectorAll('input[name="auto-days"]:checked')].map(c => c.value);
+    const regionId  = _autoScheduleRegion;
+
+    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
+    if (!allSchedules[regionId]) allSchedules[regionId] = [];
+    const existTimes = new Set(allSchedules[regionId].map(s => s.time));
+    let added = 0;
+
+    rows.forEach(r => {
+      if (existTimes.has(r.depTime)) return; // 중복 스킵
+      allSchedules[regionId].push({
+        id: _makeScheduleId(regionId, r.depTime),
+        time: r.depTime,
+        duration,
+        vehicle: r.vName,
+        capacity: cap,
+        onlineRatio: ratio,
+        onlineSeats: r.onl,
+        offlineSeats: r.off,
+        operatingDays: days,
+        startDate,
+        endDate,
+        status: 'active',
+      });
+      added++;
+    });
+
+    // 시간순 정렬
+    allSchedules[regionId].sort((a,b) => _toMinutes(a.time) - _toMinutes(b.time));
+    Settings.set('schedules', allSchedules);
+    document.getElementById('auto-schedule-modal').classList.add('hidden');
+    Utils.toast(`${added}개 회차가 생성되었습니다. (중복 ${rows.length - added}건 스킵)`, 'success');
+    schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  const showRecurringModal = (regionId) => {
+    _editingScheduleRegion = regionId;
+    document.getElementById('recurring-modal').classList.remove('hidden');
+  };
   const addRecTime = () => {
     const wrap = document.getElementById('rec-times');
-    if(!wrap) return;
+    if (!wrap) return;
+    const allSchedules = Settings.get('schedules') || window.SCHEDULES || {};
+    // 시간 옵션 재생성
+    let opts = '<option value="">시간 선택</option>';
+    for (let h = 6; h <= 21; h++) for (let m of [0,30]) { const hh=String(h).padStart(2,'0'),mm=String(m).padStart(2,'0'); opts+=`<option value="${hh}:${mm}">${hh}:${mm}</option>`; }
     const div = document.createElement('div');
-    div.className = 'flex gap-2';
-    div.innerHTML = `<input type="time" class="rec-time-input border rounded px-2 py-1 text-sm flex-1 focus:ring-2 focus:ring-purple-500 outline-none"><button onclick="this.parentElement.remove()" class="text-red-500 text-xs">삭제</button>`;
+    div.className = 'flex gap-2 items-center';
+    div.innerHTML = `<select class="rec-time-select border rounded px-2 py-1.5 text-sm w-24 focus:ring-2 focus:ring-purple-500 outline-none" onchange="this.nextElementSibling.value=this.value">${opts}</select><input type="text" placeholder="HH:mm" maxlength="5" class="rec-time-input border rounded px-2 py-1.5 text-sm w-20 text-center font-mono focus:ring-2 focus:ring-purple-500 outline-none" oninput="this.previousElementSibling.value=this.value"><button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xs px-1">삭제</button>`;
     wrap.appendChild(div);
   };
+
   const generateRecurring = () => {
     const start = document.getElementById('rec-start')?.value;
-    const end = document.getElementById('rec-end')?.value;
-    const times = [...document.querySelectorAll('.rec-time-input')].map(i=>i.value).filter(Boolean);
-    const cap = parseInt(document.getElementById('rec-capacity')?.value)||45;
-    const ratio = parseInt(document.getElementById('rec-ratio')?.value)||70;
-    if (!start || !end || !times.length) { Utils.toast('시작일, 종료일, 시간을 모두 입력하세요', 'error'); return; }
-    const count = times.length * Math.ceil((new Date(end)-new Date(start))/(86400000)+1);
-    Utils.toast(`반복 일정 ${count}개가 생성되었습니다.`, 'success');
+    const end   = document.getElementById('rec-end')?.value;
+    if (!start || !end) { Utils.toast('시작일과 종료일을 입력하세요', 'error'); return; }
+    if (new Date(start) > new Date(end)) { Utils.toast('시작일이 종료일보다 늦을 수 없습니다', 'error'); return; }
+
+    const cap   = parseInt(document.getElementById('rec-capacity')?.value) || 45;
+    const ratio = parseInt(document.getElementById('rec-ratio')?.value) || 70;
+    const days  = [...document.querySelectorAll('input[name="rec-days"]:checked')].map(c=>c.value);
+
+    // 직접입력 vs 자동계산
+    const autoSection = document.getElementById('rec-auto-section');
+    const isAutoMode  = autoSection && !autoSection.classList.contains('hidden');
+    let times = [];
+    if (isAutoMode) {
+      const resultEl = document.getElementById('rec-auto-calc-result');
+      times = JSON.parse(resultEl?.dataset?.times || '[]');
+      if (!times.length) { calcRecAutoTimes(); times = JSON.parse(document.getElementById('rec-auto-calc-result')?.dataset?.times || '[]'); }
+      if (!times.length) { Utils.toast('첫차/막차/배차간격을 설정하세요', 'error'); return; }
+    } else {
+      times = [...document.querySelectorAll('.rec-time-input')].map(i=>i.value.trim()).filter(t=>_isValidTime(t));
+      if (!times.length) { Utils.toast('유효한 운행 시간을 1개 이상 입력하세요', 'error'); return; }
+    }
+
+    const regionId = _editingScheduleRegion;
+    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
+    if (!allSchedules[regionId]) allSchedules[regionId] = [];
+    const existTimes = new Set(allSchedules[regionId].map(s=>s.time));
+    const onl = Math.round(cap*ratio/100);
+    const off = cap - onl;
+    const DAY_NAMES = ['일','월','화','수','목','금','토'];
+    let added = 0;
+
+    // 날짜별 반복 생성
+    let cur = new Date(start + 'T00:00:00');
+    const endD = new Date(end + 'T00:00:00');
+    while (cur <= endD) {
+      const dayName = DAY_NAMES[cur.getDay()];
+      if (days.includes(dayName)) {
+        times.forEach(t => {
+          if (!existTimes.has(t)) {
+            allSchedules[regionId].push({ id:_makeScheduleId(regionId,t), time:t, duration:70, capacity:cap, onlineRatio:ratio, onlineSeats:onl, offlineSeats:off, operatingDays:days, startDate:start, endDate:end, status:'active' });
+            existTimes.add(t);
+            added++;
+          }
+        });
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+    // 시간순 정렬
+    allSchedules[regionId].sort((a,b)=>_toMinutes(a.time)-_toMinutes(b.time));
+    Settings.set('schedules', allSchedules);
     document.getElementById('recurring-modal').classList.add('hidden');
+    Utils.toast(`반복 일정 ${added}개가 생성되었습니다.`, 'success');
+    schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
   // ── 요금 관리 ──────────────────────────────────────────────
-  // ── 요금 승인 Store 키 ────────────────────────────────────
+  // ── 요금 승인 Store 키 (localStorage 사용 → 탭/세션 간 공유 가능) ──
   const FARE_STORE_KEY = 'amk_fares';
   const FARE_APPROVAL_KEY = 'amk_fare_approvals';
 
-  // 세션 내 요금 데이터 로드 (Store 우선 → window.REGIONS fallback)
+  // localStorage 기반 요금 데이터 로드 (지역관리자↔슈퍼관리자 공유)
   const _getFares = (regionId) => {
-    const stored = JSON.parse(sessionStorage.getItem(FARE_STORE_KEY) || '{}');
+    const stored = JSON.parse(localStorage.getItem(FARE_STORE_KEY) || '{}');
     if (stored[regionId]) return stored[regionId];
     const region = (window.REGIONS||[]).find(r=>r.id===regionId);
     return region?.fares || [];
   };
   const _setFares = (regionId, fares) => {
-    const stored = JSON.parse(sessionStorage.getItem(FARE_STORE_KEY) || '{}');
+    const stored = JSON.parse(localStorage.getItem(FARE_STORE_KEY) || '{}');
     stored[regionId] = fares;
-    sessionStorage.setItem(FARE_STORE_KEY, JSON.stringify(stored));
+    localStorage.setItem(FARE_STORE_KEY, JSON.stringify(stored));
   };
-  const _getFareApprovals = () => JSON.parse(sessionStorage.getItem(FARE_APPROVAL_KEY) || '[]');
-  const _setFareApprovals = (list) => sessionStorage.setItem(FARE_APPROVAL_KEY, JSON.stringify(list));
+  // ★ 핵심 수정: localStorage 사용으로 지역관리자↔슈퍼관리자 실시간 공유
+  const _getFareApprovals = () => JSON.parse(localStorage.getItem(FARE_APPROVAL_KEY) || '[]');
+  const _setFareApprovals = (list) => localStorage.setItem(FARE_APPROVAL_KEY, JSON.stringify(list));
 
   // 요금 상태 레이블/색상
   const FARE_STATUS = {
@@ -1387,7 +1958,7 @@ const AdminModule = (() => {
     const fareMode = Settings.get('fareChangeMode') || 'approval';
 
     // 지역관리자: 즉시적용 권한 여부 확인
-    const instantPerm = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+    const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
     const hasInstantPerm = isSuper || instantPerm[activeRegionId];
 
     // 지역 탭 (슈퍼만)
@@ -1589,9 +2160,9 @@ const AdminModule = (() => {
       <p class="mb-2"><strong>${regionId}</strong> 지역 관리자에게 즉시 적용 권한을 부여하시겠습니까?</p>
       <p class="text-gray-500 text-xs">이 권한이 있으면 HQ 승인 없이 요금을 즉시 적용할 수 있습니다.</p>
     </div>`, () => {
-      const perms = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+      const perms = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
       perms[regionId] = true;
-      sessionStorage.setItem('amk_instant_perm', JSON.stringify(perms));
+      localStorage.setItem('amk_instant_perm', JSON.stringify(perms));
       Utils.toast(`${regionId} 지역에 즉시 적용 권한이 부여되었습니다.`, 'success');
       faresPage().then(html => { document.getElementById('app').innerHTML = html; });
     });
@@ -1604,7 +2175,7 @@ const AdminModule = (() => {
     _editingFareIdx = null;
     const user = _adminState.user || {};
     const isSuper = user.role === 'super';
-    const instantPerm = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+    const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
     const hasInstant = isSuper || instantPerm[regionId];
     const fareMode = Settings.get('fareChangeMode') || 'approval';
     document.getElementById('fare-modal-title').textContent = '요금 추가';
@@ -1659,7 +2230,7 @@ const AdminModule = (() => {
 
     const user = _adminState.user || {};
     const isSuper = user.role === 'super';
-    const instantPerm = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+    const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
     const hasInstant = isSuper || instantPerm[_editingFareRegion];
     const fareMode = Settings.get('fareChangeMode') || 'approval';
     const regionId = _editingFareRegion;
@@ -1686,18 +2257,21 @@ const AdminModule = (() => {
       _setFares(regionId, fares);
       Utils.toast('요금이 즉시 저장되었습니다. 고객 예약화면에 반영됩니다.', 'success');
     } else {
-      // 승인 요청
+      // ★ 승인 요청 - localStorage에 저장 → 슈퍼관리자 로그인 시 즉시 확인 가능
       const approvals = _getFareApprovals();
+      const regionName = (window.REGIONS||[]).find(r=>r.id===regionId)?.name || regionId;
       approvals.push({
         ...newFare,
         status: 'pending',
         regionId,
-        editIdx: _editingFareIdx,
+        regionName,
+        editIdx: _editingFareIdx !== null ? _editingFareIdx : -1,
         requestedBy: user.name || '지역관리자',
         requestedAt: new Date().toLocaleString('ko-KR'),
+        requestedRole: user.role || 'regional',
       });
       _setFareApprovals(approvals);
-      Utils.toast('요금 변경 승인 요청이 접수되었습니다. 본사 승인 후 적용됩니다.', 'success');
+      Utils.toast(`✅ 승인 요청이 전송되었습니다. 본사 대시보드에서 확인할 수 있습니다.\n승인 전까지 고객 예약화면에 미반영됩니다.`, 'success');
     }
     document.getElementById('fare-modal').classList.add('hidden');
     faresPage().then(html => { document.getElementById('app').innerHTML = html; });
@@ -1713,27 +2287,52 @@ const AdminModule = (() => {
     faresPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
-  // 요금 승인/반려 (슈퍼관리자)
+  // 요금 승인/반려 (슈퍼관리자) - localStorage 공유로 실시간 반영
   const approvefare = (approvalIdx, isApprove) => {
     const approvals = _getFareApprovals();
     const item = approvals[approvalIdx];
     if (!item) return;
 
+    const processedAt = new Date().toLocaleString('ko-KR');
+    const user = _adminState.user || {};
+
     if (isApprove) {
+      // 승인: 요금 목록에 실제 반영 (localStorage에 저장 → 고객화면에도 반영)
       const fares = _getFares(item.regionId);
-      const fare = { ...item, status: 'active' };
+      const fare = { ...item, status: 'active', approvedAt: processedAt, approvedBy: user.name || '슈퍼관리자' };
       delete fare.regionId; delete fare.editIdx; delete fare.requestedBy; delete fare.requestedAt;
-      if (item.editIdx !== null && fares[item.editIdx]) {
+      if (item.editIdx !== null && item.editIdx >= 0 && fares[item.editIdx]) {
         fares[item.editIdx] = fare;
       } else {
         fares.push(fare);
       }
       _setFares(item.regionId, fares);
     }
+
+    // 이력 저장 (승인/반려 모두)
+    const history = JSON.parse(localStorage.getItem('amk_fare_history') || '[]');
+    history.unshift({
+      ...item,
+      result: isApprove ? 'approved' : 'rejected',
+      processedAt,
+      processedBy: user.name || '슈퍼관리자',
+    });
+    if (history.length > 200) history.splice(200);
+    localStorage.setItem('amk_fare_history', JSON.stringify(history));
+
+    // 승인 목록에서 제거
     approvals.splice(approvalIdx, 1);
     _setFareApprovals(approvals);
-    Utils.toast(isApprove ? '요금 변경이 승인되었습니다. 고객 화면에 반영됩니다.' : '요금 변경 요청이 반려되었습니다.', isApprove ? 'success' : 'info');
-    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+
+    Utils.toast(isApprove ? '✅ 요금 변경이 승인되었습니다. 고객 예약화면에 즉시 반영됩니다.' : '❌ 요금 변경 요청이 반려되었습니다.', isApprove ? 'success' : 'info');
+
+    // 현재 페이지 유지하며 갱신
+    const section = _adminState.currentSection;
+    if (section === 'hq-dashboard') {
+      hqDashboard().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+    }
   };
 
   // ── 좌석 배분 관리 ─────────────────────────────────────────
@@ -3395,6 +3994,8 @@ const AdminModule = (() => {
     addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal,
     selectScheduleRegion, addSchedule, editSchedule, saveSchedule, toggleScheduleStatus,
     deleteSchedule, showRecurringModal, addRecTime, generateRecurring, updateSeatPreview,
+    showAutoScheduleModal, previewAutoSchedule, confirmAutoSchedule,
+    switchRecMode, calcRecAutoTimes,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare,
     updateSeatRatio, saveSeatRatio,
