@@ -1114,10 +1114,26 @@ ${Footer.render()}
   },
 
   // ── 예약 확인/취소 ──────────────────────────────────────────
-  bookingCheck: async () => {
-    // URL 파라미터로 예약번호 자동 채우기
-    const urlId = new URLSearchParams(window.location.search).get('id') || '';
-    setTimeout(() => Navbar.init(), 100);
+  // ★ 핫픽스: params 수신 가능하도록 변경 (/reservation/detail/:reservationNo 라우트 지원)
+  bookingCheck: async (params) => {
+    // URL 파라미터로 예약번호 자동 채우기 (id, reservationNo, reservationId 모두 지원)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlId = (
+      (params && (params.reservationNo || params.id)) ||
+      urlParams.get('id') ||
+      urlParams.get('reservationNo') ||
+      urlParams.get('reservationId') ||
+      ''
+    ).toUpperCase();
+    // 자동 조회 여부: URL에 예약번호가 포함된 경우 페이지 렌더 후 자동 실행
+    const autoSearch = !!urlId;
+    setTimeout(() => {
+      Navbar.init();
+      // ★ 예약번호가 URL에 있으면 자동 조회 실행
+      if (autoSearch) {
+        CustomerPages._autoCheckBooking(urlId);
+      }
+    }, 200);
     return `
 ${Navbar.render()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
@@ -1199,6 +1215,203 @@ ${Navbar.render()}
   </div>
 </div>
 ${Footer.render()}`;
+  },
+
+  // ★ 핫픽스: 예약번호가 URL에 있을 때 자동 조회 (휴대폰 입력 없이 예약번호만으로 상세 표시)
+  _autoCheckBooking: async (reservationId) => {
+    if (!reservationId) return;
+    const el = document.getElementById('booking-result');
+    if (!el) return;
+    el.innerHTML = `<div class="flex flex-col items-center justify-center py-12 text-gray-400 gap-3">
+      <i class="fas fa-spinner fa-spin text-3xl text-blue-400"></i>
+      <span class="text-sm">예약 정보를 조회 중입니다...</span>
+    </div>`;
+
+    const statusLabelMap = {
+      confirmed:       { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
+      payment_pending: { cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
+      payment_done:    { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
+      checkedin:       { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
+      cancelled:       { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
+      refunded:        { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
+      noshow:          { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
+    };
+
+    let found = null;
+    try {
+      // localStorage amk_reservations에서 예약번호로 직접 조회
+      const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
+      const raw = stored.find(r => (r.reservationId === reservationId || r.id === reservationId));
+      if (raw) {
+        const st = raw.status || 'confirmed';
+        found = {
+          id:              raw.reservationId || raw.id,
+          regionName:      raw.regionName || raw.regionId || '-',
+          boardingPlace:   raw.boardingPlace || '-',
+          parkingInfo:     raw.parkingInfo || '-',
+          customerService: raw.customerService || '1588-0000',
+          date:            raw.date || '-',
+          schedule:        raw.schedule || raw.time || '-',
+          pax:             raw.pax || raw.totalPassengers || 1,
+          paxList:         raw.paxList || [],
+          totalAmount:     raw.totalAmount || raw.total || 0,
+          name:            raw.name || '-',
+          phone:           raw.phone || '-',
+          status:          st,
+          statusBadge:     statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+          cancelable:      ['confirmed','payment_done','payment_pending'].includes(st),
+          wristband:       ['confirmed','payment_done','checkedin'].includes(st),
+          qr:              ['confirmed','payment_done','checkedin'].includes(st),
+        };
+      }
+    } catch(e) {}
+
+    if (!found) {
+      el.innerHTML = `<div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
+        <div class="text-3xl mb-2">🔍</div>
+        <p class="font-bold text-amber-700 mb-1">예약번호로 바로 조회할 수 없습니다</p>
+        <p class="text-sm text-amber-600 mb-4">보안을 위해 예약번호와 휴대폰번호를 함께 입력해주세요.</p>
+      </div>`;
+      // 입력창에 예약번호 자동 채우기
+      const inp = document.getElementById('chk-resId');
+      if (inp) inp.value = reservationId;
+      return;
+    }
+
+    // 조회 성공 → 결과 렌더링 (checkBooking과 동일 포맷)
+    CustomerPages._renderBookingResult(el, found);
+  },
+
+  // ★ 핫픽스: 예약 결과 렌더링 공통 함수 (checkBooking과 _autoCheckBooking에서 공유)
+  _renderBookingResult: (el, found) => {
+    const badge = found.statusBadge || { cls:'bg-gray-100 text-gray-600', label: found.status };
+    const isCancelled = ['cancelled','refunded','noshow'].includes(found.status);
+    const isCancelable = found.cancelable !== false && !isCancelled;
+    const boardingDate = new Date(found.date + 'T00:00:00');
+    const hoursUntil   = (boardingDate - Date.now()) / 36e5;
+    const cancelWarning = hoursUntil > 0 && hoursUntil < 24
+      ? '<p class="text-xs text-orange-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>탑승 24시간 이내 취소 시 수수료가 발생합니다.</p>'
+      : '';
+    const maskPhone = (p) => {
+      const d = (p||'').replace(/[^0-9]/g,'');
+      if (d.length < 8) return p;
+      return d.slice(0,3) + '-****-' + d.slice(-4);
+    };
+    const qrUrl = `${window.location.origin}/reservation/check?id=${found.id}`;
+
+    el.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-navy-900 to-blue-800 px-5 py-4 text-white">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs text-white/60 mb-1">예약번호</p>
+              <span class="font-black tracking-widest text-lg">${found.id}</span>
+            </div>
+            <span class="px-3 py-1.5 rounded-full text-xs font-bold ${badge.cls}">${badge.label}</span>
+          </div>
+        </div>
+        <div class="p-5">
+          <div class="space-y-2.5 text-sm mb-4">
+            <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+              <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-map-marker-alt w-4 text-center text-blue-400"></i>운행 지역</span>
+              <span class="font-semibold">${found.regionName}</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+              <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-calendar-alt w-4 text-center text-blue-400"></i>탑승일자</span>
+              <span class="font-semibold">${found.date}</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+              <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-clock w-4 text-center text-blue-400"></i>탑승시간</span>
+              <span class="font-semibold">${found.schedule || '-'}</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+              <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-users w-4 text-center text-blue-400"></i>탑승인원</span>
+              <span class="font-semibold">${found.pax}명${found.paxList?.length ? ' (' + found.paxList.join(', ') + ')' : ''}</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+              <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-user w-4 text-center text-blue-400"></i>예약자</span>
+              <span class="font-semibold">${found.name} / ${maskPhone(found.phone)}</span>
+            </div>
+            <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+              <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-map-pin w-4 text-center text-blue-400"></i>탑승장</span>
+              <span class="font-semibold text-xs text-right">${found.boardingPlace}</span>
+            </div>
+            ${found.parkingInfo && found.parkingInfo !== '-' ? `
+            <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+              <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-parking w-4 text-center text-blue-400"></i>주차 안내</span>
+              <span class="font-semibold text-xs text-right">${found.parkingInfo}</span>
+            </div>` : ''}
+            <div class="flex justify-between items-center pt-1">
+              <span class="text-gray-500 font-medium">결제금액</span>
+              <span class="font-black text-xl text-blue-700">₩${(found.totalAmount||0).toLocaleString()}</span>
+            </div>
+          </div>
+
+          ${found.wristband ? `
+          <div class="flex items-center gap-2 bg-cyan-50 border border-cyan-200 rounded-xl p-3 text-xs text-cyan-800 mb-3">
+            <i class="fas fa-band-aid text-cyan-500"></i>
+            <span><strong>QR 손목밴드</strong> — 현장 도착 시 직원에게 QR 제시 → 손목밴드 수령</span>
+          </div>` : ''}
+
+          ${isCancelled ? `
+          <div class="bg-red-50 rounded-xl p-3 text-xs text-red-700 text-center mb-3">
+            <i class="fas fa-info-circle mr-1"></i>
+            ${found.status==='cancelled'?'취소된 예약입니다. 환불 문의: ☎ '+found.customerService:
+              found.status==='refunded'?'환불 처리가 완료된 예약입니다.':
+              '노쇼 처리된 예약입니다. 고객센터 문의 요망.'}
+          </div>` : cancelWarning ? `<div class="mb-3">${cancelWarning}</div>` : ''}
+
+          <!-- QR 탑승권 영역 -->
+          ${found.qr ? `
+          <div class="border border-dashed border-gray-300 rounded-xl p-4 mb-4 text-center">
+            <p class="text-xs text-gray-400 mb-2">QR 탑승권 (현장 스캔용)</p>
+            <div class="flex justify-center">
+              <canvas id="auto-qr-canvas" style="border-radius:8px;border:2px solid #e2e8f0;max-width:160px"></canvas>
+            </div>
+            <p class="font-mono text-xs text-gray-400 mt-2">${found.id}</p>
+          </div>` : ''}
+
+          <!-- 액션 버튼 -->
+          <div class="mt-4 space-y-2">
+            ${!isCancelled ? `
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="Utils.print()"
+                class="bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+                <i class="fas fa-print"></i>탑승권 인쇄
+              </button>
+              <button onclick="Utils.copy('${found.id}');Utils.toast('예약번호가 복사되었습니다','success')"
+                class="border border-blue-300 text-blue-600 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors">
+                <i class="fas fa-copy"></i>예약번호 복사
+              </button>
+            </div>
+            ${isCancelable ? `
+            <button onclick="Utils.confirm('예약을 취소하시겠습니까?\\n\\n취소 정책:\\n• 탑승 7일 전: 전액 환불\\n• 탑승 3일 전: 90% 환불\\n• 탑승 1일 전: 50% 환불\\n• 당일: 환불 불가', () => {
+                document.getElementById('booking-result').innerHTML='<div class=\\'bg-green-50 border border-green-200 rounded-2xl p-6 text-center\\'><i class=\\'fas fa-check-circle text-green-400 text-3xl mb-3\\'></i><p class=\\'font-bold text-green-700 mb-1\\'>취소 요청이 접수되었습니다</p><p class=\\'text-sm text-gray-500\\'>환불 처리는 영업일 3~5일 소요됩니다.</p></div>';
+                Utils.toast('취소 요청 접수 완료','success');
+              })"
+              class="w-full border border-red-300 text-red-500 py-2.5 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+              <i class="fas fa-times-circle"></i>예약 취소 신청
+            </button>` : ''}` : ''}
+            <div class="grid grid-cols-2 gap-2 mt-1">
+              <button onclick="document.getElementById('booking-result').innerHTML=''"
+                class="border border-gray-200 text-gray-500 py-2.5 rounded-xl text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
+                <i class="fas fa-search"></i>다시 조회
+              </button>
+              <button onclick="Router.go('/inquiry')"
+                class="border border-gray-200 text-gray-500 py-2.5 rounded-xl text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
+                <i class="fas fa-headset"></i>고객센터
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    // QR 생성
+    if (found.qr) {
+      setTimeout(async () => {
+        try { await Utils.generateQR('auto-qr-canvas', qrUrl); } catch(e) {}
+      }, 300);
+    }
   },
 
   // ── 예약 조회 실행 ──────────────────────────────────────────

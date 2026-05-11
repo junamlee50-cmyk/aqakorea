@@ -224,6 +224,45 @@ ${Footer.render()}`;
     Utils.loading(false);
     if (res.success) {
       Store.set('lastReservation', res.data);
+
+      // ★ 핫픽스: amk_reservations localStorage에 예약 저장 → 예약확인 조회 연동
+      try {
+        const regRes = await API.get(`/api/regions/${cart.regionId}`);
+        const region = regRes.data || {};
+        const scheduleTime = PaymentModule._getScheduleTime(cart.scheduleId, cart.regionId);
+        const record = {
+          reservationId:    res.data.reservationId,
+          id:               res.data.reservationId,
+          regionId:         cart.regionId,
+          regionName:       region.name || cart.regionId,
+          boardingPlace:    region.boardingPlace || '-',
+          parkingInfo:      region.parkingInfo || '-',
+          customerService:  region.customerService || '-',
+          date:             cart.date,
+          scheduleId:       cart.scheduleId,
+          schedule:         scheduleTime,
+          time:             scheduleTime,
+          pax:              cart.pax,
+          paxList:          cart.paxList || [],
+          total:            cart.total,
+          totalAmount:      cart.total,
+          name:             cart.name,
+          phone:            cart.phone,
+          email:            cart.email || '',
+          source:           cart.source || '',
+          status:           'confirmed',
+          payStatus:        'paid',
+          createdAt:        new Date().toISOString(),
+          qrCode:           res.data.qrCode || `AMK-${res.data.reservationId}-${Date.now()}`,
+        };
+        const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
+        // 중복 방지: 같은 reservationId가 있으면 덮어쓰기
+        const idx = stored.findIndex(r => r.reservationId === record.reservationId || r.id === record.reservationId);
+        if (idx >= 0) stored[idx] = record;
+        else stored.unshift(record);
+        localStorage.setItem('amk_reservations', JSON.stringify(stored));
+      } catch(e) { /* 저장 실패 시에도 완료 화면은 정상 이동 */ }
+
       Router.go('/payment/complete');
     }
   },
