@@ -1156,8 +1156,8 @@ ${Navbar.render()}
         <div>
           <label class="block text-xs font-medium text-gray-600 mb-1">예약번호 <span class="text-red-400">*</span></label>
           <input type="text" class="form-input" id="chk-resId"
-            placeholder="예) RES-2025-052668 또는 AMK-20250501-0001"
-            value="${urlId}"
+            placeholder="예약번호를 입력하세요 (예: RES-2025-052668)"
+            value="${urlId || ''}"
             oninput="this.value=this.value.toUpperCase()">
         </div>
         <div>
@@ -1177,22 +1177,22 @@ ${Navbar.render()}
         class="w-full flex items-center justify-between text-sm text-gray-500 hover:text-gray-700">
         <span class="flex items-center gap-2">
           <span class="w-6 h-6 bg-gray-100 text-gray-500 text-xs font-bold rounded-full flex items-center justify-center">2</span>
-          예약번호를 모르시나요? <strong class="text-blue-600 ml-1">전화번호 + 탑승일자로 조회</strong>
+          예약번호를 모르시나요? <strong class="text-blue-600 ml-1">휴대폰번호로 조회</strong>
         </span>
         <i class="fas fa-chevron-down text-xs"></i>
       </button>
       <div id="alt-search" class="hidden mt-4 space-y-3">
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">휴대폰번호</label>
+          <label class="block text-xs font-medium text-gray-600 mb-1">휴대폰번호 <span class="text-red-400">*</span></label>
           <input type="tel" class="form-input" id="chk-alt-phone" placeholder="010-0000-0000">
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">탑승일자</label>
+          <label class="block text-xs font-medium text-gray-600 mb-1">탑승일자 <span class="text-gray-400">(선택 — 입력하면 해당 날짜만 조회)</span></label>
           <input type="date" class="form-input" id="chk-alt-date">
         </div>
         <button onclick="CustomerPages.checkBooking('alt')"
           class="w-full border border-blue-300 text-blue-600 py-2.5 rounded-xl font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 text-sm">
-          <i class="fas fa-search"></i> 탑승일자로 조회하기
+          <i class="fas fa-search"></i> 예약 조회하기
         </button>
       </div>
     </div>
@@ -1414,6 +1414,66 @@ ${Footer.render()}`;
     }
   },
 
+  // ── alt 조회 복수 결과 목록 렌더링 ─────────────────────────
+  _renderAltMultiResult: (el, list, statusLabelMap) => {
+    const defaultMap = {
+      confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
+      payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
+      payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
+      checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
+      cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
+      refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
+      noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
+    };
+    const smap = statusLabelMap || defaultMap;
+    const rows = list.map((r, i) => {
+      const st = r.status || 'confirmed';
+      const badge = r.statusBadge || smap[st] || { cls:'bg-gray-100 text-gray-600', label: st };
+      const resId = r.reservationId || r.id || '-';
+      const date  = r.date || r.boardingDate || '-';
+      const region = r.regionName || r.region || r.regionId || '-';
+      const name  = r.name || r.booker || '-';
+      // 선택 시 primary 모드로 재조회
+      return `
+        <button onclick="(function(){
+          var el=document.getElementById('chk-resId');
+          var ph=document.getElementById('chk-phone');
+          if(el) el.value='${resId}';
+          if(ph) ph.value=(document.getElementById('chk-alt-phone')?.value||'');
+          CustomerPages.checkBooking('primary');
+        })()"
+          class="w-full text-left border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-bold text-sm text-gray-800 truncate">${resId}</span>
+              <span class="px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${badge.cls}">${badge.label}</span>
+            </div>
+            <div class="text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5">
+              <span><i class="fas fa-calendar-alt mr-1 text-blue-300"></i>${date}</span>
+              <span><i class="fas fa-map-marker-alt mr-1 text-blue-300"></i>${region}</span>
+              <span><i class="fas fa-user mr-1 text-blue-300"></i>${(name).slice(0,1)}${'*'.repeat(Math.max(0,name.length-1))}</span>
+            </div>
+          </div>
+          <i class="fas fa-chevron-right text-gray-300 shrink-0"></i>
+        </button>`;
+    }).join('');
+
+    if (el) el.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-4 text-white">
+          <p class="font-bold text-base"><i class="fas fa-list mr-2"></i>조회된 예약 ${list.length}건</p>
+          <p class="text-xs text-white/70 mt-0.5">확인하실 예약을 선택해주세요</p>
+        </div>
+        <div class="p-4 space-y-2">${rows}</div>
+        <div class="px-4 pb-4">
+          <button onclick="document.getElementById('booking-result').innerHTML=''"
+            class="w-full border border-gray-200 text-gray-500 py-2.5 rounded-xl text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
+            <i class="fas fa-redo"></i>다시 조회하기
+          </button>
+        </div>
+      </div>`;
+  },
+
   // ── 예약 조회 실행 ──────────────────────────────────────────
   checkBooking: async (mode = 'primary') => {
     const el = document.getElementById('booking-result');
@@ -1429,7 +1489,7 @@ ${Footer.render()}`;
       phone   = (document.getElementById('chk-alt-phone')?.value || '').trim().replace(/[^0-9]/g, '');
       altDate = (document.getElementById('chk-alt-date')?.value  || '').trim();
       if (!phone || phone.length < 10) { Utils.toast('휴대폰번호를 정확히 입력해주세요', 'warning'); return; }
-      if (!altDate) { Utils.toast('탑승일자를 선택해주세요', 'warning'); return; }
+      // altDate는 선택사항 — 입력 시 해당 날짜만 필터, 미입력 시 전체 조회
     }
 
     // 로딩
@@ -1479,7 +1539,14 @@ ${Footer.render()}`;
               phoneMatch(r, phone)
             );
           } else {
-            raw = stored.find(r => phoneMatch(r, phone) && (r.date === altDate || r.boardingDate === altDate));
+            // altDate 미입력 시 전화번호만으로 복수 조회
+            const matched = stored.filter(r => phoneMatch(r, phone) && (altDate ? (r.date === altDate || r.boardingDate === altDate) : true));
+            raw = matched.length === 1 ? matched[0] : null;
+            if (matched.length > 1) {
+              // 복수 결과 → 목록 표시 후 리턴
+              CustomerPages._renderAltMultiResult(el, matched, statusLabelMap);
+              return;
+            }
           }
           if (raw) {
             const st = raw.status || 'confirmed';
@@ -1513,7 +1580,9 @@ ${Footer.render()}`;
           if (mode === 'primary') {
             found = list.find(r => r.id === resId && phoneMatch(r.phone, phone));
           } else {
-            found = list.find(r => phoneMatch(r.phone, phone) && r.date === altDate);
+              const apiMatched = list.filter(r => phoneMatch(r.phone, phone) && (altDate ? r.date === altDate : true));
+            if (apiMatched.length > 1) { CustomerPages._renderAltMultiResult(el, apiMatched, null); return; }
+            found = apiMatched[0] || null;
           }
         } catch (_) { /* fallback */ }
       }
@@ -1619,7 +1688,9 @@ ${Footer.render()}`;
             if (storedLast4 !== inputLast4) found = null;
           }
         } else {
-          found = DEMO_RESERVATIONS.find(r => phoneMatch(r.phone, phone) && r.date === altDate);
+          const demoMatched = DEMO_RESERVATIONS.filter(r => phoneMatch(r.phone, phone) && (altDate ? r.date === altDate : true));
+          if (demoMatched.length > 1) { CustomerPages._renderAltMultiResult(el, demoMatched, null); return; }
+          found = demoMatched[0] || null;
         }
       }
 
@@ -1723,7 +1794,7 @@ ${Footer.render()}`;
             <div class="mt-5 space-y-2">
               ${!isCancelled ? `
               <div class="grid grid-cols-2 gap-2">
-                <button onclick="Router.go('/ticket/${found.id}')"
+                <button onclick="CustomerPages._openTicketModal(${JSON.stringify(JSON.stringify(found))})"
                   class="bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
                   <i class="fas fa-qrcode"></i>QR 탑승권 보기
                 </button>
@@ -1992,6 +2063,103 @@ ${Footer.render()}`;
   _closeNoticeDetail: () => {
     const modal = document.getElementById('notice-detail-modal');
     if (modal) modal.classList.add('hidden');
+  },
+
+  // ── QR 탑승권 모달 ─────────────────────────────────────────
+  _openTicketModal: (foundJson) => {
+    let f;
+    try { f = typeof foundJson === 'string' ? JSON.parse(foundJson) : foundJson; } catch(e) { return; }
+
+    // 기존 모달 제거 후 재생성
+    let existing = document.getElementById('ticket-modal');
+    if (existing) existing.remove();
+
+    const badge = f.statusBadge || { cls:'bg-gray-100 text-gray-600', label: f.status || '' };
+    const qrData = `AMK:${f.id}:${(f.date||'').replace(/-/g,'')}:${(f.schedule||'').replace(':','')}`;
+
+    const modal = document.createElement('div');
+    modal.id = 'ticket-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9100;display:flex;align-items:center;justify-content:center;padding:1rem';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <!-- 헤더 -->
+        <div class="bg-gradient-to-r from-navy-900 to-blue-700 px-5 py-4 text-white flex items-center justify-between">
+          <div>
+            <p class="text-xs text-white/60 mb-0.5">QR 탑승권</p>
+            <p class="font-black tracking-widest text-base">${f.id}</p>
+          </div>
+          <button onclick="document.getElementById('ticket-modal').remove()" class="text-white/70 hover:text-white text-xl leading-none">✕</button>
+        </div>
+
+        <!-- QR 코드 영역 -->
+        <div class="flex flex-col items-center py-6 px-5 bg-gray-50">
+          <div class="bg-white rounded-xl p-3 shadow-md mb-3">
+            <canvas id="ticket-qr-canvas" width="180" height="180"></canvas>
+          </div>
+          <span class="px-3 py-1 rounded-full text-xs font-bold ${badge.cls}">${badge.label}</span>
+          <p class="text-xs text-gray-400 mt-2">현장 직원에게 이 QR을 제시해 주세요</p>
+        </div>
+
+        <!-- 탑승 정보 요약 -->
+        <div class="px-5 pb-5 space-y-2 text-sm">
+          <div class="flex justify-between border-b border-gray-50 pb-1.5">
+            <span class="text-gray-500">탑승일자</span>
+            <span class="font-semibold">${f.date || '-'}</span>
+          </div>
+          <div class="flex justify-between border-b border-gray-50 pb-1.5">
+            <span class="text-gray-500">출발 회차</span>
+            <span class="font-semibold">${f.schedule ? f.schedule + ' 출발' : '-'}</span>
+          </div>
+          <div class="flex justify-between border-b border-gray-50 pb-1.5">
+            <span class="text-gray-500">운행 지역</span>
+            <span class="font-semibold">${f.regionName || '-'}</span>
+          </div>
+          <div class="flex justify-between pb-1.5">
+            <span class="text-gray-500">탑승인원</span>
+            <span class="font-semibold">성인 ${f.adultCnt || 1}명${f.childCnt ? ' · 소아 ' + f.childCnt + '명' : ''}</span>
+          </div>
+          <!-- 안전 안내 -->
+          <div class="mt-2 bg-cyan-50 border border-cyan-200 rounded-xl p-3 text-xs text-cyan-800 flex items-start gap-2">
+            <i class="fas fa-shield-alt text-cyan-500 mt-0.5 shrink-0"></i>
+            <span>현장 직원의 <strong>안전 안내를 확인</strong>해 주세요. 탑승 20분 전 탑승장 도착 바랍니다.</span>
+          </div>
+          <button onclick="document.getElementById('ticket-modal').remove()"
+            class="mt-2 w-full border border-gray-200 text-gray-500 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+            닫기
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    // QR 생성 (Utils.generateQR 있으면 사용, 없으면 간단한 텍스트 표시)
+    setTimeout(async () => {
+      const canvas = document.getElementById('ticket-qr-canvas');
+      if (!canvas) return;
+      try {
+        if (typeof Utils !== 'undefined' && Utils.generateQR) {
+          await Utils.generateQR('ticket-qr-canvas', qrData);
+        } else if (typeof QRCode !== 'undefined') {
+          new QRCode(canvas, { text: qrData, width: 180, height: 180 });
+        } else {
+          // fallback: 텍스트 표시
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#f9fafb';
+          ctx.fillRect(0, 0, 180, 180);
+          ctx.fillStyle = '#374151';
+          ctx.font = '11px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('QR 생성 라이브러리', 90, 80);
+          ctx.fillText('미로드 상태', 90, 100);
+          ctx.font = 'bold 10px monospace';
+          ctx.fillStyle = '#1d4ed8';
+          ctx.fillText(f.id, 90, 125);
+        }
+      } catch(e) {
+        console.warn('QR 생성 오류:', e);
+      }
+    }, 100);
   },
 
   // ── 404 ────────────────────────────────────────────────────

@@ -327,7 +327,7 @@ ${Navbar.render()}
     </div>
     <div class="px-6 pb-4 space-y-2">
       <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-800">
-        <strong>⚠️ 탑승 안내:</strong> 탑승 20분 전까지 탑승장에 도착해주세요. 구명조끼 착용 필수입니다.
+        <strong>⚠️ 탑승 안내:</strong> 탑승 20분 전까지 탑승장에 도착해주세요. 현장 직원의 안전 안내를 확인해 주세요.
       </div>
       <div class="text-xs text-gray-400 text-center">판매자: ${region.company?.name} | 고객센터: ${region.customerService}</div>
     </div>
