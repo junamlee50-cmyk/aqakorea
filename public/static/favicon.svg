@@ -1,13 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <rect width="64" height="64" rx="14" fill="#071f4e"/>
-  <path d="M8 38 Q16 28 24 35 Q32 42 40 32 Q48 22 56 30" stroke="#06b6d4" stroke-width="3.5" stroke-linecap="round" fill="none"/>
-  <path d="M8 44 Q16 34 24 41 Q32 48 40 38 Q48 28 56 36" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
-  <rect x="18" y="18" width="28" height="18" rx="5" fill="#1e40af"/>
-  <rect x="22" y="22" width="8" height="6" rx="2" fill="#60a5fa"/>
-  <rect x="34" y="22" width="8" height="6" rx="2" fill="#60a5fa"/>
-  <rect x="18" y="33" width="28" height="4" rx="2" fill="#2563eb"/>
-  <circle cx="24" cy="42" r="3" fill="#374151"/>
-  <circle cx="24" cy="42" r="1.5" fill="#9ca3af"/>
-  <circle cx="40" cy="42" r="3" fill="#374151"/>
-  <circle cx="40" cy="42" r="1.5" fill="#9ca3af"/>
+  <!-- 버스 차체 -->
+  <rect x="8" y="16" width="48" height="22" rx="6" fill="#1e40af"/>
+  <!-- 버스 창문 -->
+  <rect x="12" y="20" width="12" height="9" rx="3" fill="#93c5fd"/>
+  <rect x="28" y="20" width="12" height="9" rx="3" fill="#93c5fd"/>
+  <rect x="44" y="20" width="8" height="9" rx="3" fill="#bfdbfe"/>
+  <!-- 버스 하단 -->
+  <rect x="8" y="35" width="48" height="5" rx="2" fill="#1d4ed8"/>
+  <!-- 바퀴 -->
+  <circle cx="18" cy="44" r="5" fill="#1e293b"/>
+  <circle cx="18" cy="44" r="2.5" fill="#64748b"/>
+  <circle cx="46" cy="44" r="5" fill="#1e293b"/>
+  <circle cx="46" cy="44" r="2.5" fill="#64748b"/>
+  <!-- 물결 (수상) -->
+  <path d="M5 52 Q13 47 21 52 Q29 57 37 52 Q45 47 59 52" stroke="#06b6d4" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M5 57 Q13 52 21 57 Q29 62 37 57 Q45 52 59 57" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5"/>
 </svg>

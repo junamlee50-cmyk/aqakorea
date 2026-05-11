@@ -133,11 +133,11 @@ const AdminModule = (() => {
               </button>
             ` : `
               <div class="flex items-center gap-2 overflow-hidden">
-                <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <i class="fas fa-water text-white text-sm"></i>
+                <div class="flex items-center flex-shrink-0">
+                  <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:28px;width:auto;object-fit:contain;">
                 </div>
                 <div class="overflow-hidden">
-                  <div class="text-white font-bold text-sm whitespace-nowrap">아쿠아모빌리티</div>
+                  <div class="text-white font-bold text-sm whitespace-nowrap" style="display:none;">아쿠아모빌리티</div>
                   <div class="text-gray-400 text-xs whitespace-nowrap">${ROLE_LABELS[user.role] || '관리자'}</div>
                 </div>
               </div>
@@ -236,10 +236,9 @@ const AdminModule = (() => {
       <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
         <div class="w-full max-w-md">
           <div class="text-center mb-8">
-            <div class="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <i class="fas fa-water text-white text-2xl"></i>
+            <div class="flex justify-center mb-4">
+              <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:52px;width:auto;object-fit:contain;">
             </div>
-            <h1 class="text-white text-2xl font-bold">아쿠아모빌리티코리아</h1>
             <p class="text-gray-400 text-sm mt-1">통합 관리자 시스템 · Admin Portal</p>
           </div>
           <div class="bg-white rounded-2xl shadow-2xl p-8">
@@ -425,7 +424,7 @@ const AdminModule = (() => {
   const hqDashboard = async () => {
     _adminState.currentSection = 'hq-dashboard';
     const regions = window.REGIONS || [];
-    const activeRegions = regions.filter(r => r.status === 'active');
+    const activeRegions = regions.filter(r => r.status === 'active' || r.status === 'open');
     const today = new Date().toISOString().slice(0, 10);
 
     const regionRows = activeRegions.map(r => {
@@ -1014,7 +1013,7 @@ const AdminModule = (() => {
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">배정 지역</label>
                 <select id="v-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                  ${(window.REGIONS||[]).filter(r=>r.status==='active').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+                  ${(window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
                 </select>
               </div>
               <div>
@@ -1130,7 +1129,7 @@ const AdminModule = (() => {
 
   const schedulesPage = async () => {
     _adminState.currentSection = 'schedules';
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active');
+    const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
     const activeRegionId = _adminState.selectedRegion || regions[0]?.id || 'tongyeong';
     const allSchedules = Settings.get('schedules') || window.SCHEDULES || {};
     const schedules = allSchedules[activeRegionId] || [];
@@ -2509,7 +2508,7 @@ const AdminModule = (() => {
   // ── 좌석 배분 관리 ─────────────────────────────────────────
   const seatsPage = async () => {
     _adminState.currentSection = 'seats';
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active');
+    const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
 
     const regionCards = regions.map(r => `
       <div class="bg-white rounded-xl shadow-sm p-5">
@@ -3120,7 +3119,7 @@ const AdminModule = (() => {
 
     // 공지 추가 모달의 대상 지역 옵션 (슈퍼: 전체+지역 / 지역관리자: 자기 지역만)
     const regionOptions = isSuper
-      ? `<option value="">전체</option>${(window.REGIONS||[]).filter(r=>r.status==='active').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}`
+      ? `<option value="">전체</option>${(window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}`
       : `<option value="${user.regionId}" selected>${_regionLabel(user.regionId)}</option>`;
 
     const content = `
@@ -3167,7 +3166,7 @@ const AdminModule = (() => {
               <div><label class="block text-xs font-medium text-gray-700 mb-1">대상 지역</label>
                 <select id="pop-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                   <option value="">전체</option>
-                  ${(window.REGIONS||[]).filter(r=>r.status==='active').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+                  ${(window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
                 </select>
               </div>
               <div><label class="block text-xs font-medium text-gray-700 mb-1">유형</label>
@@ -3506,7 +3505,7 @@ const AdminModule = (() => {
   // ── SEO 관리 ───────────────────────────────────────────────
   const seoManagePage = async () => {
     _adminState.currentSection = 'seo';
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active');
+    const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
     const seoSettings = Settings.get('seoSettings') || {};
     const activeRegionId = _adminState.selectedRegion || regions[0]?.id || 'tongyeong';
     const region = regions.find(r=>r.id===activeRegionId);

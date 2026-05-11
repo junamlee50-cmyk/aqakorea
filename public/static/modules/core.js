@@ -438,11 +438,7 @@ const Navbar = {
   <nav class="navbar" id="main-navbar">
     <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
       <a href="/" data-link class="nav-logo">
-        <div class="nav-logo-icon">🚌</div>
-        <div>
-          <span class="nav-logo-text">Aqua Mobility Korea</span>
-          <span class="nav-logo-sub">아쿠아모빌리티코리아</span>
-        </div>
+        <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:36px;width:auto;object-fit:contain;">
       </a>
       <div class="hidden md:flex items-center gap-6">
         <a href="/" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors ${active==='home'?'text-cyan-400':''}">홈</a>
@@ -492,11 +488,7 @@ const Footer = {
       <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div class="md:col-span-2">
           <div class="flex items-center gap-3 mb-4">
-            <div class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-xl">🚌</div>
-            <div>
-              <div class="font-bold text-lg">Aqua Mobility Korea</div>
-              <div class="text-cyan-400 text-xs">아쿠아모빌리티코리아</div>
-            </div>
+            <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:40px;width:auto;object-fit:contain;">
           </div>
           <p class="text-white/60 text-sm leading-relaxed mb-4">전국 수륙양용투어 통합 예약·결제·운영 플랫폼<br>통영 · 부여 · 합천 수륙양용버스 투어</p>
           <div class="flex gap-3">
