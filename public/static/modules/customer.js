@@ -340,55 +340,120 @@ ${Navbar.render('reservation')}
         </div>
       </div>
 
-      <!-- 탑승신고서 -->
+      <!-- 탑승신고서 (전원 입력 방식) -->
       <div class="bg-white rounded-2xl p-6 shadow-sm" id="form-section">
-        <h2 class="font-bold text-navy-800 text-lg mb-4">📋 온라인 탑승신고서</h2>
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label required">예약자명</label>
-            <input type="text" class="form-input" id="inp-name" placeholder="실명 입력">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="font-bold text-navy-800 text-lg">📋 온라인 탑승신고서</h2>
+          <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">탑승자 전원 입력</span>
+        </div>
+
+        <!-- 섹션 1: 예약자 정보 -->
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">1</div>
+            <h3 class="font-semibold text-navy-800 text-sm">예약자 정보 (대표)</h3>
           </div>
-          <div class="form-group">
-            <label class="form-label required">휴대폰번호</label>
-            <input type="tel" class="form-input" id="inp-phone" placeholder="010-0000-0000">
-          </div>
-          <div class="form-group">
-            <label class="form-label">이메일 (선택)</label>
-            <input type="email" class="form-input" id="inp-email" placeholder="example@email.com">
-          </div>
-          <div class="form-group">
-            <label class="form-label required">거주지역</label>
-            <select class="form-select" id="inp-region">
-              <option value="">선택하세요</option>
-              ${['서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'].map(r=>`<option>${r}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group md:col-span-2">
-            <label class="form-label">방문 경로</label>
-            <div class="flex flex-wrap gap-2">
-              ${['네이버','카카오','인스타그램','유튜브','블로그','지자체홍보','현수막QR','여행사','지인소개','기타'].map(src=>`
-              <button class="px-3 py-1.5 rounded-lg border-2 border-gray-200 text-sm hover:border-cyan-400 transition-all source-btn" onclick="CustomerPages.selectSource('${src}', this)">${src}</button>`).join('')}
+          <div class="grid md:grid-cols-2 gap-4 pl-8">
+            <div class="form-group">
+              <label class="form-label required">예약자명</label>
+              <input type="text" class="form-input" id="inp-name" placeholder="실명 입력">
+            </div>
+            <div class="form-group">
+              <label class="form-label required">휴대폰번호</label>
+              <input type="tel" class="form-input" id="inp-phone" placeholder="010-0000-0000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">이메일 (선택)</label>
+              <input type="email" class="form-input" id="inp-email" placeholder="example@email.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label required">거주지역</label>
+              <select class="form-select" id="inp-region">
+                <option value="">선택하세요</option>
+                ${['서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'].map(r=>`<option>${r}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group md:col-span-2">
+              <label class="form-label">방문 경로</label>
+              <div class="flex flex-wrap gap-2">
+                ${['네이버','카카오','인스타그램','유튜브','블로그','지자체홍보','현수막QR','여행사','지인소개','기타'].map(src=>`
+                <button class="px-3 py-1.5 rounded-lg border-2 border-gray-200 text-sm hover:border-cyan-400 transition-all source-btn" onclick="CustomerPages.selectSource('${src}', this)">${src}</button>`).join('')}
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- 동의항목 -->
-        <div class="mt-6 space-y-3 border-t border-gray-100 pt-4">
-          <div class="font-medium text-navy-800 text-sm mb-2">동의 항목</div>
-          ${[
-            {id:'agree1',label:'안전수칙 확인 및 구명조끼 착용 의무 동의',req:true},
-            {id:'agree2',label:'기상악화·차량점검 시 운휴 가능성 동의',req:true},
-            {id:'agree3',label:'개인정보 수집 및 이용 동의',req:true},
-            {id:'agree4',label:'환불규정 동의',req:true},
-            {id:'agree5',label:'마케팅 정보 수신 동의',req:false},
-          ].map(a=>`
-          <div class="form-check">
-            <input type="checkbox" id="${a.id}" ${a.req?'required':''}>
-            <label class="form-check-label ${a.req?'required':''}" for="${a.id}">${a.label} ${a.req?'(필수)':'(선택)'}</label>
-          </div>`).join('')}
-          <div class="mt-3">
-            <button onclick="CustomerPages.checkAll()" class="text-cyan-600 text-sm font-medium hover:underline">전체 동의</button>
-            <button onclick="Utils.modal(CustomerPages.termsModal())" class="ml-4 text-gray-400 text-sm hover:text-gray-600 underline">약관 상세보기</button>
+        <!-- 섹션 2: 탑승자 전원 정보 -->
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">2</div>
+            <h3 class="font-semibold text-navy-800 text-sm">탑승자 정보 <span class="text-xs text-gray-500 font-normal">(예약자 포함 전원 입력)</span></h3>
+          </div>
+          <div class="pl-8">
+            <div class="bg-cyan-50 rounded-xl p-3 mb-3 text-xs text-cyan-800">
+              <i class="fas fa-info-circle mr-1"></i>
+              인원을 선택하시면 탑승자 입력란이 자동 생성됩니다. 만 36개월 미만 유아는 제외합니다.
+            </div>
+            <div id="passengers-container">
+              <p class="text-sm text-gray-400 text-center py-4"><i class="fas fa-arrow-up mr-1"></i>위에서 탑승 인원을 먼저 선택해주세요</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 섹션 3: 특이사항 -->
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">3</div>
+            <h3 class="font-semibold text-navy-800 text-sm">특이사항 <span class="text-xs text-gray-500 font-normal">(선택)</span></h3>
+          </div>
+          <div class="pl-8">
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                <input type="checkbox" id="sp-wheelchair" class="rounded text-cyan-600">
+                <span class="text-sm text-gray-700">휠체어 탑승자</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                <input type="checkbox" id="sp-pregnant" class="rounded text-cyan-600">
+                <span class="text-sm text-gray-700">임산부 포함</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                <input type="checkbox" id="sp-infant" class="rounded text-cyan-600">
+                <span class="text-sm text-gray-700">36개월 미만 유아 동반</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                <input type="checkbox" id="sp-heart" class="rounded text-cyan-600">
+                <span class="text-sm text-gray-700">심장·고혈압 환자</span>
+              </label>
+            </div>
+            <textarea id="inp-memo" rows="2" placeholder="기타 요청사항 (선택)"
+              class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400 outline-none resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- 섹션 4: 동의항목 -->
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">4</div>
+            <h3 class="font-semibold text-navy-800 text-sm">약관 동의</h3>
+          </div>
+          <div class="pl-8 space-y-2.5">
+            ${[
+              {id:'agree1',label:'안전수칙 확인 및 구명조끼 착용 의무 동의',req:true},
+              {id:'agree2',label:'기상악화·차량점검 시 운휴 가능성 동의',req:true},
+              {id:'agree3',label:'개인정보 수집 및 이용 동의',req:true},
+              {id:'agree4',label:'환불규정 동의',req:true},
+              {id:'agree5',label:'마케팅 정보 수신 동의',req:false},
+            ].map(a=>`
+            <div class="form-check">
+              <input type="checkbox" id="${a.id}" ${a.req?'required':''}>
+              <label class="form-check-label ${a.req?'required':''}" for="${a.id}">${a.label} ${a.req?'<span style=\"color:#ef4444\">(필수)</span>':'(선택)'}</label>
+            </div>`).join('')}
+            <div class="mt-3 flex items-center gap-4">
+              <button onclick="CustomerPages.checkAll()" class="text-cyan-600 text-sm font-medium hover:underline">
+                <i class="fas fa-check-double mr-1"></i>전체 동의
+              </button>
+              <button onclick="Utils.modal(CustomerPages.termsModal())" class="text-gray-400 text-sm hover:text-gray-600 underline">약관 상세보기</button>
+            </div>
           </div>
         </div>
       </div>
@@ -597,6 +662,90 @@ ${Footer.render()}
     const minusBtn = document.querySelector(`#fare-${fareId} .counter-btn`);
     if (minusBtn) minusBtn.disabled = f.count <= 0;
     CustomerPages.updateSummary();
+    CustomerPages.renderPassengersForm();
+  },
+
+  // 탑승자 전원 입력 폼 동적 생성
+  renderPassengersForm: () => {
+    const container = document.getElementById('passengers-container');
+    if (!container) return;
+    const fares = CustomerPages._state.fares;
+    let pax = 0;
+    // 탑승자 목록 구성 (fareId + label 기준)
+    const paxList = [];
+    Object.values(fares).forEach(f => {
+      for (let i = 0; i < (f.count||0); i++) {
+        paxList.push({ label: f.label, fareId: f.id || '' });
+      }
+    });
+    pax = paxList.length;
+
+    if (pax === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-400 text-center py-4"><i class="fas fa-arrow-up mr-1"></i>위에서 탑승 인원을 먼저 선택해주세요</p>';
+      return;
+    }
+
+    // 기존 입력값 보존
+    const saved = {};
+    container.querySelectorAll('.passenger-card').forEach((card, idx) => {
+      saved[idx] = {
+        name: card.querySelector('.pax-name')?.value || '',
+        birth: card.querySelector('.pax-birth')?.value || '',
+        gender: card.querySelector('.pax-gender')?.value || '',
+        nationality: card.querySelector('.pax-nationality')?.value || 'KR',
+      };
+    });
+
+    const html = paxList.map((p, idx) => {
+      const isFirst = idx === 0;
+      const sv = saved[idx] || {};
+      return `
+        <div class="passenger-card border border-gray-100 rounded-xl p-4 mb-3 bg-gray-50">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-5 h-5 bg-cyan-500 rounded-full text-white text-xs flex items-center justify-center font-bold flex-shrink-0">${idx+1}</span>
+            <span class="text-sm font-medium text-gray-700">${isFirst ? '예약자 (대표 탑승자)' : `탑승자 ${idx+1}`}</span>
+            <span class="text-xs text-gray-400 bg-white px-2 py-0.5 rounded-full border">${p.label}</span>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div class="col-span-2 md:col-span-1">
+              <label class="block text-xs text-gray-500 mb-0.5">성명 <span class="text-red-400">*</span></label>
+              <input type="text" class="pax-name w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400 outline-none bg-white"
+                placeholder="${isFirst?'예약자 실명':'탑승자 실명'}" value="${sv.name||''}">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-0.5">생년월일 <span class="text-red-400">*</span></label>
+              <input type="date" class="pax-birth w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400 outline-none bg-white"
+                value="${sv.birth||''}">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-0.5">성별 <span class="text-red-400">*</span></label>
+              <select class="pax-gender w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400 outline-none bg-white">
+                <option value="">선택</option>
+                <option value="M" ${sv.gender==='M'?'selected':''}>남</option>
+                <option value="F" ${sv.gender==='F'?'selected':''}>여</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-0.5">국적</label>
+              <select class="pax-nationality w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-400 outline-none bg-white">
+                <option value="KR" ${(sv.nationality||'KR')==='KR'?'selected':''}>대한민국</option>
+                <option value="CN" ${sv.nationality==='CN'?'selected':''}>중국</option>
+                <option value="JP" ${sv.nationality==='JP'?'selected':''}>일본</option>
+                <option value="US" ${sv.nationality==='US'?'selected':''}>미국</option>
+                <option value="OTHER" ${sv.nationality==='OTHER'?'selected':''}>기타</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="text-xs text-gray-500 mb-2 flex items-center gap-1">
+        <i class="fas fa-users text-cyan-500"></i> 총 <strong class="text-cyan-600">${pax}명</strong>의 탑승자 정보를 입력해주세요
+      </div>
+      ${html}
+    `;
   },
 
   updateSummary: () => {

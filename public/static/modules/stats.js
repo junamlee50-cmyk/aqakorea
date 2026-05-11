@@ -96,12 +96,13 @@ const StatsModule = (() => {
           <!-- 탭 네비게이션 -->
           <div class="flex gap-1 pb-0 overflow-x-auto">
             ${[
-              { id: 'sales',       label: '매출 통계',   icon: 'fas fa-won-sign' },
-              { id: 'passengers',  label: '승객 통계',   icon: 'fas fa-users' },
-              { id: 'operations',  label: '운영 통계',   icon: 'fas fa-bus' },
-              { id: 'marketing',   label: '마케팅 분석', icon: 'fas fa-bullhorn' },
-              { id: 'wristbands',  label: '손목밴드',    icon: 'fas fa-qrcode' },
-              { id: 'report',      label: '보고서 생성', icon: 'fas fa-file-alt' },
+              { id: 'sales',       label: '매출 통계',     icon: 'fas fa-won-sign' },
+              { id: 'passengers',  label: '승객 통계',     icon: 'fas fa-users' },
+              { id: 'operations',  label: '운영 통계',     icon: 'fas fa-bus' },
+              { id: 'marketing',   label: '마케팅 분석',   icon: 'fas fa-bullhorn' },
+              { id: 'wristbands',  label: '손목밴드',      icon: 'fas fa-qrcode' },
+              { id: 'monthly',     label: '월간 운영보고서', icon: 'fas fa-calendar-alt' },
+              { id: 'report',      label: '보고서 생성',   icon: 'fas fa-file-alt' },
             ].map(t => `
               <button onclick="StatsModule.switchTab('${t.id}')"
                 class="stats-tab whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5"
@@ -818,6 +819,680 @@ const StatsModule = (() => {
     `;
   };
 
+  // ── 월간 운영보고서 탭 ────────────────────────────────────
+  const MONTHLY_SAMPLE = {
+    tongyeong: {
+      name: '통영', month: '2025년 4월',
+      totalPax: 12480, onlinePax: 8736, offlinePax: 3744,
+      totalSales: 437280000, onlineSales: 306096000, offlineSales: 131184000,
+      cancelCnt: 124, cancelAmt: 4340000, refundAmt: 3872000,
+      trips: 248, vehicles: 4, avgOccupancy: 87.3,
+      wristbandIssued: 12480, wristbandReissued: 89, wristbandInvalid: 89,
+      weatherCancelDays: 3, weatherCancelTrips: 18,
+      onlineRatio: 70, offlineRatio: 30,
+      fareBreakdown: [
+        {label:'성인', cnt:7488, price:35000},
+        {label:'청소년', cnt:1872, price:30000},
+        {label:'어린이', cnt:1248, price:25000},
+        {label:'경로', cnt:936, price:30000},
+        {label:'단체', cnt:936, price:30000},
+      ],
+      dailyPax: [320,298,412,388,445,502,489,356,321,298,
+                 412,388,445,502,489,356,321,298,412,388,
+                 445,502,489,356,321,298,412,388,445,502],
+      channels: [{ch:'직접방문',pct:28},{ch:'네이버',pct:22},{ch:'카카오',pct:18},{ch:'인스타',pct:15},{ch:'여행사',pct:10},{ch:'기타',pct:7}],
+      satisfaction: 4.6, reviewCnt: 842,
+      incidents: '특이사항 없음',
+      remarks: '4월 황금연휴 기간(26일~30일) 예약이 집중되어 전월 대비 15% 증가. 차량 1대 정기점검으로 3일간 3회차 운영.',
+    },
+    buyeo: {
+      name: '부여', month: '2025년 4월',
+      totalPax: 8320, onlinePax: 5824, offlinePax: 2496,
+      totalSales: 291200000, onlineSales: 203840000, offlineSales: 87360000,
+      cancelCnt: 83, cancelAmt: 2905000, refundAmt: 2614500,
+      trips: 166, vehicles: 3, avgOccupancy: 82.1,
+      wristbandIssued: 8320, wristbandReissued: 62, wristbandInvalid: 62,
+      weatherCancelDays: 5, weatherCancelTrips: 25,
+      onlineRatio: 70, offlineRatio: 30,
+      fareBreakdown: [
+        {label:'성인', cnt:4992, price:35000},
+        {label:'청소년', cnt:1248, price:30000},
+        {label:'어린이', cnt:832, price:25000},
+        {label:'경로', cnt:624, price:30000},
+        {label:'단체', cnt:624, price:30000},
+      ],
+      dailyPax: [215,198,278,258,298,335,326,238,215,198,
+                 278,258,298,335,326,238,215,198,278,258,
+                 298,335,326,238,215,198,278,258,298,335],
+      channels: [{ch:'직접방문',pct:32},{ch:'네이버',pct:20},{ch:'카카오',pct:16},{ch:'인스타',pct:12},{ch:'여행사',pct:13},{ch:'기타',pct:7}],
+      satisfaction: 4.4, reviewCnt: 563,
+      incidents: '4월 15일 강우로 오전 2회차 결항',
+      remarks: '백제문화제 연계 단체 예약 증가. 학교 단체 방문(초등학교 8개교, 중학교 3개교) 집중.',
+    },
+    hapcheon: {
+      name: '합천', month: '2025년 4월',
+      totalPax: 4680, onlinePax: 3276, offlinePax: 1404,
+      totalSales: 163800000, onlineSales: 114660000, offlineSales: 49140000,
+      cancelCnt: 47, cancelAmt: 1645000, refundAmt: 1480500,
+      trips: 94, vehicles: 2, avgOccupancy: 78.5,
+      wristbandIssued: 4680, wristbandReissued: 35, wristbandInvalid: 35,
+      weatherCancelDays: 4, weatherCancelTrips: 16,
+      onlineRatio: 70, offlineRatio: 30,
+      fareBreakdown: [
+        {label:'성인', cnt:2808, price:35000},
+        {label:'청소년', cnt:702, price:30000},
+        {label:'어린이', cnt:468, price:25000},
+        {label:'경로', cnt:351, price:30000},
+        {label:'단체', cnt:351, price:30000},
+      ],
+      dailyPax: [120,112,156,145,168,189,184,134,120,112,
+                 156,145,168,189,184,134,120,112,156,145,
+                 168,189,184,134,120,112,156,145,168,189],
+      channels: [{ch:'직접방문',pct:35},{ch:'네이버',pct:18},{ch:'카카오',pct:14},{ch:'인스타',pct:11},{ch:'여행사',pct:15},{ch:'기타',pct:7}],
+      satisfaction: 4.5, reviewCnt: 318,
+      incidents: '4월 8일, 12일 강풍으로 운항 중지',
+      remarks: '합천호 수위 상승으로 승선장 임시 이전(4.10~4.14). 대체 승선장 운영 원활.',
+    },
+  };
+
+  // 월간 보고서 샘플 데이터 합산
+  const _calcMonthlyTotal = (regions) => {
+    const list = regions.map(k => MONTHLY_SAMPLE[k]).filter(Boolean);
+    return {
+      totalPax:     list.reduce((s,r)=>s+r.totalPax,0),
+      totalSales:   list.reduce((s,r)=>s+r.totalSales,0),
+      cancelCnt:    list.reduce((s,r)=>s+r.cancelCnt,0),
+      cancelAmt:    list.reduce((s,r)=>s+r.cancelAmt,0),
+      refundAmt:    list.reduce((s,r)=>s+r.refundAmt,0),
+      trips:        list.reduce((s,r)=>s+r.trips,0),
+      wristbandIssued:   list.reduce((s,r)=>s+r.wristbandIssued,0),
+      wristbandReissued: list.reduce((s,r)=>s+r.wristbandReissued,0),
+      weatherCancelTrips:list.reduce((s,r)=>s+r.weatherCancelTrips,0),
+    };
+  };
+
+  const monthlyReportTab = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1; // 현재월 (표시용)
+    const reportMonth = `${year}년 ${month}월`;
+    const allKeys = ['tongyeong','buyeo','hapcheon'];
+    const total = _calcMonthlyTotal(allKeys);
+    const fmt = (n) => n.toLocaleString('ko-KR');
+    const fmtW = (n) => `₩${Math.round(n/10000).toLocaleString()}만`;
+
+    // 차트: 지역별 일별 탑승 추이 (setTimeout으로 렌더)
+    setTimeout(() => {
+      const days = Array.from({length:30},(_,i)=>i+1);
+
+      destroyChart('mr-daily-pax');
+      const ctx1 = document.getElementById('mr-chart-daily-pax');
+      if (ctx1) {
+        _charts['mr-daily-pax'] = new Chart(ctx1, {
+          type: 'line',
+          data: {
+            labels: days.map(d=>`${d}일`),
+            datasets: allKeys.map((k,i) => ({
+              label: MONTHLY_SAMPLE[k].name,
+              data: MONTHLY_SAMPLE[k].dailyPax,
+              borderColor: [COLORS.blue.border, COLORS.green.border, COLORS.purple.border][i],
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              tension: 0.3,
+              pointRadius: 1,
+            })),
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position:'bottom', labels:{font:{size:11}} } },
+            scales: {
+              x: { grid:{display:false}, ticks:{maxTicksLimit:10, font:{size:10}} },
+              y: { grid:{color:'rgba(0,0,0,0.04)'}, ticks:{font:{size:10}} },
+            },
+          },
+        });
+      }
+
+      destroyChart('mr-region-sales');
+      const ctx2 = document.getElementById('mr-chart-region-sales');
+      if (ctx2) {
+        _charts['mr-region-sales'] = new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: allKeys.map(k=>MONTHLY_SAMPLE[k].name),
+            datasets: [
+              { label:'온라인', data: allKeys.map(k=>MONTHLY_SAMPLE[k].onlineSales), backgroundColor:'rgba(59,130,246,0.75)', borderRadius:4 },
+              { label:'현장', data: allKeys.map(k=>MONTHLY_SAMPLE[k].offlineSales), backgroundColor:'rgba(16,185,129,0.75)', borderRadius:4 },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>`₩${c.raw.toLocaleString()}`}} },
+            scales: { x:{grid:{display:false}}, y:{grid:{color:'rgba(0,0,0,0.04)'}} },
+          },
+        });
+      }
+
+      destroyChart('mr-channel-pie');
+      const ctx3 = document.getElementById('mr-chart-channel-pie');
+      if (ctx3) {
+        const chs = MONTHLY_SAMPLE.tongyeong.channels;
+        _charts['mr-channel-pie'] = new Chart(ctx3, {
+          type: 'doughnut',
+          data: {
+            labels: chs.map(c=>c.ch),
+            datasets: [{ data: chs.map(c=>c.pct), backgroundColor: COLORS.PIE, hoverOffset:4 }],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend:{position:'bottom', labels:{font:{size:10}}}, tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}%`}} },
+            cutout:'60%',
+          },
+        });
+      }
+
+      destroyChart('mr-fare-bar');
+      const ctx4 = document.getElementById('mr-chart-fare-bar');
+      if (ctx4) {
+        const fareLabels = MONTHLY_SAMPLE.tongyeong.fareBreakdown.map(f=>f.label);
+        _charts['mr-fare-bar'] = new Chart(ctx4, {
+          type: 'bar',
+          data: {
+            labels: fareLabels,
+            datasets: allKeys.map((k,i)=>({
+              label: MONTHLY_SAMPLE[k].name,
+              data: MONTHLY_SAMPLE[k].fareBreakdown.map(f=>f.cnt),
+              backgroundColor: ['rgba(59,130,246,0.7)','rgba(16,185,129,0.7)','rgba(139,92,246,0.7)'][i],
+              borderRadius: 4,
+            })),
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend:{position:'bottom'} },
+            scales: { x:{grid:{display:false}}, y:{grid:{color:'rgba(0,0,0,0.04)'}} },
+          },
+        });
+      }
+    }, 150);
+
+    // 섹션 빌더 헬퍼
+    const section = (num, title, icon, color, body) => `
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden print:break-inside-avoid" id="mr-sec-${num}">
+        <div class="flex items-center gap-3 px-6 py-4 border-b bg-gradient-to-r from-${color}-50 to-white">
+          <div class="w-8 h-8 bg-${color}-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="${icon} text-${color}-600 text-sm"></i>
+          </div>
+          <div>
+            <span class="text-xs font-bold text-${color}-500 uppercase tracking-widest">SECTION ${num}</span>
+            <h3 class="font-semibold text-gray-800 text-sm leading-tight">${title}</h3>
+          </div>
+        </div>
+        <div class="p-6">${body}</div>
+      </div>
+    `;
+
+    const kpiGrid = (items) => `
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        ${items.map(it=>`
+          <div class="text-center p-3 bg-${it.color||'gray'}-50 rounded-xl border border-${it.color||'gray'}-100">
+            <div class="text-lg font-bold text-${it.color||'gray'}-700">${it.val}</div>
+            <div class="text-xs text-gray-500 mt-0.5">${it.label}</div>
+            ${it.sub ? `<div class="text-xs text-${it.color||'gray'}-500 mt-0.5">${it.sub}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    const tbl = (headers, rows, small=false) => `
+      <div class="overflow-x-auto">
+        <table class="w-full text-${small?'xs':'sm'} border-collapse">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-200">
+              ${headers.map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-left whitespace-nowrap">${h}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            ${rows.map(row=>`<tr class="hover:bg-gray-50">${row.map(cell=>`<td class="px-3 py-2 text-gray-700 whitespace-nowrap">${cell}</td>`).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    return `
+      <!-- 보고서 상단 제목 및 다운로드 버튼 -->
+      <div class="bg-white rounded-xl shadow-sm p-6 mb-6 print:hidden">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800">월간 운영보고서</h2>
+            <p class="text-sm text-gray-500 mt-1">아쿠아모빌리티코리아 · ${reportMonth} · 전체 3개 지역</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <select id="mr-region-sel" onchange="StatsModule.switchMonthlyRegion()" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="all">전체 지역 종합</option>
+              <option value="tongyeong">통영</option>
+              <option value="buyeo">부여</option>
+              <option value="hapcheon">합천</option>
+            </select>
+            <select id="mr-month-sel" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="2025-04" selected>2025년 4월</option>
+              <option value="2025-03">2025년 3월</option>
+              <option value="2025-02">2025년 2월</option>
+              <option value="2025-01">2025년 1월</option>
+            </select>
+            <button onclick="StatsModule.exportMonthlyPDF()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600 flex items-center gap-1.5">
+              <i class="fas fa-file-pdf"></i> PDF 출력
+            </button>
+            <button onclick="StatsModule.exportMonthlyExcel()" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 flex items-center gap-1.5">
+              <i class="fas fa-file-excel"></i> 엑셀 다운로드
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12개 섹션 -->
+      <div class="space-y-4" id="monthly-report-body">
+
+        ${section(1, '총괄 요약 (Executive Summary)', 'fas fa-clipboard-list', 'blue', `
+          <div class="flex items-start gap-3 mb-5 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <i class="fas fa-info-circle text-blue-500 mt-0.5 flex-shrink-0"></i>
+            <p class="text-sm text-blue-800">
+              <strong>${reportMonth}</strong> 전체 3개 지역(통영·부여·합천) 합산 운영 실적입니다.
+              총 탑승객 <strong>${fmt(total.totalPax)}명</strong>으로 전월 대비 <strong class="text-green-600">+11.2%</strong> 증가하였으며,
+              총 매출은 <strong>${fmtW(total.totalSales)}</strong>을 기록했습니다.
+            </p>
+          </div>
+          ${kpiGrid([
+            {val: fmt(total.totalPax)+'명', label:'총 탑승객', color:'blue'},
+            {val: '₩'+fmt(Math.round(total.totalSales/1000000))+'M', label:'총 매출', color:'green'},
+            {val: total.trips+'회', label:'총 운항 회수', color:'purple'},
+            {val: total.cancelCnt+'건', label:'취소 건수', color:'orange'},
+          ])}
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            ${allKeys.map(k=>{
+              const r = MONTHLY_SAMPLE[k];
+              return `
+                <div class="p-4 rounded-xl border border-gray-200 hover:border-blue-300 transition-colors">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="font-semibold text-gray-800">${r.name}</span>
+                    <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">운영중</span>
+                  </div>
+                  <div class="text-2xl font-bold text-blue-600">${fmt(r.totalPax)}<span class="text-sm font-normal text-gray-500">명</span></div>
+                  <div class="text-xs text-gray-500 mt-1">${fmtW(r.totalSales)} · ${r.trips}회 운항</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `)}
+
+        ${section(2, '지역별 운영 현황', 'fas fa-map-marker-alt', 'green', `
+          ${tbl(
+            ['지역','운항회수','차량수','평균탑승률','탑승객','매출','기상취소'],
+            allKeys.map(k=>{
+              const r = MONTHLY_SAMPLE[k];
+              return [
+                `<span class="font-medium">${r.name}</span>`,
+                r.trips+'회',
+                r.vehicles+'대',
+                `<span class="font-semibold ${r.avgOccupancy>=85?'text-green-600':r.avgOccupancy>=75?'text-blue-600':'text-orange-500'}">${r.avgOccupancy}%</span>`,
+                fmt(r.totalPax)+'명',
+                fmtW(r.totalSales),
+                r.weatherCancelTrips+'회('+r.weatherCancelDays+'일)',
+              ];
+            })
+          )}
+          <div class="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200 text-sm text-yellow-800">
+            <i class="fas fa-exclamation-triangle mr-1.5"></i>
+            <strong>기상 영향</strong>: 전체 ${total.weatherCancelTrips}회 운항 취소. 취소율 ${((total.weatherCancelTrips/total.trips)*100).toFixed(1)}% (전월 대비 소폭 증가)
+          </div>
+        `)}
+
+        ${section(3, '탑승자 통계', 'fas fa-users', 'purple', `
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-700 mb-3">지역별 일별 탑승 추이</h4>
+              <div style="height:200px"><canvas id="mr-chart-daily-pax"></canvas></div>
+            </div>
+            <div>
+              <h4 class="text-sm font-semibold text-gray-700 mb-3">요금 구분별 탑승객 (지역 비교)</h4>
+              <div style="height:200px"><canvas id="mr-chart-fare-bar"></canvas></div>
+            </div>
+          </div>
+          <div class="mt-4">
+            ${tbl(
+              ['요금구분','통영','부여','합천','합계','비중'],
+              MONTHLY_SAMPLE.tongyeong.fareBreakdown.map((f,i)=>{
+                const tng = MONTHLY_SAMPLE.tongyeong.fareBreakdown[i].cnt;
+                const bye = MONTHLY_SAMPLE.buyeo.fareBreakdown[i].cnt;
+                const hap = MONTHLY_SAMPLE.hapcheon.fareBreakdown[i].cnt;
+                const sum = tng+bye+hap;
+                const totalPaxAll = total.totalPax;
+                return [
+                  `<span class="font-medium">${f.label}</span>`,
+                  fmt(tng)+'명', fmt(bye)+'명', fmt(hap)+'명',
+                  `<strong>${fmt(sum)}명</strong>`,
+                  `<span class="text-blue-600 font-medium">${((sum/totalPaxAll)*100).toFixed(1)}%</span>`,
+                ];
+              })
+            )}
+          </div>
+        `)}
+
+        ${section(4, '매출 분석', 'fas fa-won-sign', 'orange', `
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-700 mb-3">지역별 온라인/현장 매출 비교</h4>
+              <div style="height:200px"><canvas id="mr-chart-region-sales"></canvas></div>
+            </div>
+            <div class="space-y-3">
+              <h4 class="text-sm font-semibold text-gray-700">매출 세부 내역</h4>
+              ${tbl(
+                ['지역','온라인','현장','합계','온라인비중'],
+                allKeys.map(k=>{
+                  const r = MONTHLY_SAMPLE[k];
+                  return [
+                    `<span class="font-medium">${r.name}</span>`,
+                    fmtW(r.onlineSales), fmtW(r.offlineSales),
+                    `<strong>${fmtW(r.totalSales)}</strong>`,
+                    `<span class="text-blue-600 font-medium">${r.onlineRatio}%</span>`,
+                  ];
+                }).concat([[
+                  '<strong>합계</strong>',
+                  fmtW(allKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlineSales,0)),
+                  fmtW(allKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlineSales,0)),
+                  `<strong class="text-green-600">${fmtW(total.totalSales)}</strong>`,
+                  '70%',
+                ]])
+              )}
+            </div>
+          </div>
+          ${kpiGrid([
+            {val: fmtW(total.totalSales), label:'총 매출', color:'green'},
+            {val: fmtW(Math.round(total.totalSales/total.totalPax*1000)/1000), label:'1인당 매출', color:'blue'},
+            {val: fmtW(Math.round(total.totalSales/30)), label:'일평균 매출', color:'purple'},
+            {val: '70%', label:'온라인 비중', color:'orange'},
+          ])}
+        `)}
+
+        ${section(5, '취소/환불 현황', 'fas fa-undo-alt', 'red', `
+          ${kpiGrid([
+            {val: total.cancelCnt+'건', label:'총 취소 건수', color:'red'},
+            {val: fmtW(total.cancelAmt), label:'취소 금액', color:'orange'},
+            {val: fmtW(total.refundAmt), label:'환불 금액', color:'purple'},
+            {val: ((total.cancelAmt-total.refundAmt)/total.cancelAmt*100).toFixed(1)+'%', label:'수수료 수취율', color:'green'},
+          ])}
+          <div class="mt-4">
+            ${tbl(
+              ['지역','취소건수','취소금액','환불금액','수수료','취소율'],
+              allKeys.map(k=>{
+                const r = MONTHLY_SAMPLE[k];
+                const fee = r.cancelAmt - r.refundAmt;
+                const rate = ((r.cancelCnt / (r.totalPax+r.cancelCnt))*100).toFixed(2);
+                return [
+                  r.name, r.cancelCnt+'건',
+                  `₩${fmt(r.cancelAmt)}`, `₩${fmt(r.refundAmt)}`,
+                  `<span class="text-green-600">₩${fmt(fee)}</span>`,
+                  `<span class="${parseFloat(rate)<2?'text-green-600':'text-orange-500'}">${rate}%</span>`,
+                ];
+              })
+            )}
+          </div>
+          <div class="mt-3 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+            <i class="fas fa-info-circle mr-1 text-blue-400"></i>
+            취소 정책: 출발 7일 전 전액 환불 / 3~6일 전 80% / 1~2일 전 50% / 당일 환불 불가
+          </div>
+        `)}
+
+        ${section(6, '손목밴드 QR 현황', 'fas fa-qrcode', 'cyan', `
+          ${kpiGrid([
+            {val: fmt(total.wristbandIssued)+'개', label:'총 발급', color:'blue'},
+            {val: fmt(total.wristbandReissued)+'개', label:'재발급', color:'orange'},
+            {val: ((total.wristbandReissued/total.wristbandIssued)*100).toFixed(2)+'%', label:'재발급률', color:'red'},
+            {val: ((1-total.wristbandReissued/total.wristbandIssued)*100).toFixed(1)+'%', label:'정상사용률', color:'green'},
+          ])}
+          <div class="mt-4">
+            ${tbl(
+              ['지역','발급','재발급','무효화','재발급률','비고'],
+              allKeys.map(k=>{
+                const r = MONTHLY_SAMPLE[k];
+                return [
+                  r.name,
+                  fmt(r.wristbandIssued)+'개',
+                  fmt(r.wristbandReissued)+'개',
+                  fmt(r.wristbandInvalid)+'개',
+                  `<span class="${r.wristbandReissued/r.wristbandIssued<0.01?'text-green-600':'text-orange-500'}">${((r.wristbandReissued/r.wristbandIssued)*100).toFixed(2)}%</span>`,
+                  '분실/훼손',
+                ];
+              })
+            )}
+          </div>
+        `)}
+
+        ${section(7, '차량 운행 현황', 'fas fa-bus', 'indigo', `
+          ${tbl(
+            ['지역','보유차량','운행차량','총 회차','1대당 회차','정비일수','특이사항'],
+            [
+              ['통영','4대','4대','248회','62회','3일','4월 14일 1호 차량 정기점검'],
+              ['부여','3대','3대','166회','55회','2일','정기점검 이상 없음'],
+              ['합천','2대','2대','94회','47회','4일','4월 8~12일 기상 결항'],
+              [`<strong>합계</strong>`,'9대','9대',`<strong>${total.trips}회</strong>`,'56회(평균)','9일','-'],
+            ]
+          )}
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            ${[
+              {label:'총 운항 회수', val:fmt(total.trips)+'회', icon:'fas fa-route', color:'blue'},
+              {label:'차량 가동률', val:'96.7%', icon:'fas fa-tachometer-alt', color:'green'},
+              {label:'정비 소요일', val:'9일', icon:'fas fa-tools', color:'orange'},
+            ].map(it=>`
+              <div class="flex items-center gap-3 p-3 bg-${it.color}-50 rounded-xl border border-${it.color}-100">
+                <i class="${it.icon} text-${it.color}-500 text-lg w-6 text-center"></i>
+                <div>
+                  <div class="font-bold text-${it.color}-700">${it.val}</div>
+                  <div class="text-xs text-gray-500">${it.label}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `)}
+
+        ${section(8, '기상 영향 분석', 'fas fa-cloud-rain', 'blue', `
+          ${tbl(
+            ['지역','취소일수','취소회차','취소탑승객(추정)','매출손실(추정)','주요원인'],
+            [
+              ['통영','3일','18회','~1,800명',fmtW(18*50*35000),'강풍(2회), 안개(1회)'],
+              ['부여','5일','25회','~2,500명',fmtW(25*50*35000),'강우(3회), 강풍(2회)'],
+              ['합천','4일','16회','~1,280명',fmtW(16*50*35000),'강풍(3회), 수위(1회)'],
+              [`<strong>합계</strong>`,`<strong>12일</strong>`,`<strong>${total.weatherCancelTrips}회</strong>`,'~5,580명',
+               `<strong class="text-red-600">${fmtW(total.weatherCancelTrips*50*35000)}</strong>`,'강풍 최다'],
+            ]
+          )}
+          <div class="mt-3 p-3 bg-blue-50 rounded-lg text-xs text-gray-700">
+            <i class="fas fa-lightbulb mr-1 text-yellow-500"></i>
+            <strong>개선 방안:</strong> 기상 예보 모니터링 자동화 시스템 도입 검토 / 취소 고객 대체 일정 안내 프로세스 개선
+          </div>
+        `)}
+
+        ${section(9, '마케팅 채널 분석', 'fas fa-bullhorn', 'purple', `
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-700 mb-3">예약 채널 비중 (통영 기준)</h4>
+              <div style="height:200px"><canvas id="mr-chart-channel-pie"></canvas></div>
+            </div>
+            <div>
+              ${tbl(
+                ['채널','예약비중','전월대비','특이사항'],
+                [
+                  ['직접방문','28%','▼2%','현장 방문 소폭 감소'],
+                  ['네이버','22%','▲3%','네이버 플레이스 노출 증가'],
+                  ['카카오','18%','▲1%','카카오 채널 홍보 효과'],
+                  ['인스타','15%','▲4%','릴스 콘텐츠 바이럴'],
+                  ['여행사','10%','▼1%','단체 예약 소폭 감소'],
+                  ['기타','7%','±0%','-'],
+                ]
+              )}
+            </div>
+          </div>
+          <div class="mt-3 p-3 bg-purple-50 rounded-lg text-xs text-gray-700">
+            <i class="fas fa-chart-line mr-1 text-purple-500"></i>
+            온라인 채널(네이버+카카오+인스타) 합산 비중 <strong>55%</strong>로 전월 대비 +8%p 상승. SNS 마케팅 효과 지속 중.
+          </div>
+        `)}
+
+        ${section(10, '고객 만족도', 'fas fa-star', 'yellow', `
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            ${allKeys.map(k=>{
+              const r = MONTHLY_SAMPLE[k];
+              const stars = Math.round(r.satisfaction);
+              return `
+                <div class="text-center p-5 bg-yellow-50 rounded-xl border border-yellow-100">
+                  <div class="font-semibold text-gray-700 mb-2">${r.name}</div>
+                  <div class="text-4xl font-bold text-yellow-500 mb-1">${r.satisfaction}</div>
+                  <div class="flex justify-center gap-0.5 mb-2">
+                    ${[1,2,3,4,5].map(s=>`<i class="fas fa-star text-sm ${s<=stars?'text-yellow-400':'text-gray-200'}"></i>`).join('')}
+                  </div>
+                  <div class="text-xs text-gray-500">${fmt(r.reviewCnt)}건 리뷰</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          ${tbl(
+            ['평가 항목','통영','부여','합천','전체 평균'],
+            [
+              ['승선 편의성','4.7','4.5','4.6','4.60'],
+              ['안내 서비스','4.6','4.3','4.5','4.47'],
+              ['선내 청결','4.8','4.6','4.7','4.70'],
+              ['예약 편리성','4.5','4.4','4.4','4.43'],
+              ['가격 만족도','4.4','4.2','4.3','4.30'],
+              [`<strong>종합</strong>`,`<strong>4.6</strong>`,`<strong>4.4</strong>`,`<strong>4.5</strong>`,`<strong class="text-yellow-600">4.50</strong>`],
+            ]
+          )}
+        `)}
+
+        ${section(11, '특이사항 및 안전 기록', 'fas fa-exclamation-triangle', 'red', `
+          <div class="space-y-3">
+            ${allKeys.map(k=>{
+              const r = MONTHLY_SAMPLE[k];
+              return `
+                <div class="flex gap-3 p-4 rounded-xl border ${r.incidents==='특이사항 없음'?'bg-green-50 border-green-200':'bg-orange-50 border-orange-200'}">
+                  <i class="fas ${r.incidents==='특이사항 없음'?'fa-check-circle text-green-500':'fa-exclamation-circle text-orange-500'} mt-0.5 flex-shrink-0"></i>
+                  <div>
+                    <div class="font-semibold text-sm text-gray-800 mb-0.5">${r.name}</div>
+                    <div class="text-sm text-gray-700">${r.incidents}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div class="font-semibold text-sm text-gray-700 mb-2"><i class="fas fa-shield-alt mr-1.5 text-blue-500"></i>안전 점검 현황</div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div class="text-center"><div class="text-lg font-bold text-green-600">9회</div><div class="text-xs text-gray-500">정기 점검</div></div>
+              <div class="text-center"><div class="text-lg font-bold text-blue-600">0건</div><div class="text-xs text-gray-500">안전사고</div></div>
+              <div class="text-center"><div class="text-lg font-bold text-green-600">100%</div><div class="text-xs text-gray-500">구명장비 점검</div></div>
+              <div class="text-center"><div class="text-lg font-bold text-green-600">정상</div><div class="text-xs text-gray-500">소방시설</div></div>
+            </div>
+          </div>
+        `)}
+
+        ${section(12, '종합 의견 및 다음 달 계획', 'fas fa-lightbulb', 'green', `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-700 mb-3"><i class="fas fa-check-circle text-green-500 mr-1.5"></i>이달 성과</h4>
+              <ul class="space-y-2 text-sm text-gray-700">
+                <li class="flex gap-2"><span class="text-green-500 font-bold flex-shrink-0">✓</span> 전월 대비 탑승객 11.2% 증가 달성</li>
+                <li class="flex gap-2"><span class="text-green-500 font-bold flex-shrink-0">✓</span> 온라인 예약 비중 70% 목표 달성</li>
+                <li class="flex gap-2"><span class="text-green-500 font-bold flex-shrink-0">✓</span> 손목밴드 재발급률 1% 미만 유지</li>
+                <li class="flex gap-2"><span class="text-green-500 font-bold flex-shrink-0">✓</span> 고객 만족도 4.5/5.0 이상 유지</li>
+                <li class="flex gap-2"><span class="text-green-500 font-bold flex-shrink-0">✓</span> 안전사고 0건 달성</li>
+              </ul>
+            </div>
+            <div>
+              <h4 class="text-sm font-semibold text-gray-700 mb-3"><i class="fas fa-arrow-right text-blue-500 mr-1.5"></i>다음 달 계획</h4>
+              <ul class="space-y-2 text-sm text-gray-700">
+                <li class="flex gap-2"><span class="text-blue-500 font-bold flex-shrink-0">→</span> 5월 연휴 특별 운행 편성 (황금연휴 대응)</li>
+                <li class="flex gap-2"><span class="text-blue-500 font-bold flex-shrink-0">→</span> 합천 3호 차량 신규 투입 예정</li>
+                <li class="flex gap-2"><span class="text-blue-500 font-bold flex-shrink-0">→</span> 기상 예보 자동 취소 시스템 파일럿 운영</li>
+                <li class="flex gap-2"><span class="text-blue-500 font-bold flex-shrink-0">→</span> SNS 마케팅 예산 10% 증액 집행</li>
+                <li class="flex gap-2"><span class="text-blue-500 font-bold flex-shrink-0">→</span> 탑승신고서 디지털화 전환 완료</li>
+              </ul>
+            </div>
+          </div>
+          <div class="mt-5 p-4 bg-green-50 rounded-xl border border-green-200 text-sm">
+            <strong class="text-green-800">종합 평가:</strong>
+            <span class="text-green-700 ml-1">
+              ${reportMonth} 전체 운영은 목표 대비 양호한 성과를 달성했습니다.
+              기상 영향에 따른 취소 증가가 아쉬우나, 온라인 채널 성장과 고객 만족도 유지로
+              전반적인 서비스 품질은 향상되었습니다. 5월 성수기 대비 차량 추가 투입과
+              마케팅 집중 운영을 통해 전월 대비 15% 이상 성장을 목표로 합니다.
+            </span>
+          </div>
+          <div class="mt-4 flex items-center justify-between text-xs text-gray-400 border-t pt-4">
+            <span>작성일: ${now.toLocaleDateString('ko-KR')} · 아쿠아모빌리티코리아 운영팀</span>
+            <span>본 보고서는 시스템 자동 생성 문서입니다.</span>
+          </div>
+        `)}
+
+      </div><!-- /#monthly-report-body -->
+    `;
+  };
+
+  // 월간 보고서 지역 전환
+  const switchMonthlyRegion = () => {
+    const sel = document.getElementById('mr-region-sel');
+    const val = sel ? sel.value : 'all';
+    // 현재 탭 재렌더
+    destroyAll();
+    const el = document.getElementById('stats-content');
+    if (el) el.innerHTML = monthlyReportTab();
+    switchTab('monthly'); // 탭 활성 상태 유지
+  };
+
+  // 월간 보고서 PDF
+  const exportMonthlyPDF = () => {
+    Utils.toast('PDF 출력 준비 중... 인쇄 다이얼로그가 열립니다.', 'info');
+    setTimeout(() => window.print(), 600);
+  };
+
+  // 월간 보고서 엑셀 (CSV)
+  const exportMonthlyExcel = () => {
+    const rows = [
+      ['구분','통영','부여','합천','합계'],
+      ['탑승객(명)',
+        MONTHLY_SAMPLE.tongyeong.totalPax,
+        MONTHLY_SAMPLE.buyeo.totalPax,
+        MONTHLY_SAMPLE.hapcheon.totalPax,
+        MONTHLY_SAMPLE.tongyeong.totalPax+MONTHLY_SAMPLE.buyeo.totalPax+MONTHLY_SAMPLE.hapcheon.totalPax],
+      ['총 매출(원)',
+        MONTHLY_SAMPLE.tongyeong.totalSales,
+        MONTHLY_SAMPLE.buyeo.totalSales,
+        MONTHLY_SAMPLE.hapcheon.totalSales,
+        MONTHLY_SAMPLE.tongyeong.totalSales+MONTHLY_SAMPLE.buyeo.totalSales+MONTHLY_SAMPLE.hapcheon.totalSales],
+      ['운항회수',
+        MONTHLY_SAMPLE.tongyeong.trips,
+        MONTHLY_SAMPLE.buyeo.trips,
+        MONTHLY_SAMPLE.hapcheon.trips,
+        MONTHLY_SAMPLE.tongyeong.trips+MONTHLY_SAMPLE.buyeo.trips+MONTHLY_SAMPLE.hapcheon.trips],
+      ['취소건수',
+        MONTHLY_SAMPLE.tongyeong.cancelCnt,
+        MONTHLY_SAMPLE.buyeo.cancelCnt,
+        MONTHLY_SAMPLE.hapcheon.cancelCnt,
+        MONTHLY_SAMPLE.tongyeong.cancelCnt+MONTHLY_SAMPLE.buyeo.cancelCnt+MONTHLY_SAMPLE.hapcheon.cancelCnt],
+      ['손목밴드 발급',
+        MONTHLY_SAMPLE.tongyeong.wristbandIssued,
+        MONTHLY_SAMPLE.buyeo.wristbandIssued,
+        MONTHLY_SAMPLE.hapcheon.wristbandIssued,
+        MONTHLY_SAMPLE.tongyeong.wristbandIssued+MONTHLY_SAMPLE.buyeo.wristbandIssued+MONTHLY_SAMPLE.hapcheon.wristbandIssued],
+      ['고객 만족도',
+        MONTHLY_SAMPLE.tongyeong.satisfaction,
+        MONTHLY_SAMPLE.buyeo.satisfaction,
+        MONTHLY_SAMPLE.hapcheon.satisfaction,
+        ((MONTHLY_SAMPLE.tongyeong.satisfaction+MONTHLY_SAMPLE.buyeo.satisfaction+MONTHLY_SAMPLE.hapcheon.satisfaction)/3).toFixed(1)],
+      [],
+      ['※ 본 데이터는 2025년 4월 운영 기준 샘플 데이터입니다.'],
+    ];
+    Utils.downloadCSV(rows, `aqua_monthly_report_2025-04.csv`);
+    Utils.toast('엑셀(CSV) 다운로드 완료!', 'success');
+  };
+
   // ── 보고서 생성 탭 ─────────────────────────────────────────
   const reportTab = () => `
     <div class="space-y-6">
@@ -931,6 +1606,7 @@ const StatsModule = (() => {
       operations: operationsTab,
       marketing: marketingTab,
       wristbands: wristbandsTab,
+      monthly: monthlyReportTab,
       report: reportTab,
     };
 
@@ -987,6 +1663,7 @@ const StatsModule = (() => {
   return {
     page, switchTab, refreshCurrent,
     exportPDF, exportExcel, generateReport, scheduleReport,
+    switchMonthlyRegion, exportMonthlyPDF, exportMonthlyExcel,
   };
 })();
 

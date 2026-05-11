@@ -124,11 +124,20 @@
   // ── 관리자 가드 래퍼 ───────────────────────────────────────
   const _adminGuard = (handler) => async (params) => {
     const user = Store.get('adminUser');
-    // 데모 모드: 직접 /admin/* 접근 시 자동 로그인
     if (!user) {
-      // 데모용 자동 로그인
-      const demoUser = { id: 'admin', name: '슈퍼관리자', role: 'super', regionId: null };
-      Store.set('adminUser', demoUser);
+      // 미인증 시 로그인 페이지로 리다이렉트
+      console.warn('[AdminGuard] 미인증 접근 차단 → /admin/login');
+      Router.go('/admin/login');
+      return AdminModule.loginPage();
+    }
+    // 세션 타임아웃 검사 (8시간)
+    const loginTime = Store.get('adminLoginTime');
+    if (loginTime && (Date.now() - loginTime) > 8 * 60 * 60 * 1000) {
+      Store.set('adminUser', null);
+      Store.set('adminLoginTime', null);
+      Utils.toast('세션이 만료되었습니다. 다시 로그인해주세요.', 'warning');
+      Router.go('/admin/login');
+      return AdminModule.loginPage();
     }
     return handler(params);
   };

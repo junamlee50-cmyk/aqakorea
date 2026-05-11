@@ -13,6 +13,28 @@ const AdminModule = (() => {
     selectedRegion: null,
     fareApprovals: [],
     pendingChanges: {},
+    sidebarCollapsed: false,
+    mobileOpen: false,
+  };
+
+  // ── 데모 계정 목록 ──────────────────────────────────────────
+  const DEMO_ACCOUNTS = [
+    { id:'admin',      pw:'admin1234',  name:'본사 슈퍼관리자', role:'super',      regionId:null },
+    { id:'tongyeong',  pw:'tong1234',   name:'통영지역관리자',  role:'regional',   regionId:'tongyeong' },
+    { id:'buyeo',      pw:'buye1234',   name:'부여지역관리자',  role:'regional',   regionId:'buyeo' },
+    { id:'hapcheon',   pw:'hapc1234',   name:'합천지역관리자',  role:'regional',   regionId:'hapcheon' },
+    { id:'field01',    pw:'field1234',  name:'현장매표소',      role:'staff',      regionId:'tongyeong' },
+    { id:'account',    pw:'acct1234',   name:'회계담당자',      role:'accountant', regionId:null },
+    { id:'content',    pw:'cont1234',   name:'콘텐츠담당자',    role:'content',    regionId:null },
+    { id:'partner',    pw:'part1234',   name:'여행사파트너',    role:'partner',    regionId:null },
+  ];
+
+  // ── 접속 로그 ──────────────────────────────────────────────
+  const _addAccessLog = (userId, action) => {
+    const logs = JSON.parse(sessionStorage.getItem('amk_access_logs') || '[]');
+    logs.unshift({ time: new Date().toLocaleString('ko-KR'), userId, action });
+    if (logs.length > 50) logs.splice(50);
+    sessionStorage.setItem('amk_access_logs', JSON.stringify(logs));
   };
 
   // ── 권한 레벨 정의 ─────────────────────────────────────────
@@ -71,78 +93,115 @@ const AdminModule = (() => {
   const renderAdminLayout = (section, contentHtml, title) => {
     const user = _adminState.user || { name: '관리자', role: 'super', regionId: null };
     const menus = getMenuItems(user.role, user.regionId);
-    const menuHtml = menus.map(m => `
-      <li>
+    const collapsed = _adminState.sidebarCollapsed;
+    const mobileOpen = _adminState.mobileOpen;
+
+    const menuHtml = menus.map(m => {
+      const isActive = _adminState.currentSection === m.section;
+      return `
         <button onclick="AdminModule.navigate('${m.section}')"
-          class="admin-nav-item w-full text-left px-4 py-2.5 rounded-lg flex items-center gap-3 transition-all
-            ${_adminState.currentSection === m.section ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}">
-          <i class="${m.icon} w-5 text-center"></i>
-          <span class="text-sm font-medium">${m.label}</span>
+          title="${m.label}"
+          class="w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg mb-0.5 transition-all
+            ${isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}">
+          <i class="${m.icon} flex-shrink-0 ${collapsed ? 'text-lg' : 'w-5 text-center text-sm'}"></i>
+          ${collapsed ? '' : `<span class="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">${m.label}</span>`}
         </button>
-      </li>
-    `).join('');
+      `;
+    }).join('');
 
     return `
-      <div class="flex h-screen bg-gray-100 overflow-hidden">
+      <div class="flex h-screen bg-gray-100 overflow-hidden" id="admin-root">
+
+        <!-- 모바일 오버레이 -->
+        <div id="sb-overlay"
+          class="fixed inset-0 bg-black/50 z-20 transition-opacity duration-300 lg:hidden ${mobileOpen ? '' : 'hidden'}"
+          onclick="AdminModule.closeMobileSidebar()"></div>
+
         <!-- 사이드바 -->
-        <aside id="admin-sidebar" class="admin-sidebar w-64 flex-shrink-0 bg-gray-900 text-white flex flex-col overflow-y-auto transition-all duration-300">
-          <div class="p-4 border-b border-gray-700 flex items-center gap-3">
-            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-              <i class="fas fa-water text-white text-sm"></i>
-            </div>
-            <div>
-              <div class="text-white font-bold text-sm">아쿠아모빌리티</div>
-              <div class="text-gray-400 text-xs">${ROLE_LABELS[user.role] || '관리자'}</div>
-            </div>
-            <button onclick="AdminModule.toggleSidebar()" class="ml-auto text-gray-400 hover:text-white">
-              <i class="fas fa-bars"></i>
-            </button>
+        <aside id="admin-sidebar"
+          class="fixed lg:static inset-y-0 left-0 z-30 flex-shrink-0 bg-gray-900 text-white flex flex-col
+                 transition-all duration-300 ease-in-out overflow-hidden
+                 ${collapsed ? 'lg:w-16' : 'lg:w-64'}
+                 ${mobileOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full lg:translate-x-0'}">
+
+          <!-- 로고 + 햄버거 -->
+          <div class="flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-4 py-3 border-b border-gray-700 flex-shrink-0 h-16">
+            ${collapsed ? `
+              <button onclick="AdminModule.toggleSidebar()" class="text-gray-400 hover:text-white" title="메뉴 펼치기">
+                <i class="fas fa-bars text-lg"></i>
+              </button>
+            ` : `
+              <div class="flex items-center gap-2 overflow-hidden">
+                <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <i class="fas fa-water text-white text-sm"></i>
+                </div>
+                <div class="overflow-hidden">
+                  <div class="text-white font-bold text-sm whitespace-nowrap">아쿠아모빌리티</div>
+                  <div class="text-gray-400 text-xs whitespace-nowrap">${ROLE_LABELS[user.role] || '관리자'}</div>
+                </div>
+              </div>
+              <button onclick="AdminModule.toggleSidebar()" class="text-gray-400 hover:text-white flex-shrink-0 ml-2" title="메뉴 접기">
+                <i class="fas fa-bars"></i>
+              </button>
+            `}
           </div>
-          <div class="p-3 border-b border-gray-700">
-            <div class="bg-gray-800 rounded-lg p-3">
-              <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
-                  ${(user.name||'관').charAt(0)}
-                </div>
-                <div>
-                  <div class="text-white text-xs font-medium">${user.name || '관리자'}</div>
-                  <div class="text-gray-400 text-xs">${user.regionId ? (user.regionId+'지역') : '본사'}</div>
-                </div>
+
+          <!-- 유저 정보 -->
+          ${collapsed ? '' : `
+          <div class="px-3 py-2 border-b border-gray-700 flex-shrink-0">
+            <div class="bg-gray-800 rounded-lg p-2.5 flex items-center gap-2">
+              <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                ${(user.name || '관').charAt(0)}
+              </div>
+              <div class="overflow-hidden">
+                <div class="text-white text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis">${user.name || '관리자'}</div>
+                <div class="text-gray-400 text-xs whitespace-nowrap">${user.regionId ? (user.regionId + ' 지역') : '본사'}</div>
               </div>
             </div>
           </div>
-          <nav class="flex-1 p-3">
-            <ul class="space-y-1">${menuHtml}</ul>
+          `}
+
+          <!-- 메뉴 목록 -->
+          <nav class="flex-1 p-2 overflow-y-auto overflow-x-hidden">
+            ${menuHtml}
           </nav>
-          <div class="p-3 border-t border-gray-700">
-            <button onclick="AdminModule.logout()" class="w-full text-left px-3 py-2 text-gray-400 hover:text-white text-sm flex items-center gap-2">
-              <i class="fas fa-sign-out-alt"></i> 로그아웃
+
+          <!-- 로그아웃 -->
+          <div class="border-t border-gray-700 p-2 flex-shrink-0">
+            <button onclick="AdminModule.logout()"
+              class="w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-all"
+              title="로그아웃">
+              <i class="fas fa-sign-out-alt flex-shrink-0 ${collapsed ? 'text-lg' : 'w-5 text-center text-sm'}"></i>
+              ${collapsed ? '' : `<span class="text-sm whitespace-nowrap">로그아웃</span>`}
             </button>
           </div>
         </aside>
 
-        <!-- 메인 콘텐츠 -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- 메인 콘텐츠 영역 -->
+        <div class="flex-1 flex flex-col overflow-hidden min-w-0">
           <!-- 상단 헤더 -->
-          <header class="bg-white border-b px-6 py-3 flex items-center justify-between flex-shrink-0">
-            <div class="flex items-center gap-3">
-              <button onclick="AdminModule.toggleSidebar()" class="text-gray-500 hover:text-gray-800 lg:hidden">
+          <header class="bg-white border-b px-4 lg:px-6 py-3 flex items-center justify-between flex-shrink-0 h-16">
+            <div class="flex items-center gap-3 min-w-0">
+              <!-- 모바일 햄버거 -->
+              <button onclick="AdminModule.toggleMobileSidebar()" class="lg:hidden text-gray-500 hover:text-gray-800 flex-shrink-0">
                 <i class="fas fa-bars"></i>
               </button>
-              <h1 class="text-gray-800 font-semibold text-lg">${title || section}</h1>
+              <h1 class="text-gray-800 font-semibold text-base lg:text-lg truncate">${title || section}</h1>
             </div>
-            <div class="flex items-center gap-4">
-              <span class="text-xs text-gray-500">${new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})}</span>
+            <div class="flex items-center gap-2 lg:gap-4 flex-shrink-0">
+              <span class="hidden md:block text-xs text-gray-500">${new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})}</span>
               <a href="/" target="_blank" class="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                <i class="fas fa-external-link-alt"></i> 고객사이트
+                <i class="fas fa-external-link-alt"></i>
+                <span class="hidden sm:inline">고객사이트</span>
               </a>
               <a href="/field" target="_blank" class="text-xs text-green-600 hover:underline flex items-center gap-1">
-                <i class="fas fa-tablet-alt"></i> 현장매표소
+                <i class="fas fa-tablet-alt"></i>
+                <span class="hidden sm:inline">현장매표소</span>
               </a>
             </div>
           </header>
           <!-- 페이지 콘텐츠 -->
-          <main class="flex-1 overflow-y-auto p-6" id="admin-content">
+          <main class="flex-1 overflow-y-auto p-4 lg:p-6" id="admin-content">
             ${contentHtml}
           </main>
         </div>
@@ -168,86 +227,194 @@ const AdminModule = (() => {
 
   // ── 로그인 페이지 ──────────────────────────────────────────
   const loginPage = async () => {
+    const failCount = parseInt(sessionStorage.getItem('amk_fail_count') || '0');
+    const isLocked = failCount >= 5;
     return `
       <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
         <div class="w-full max-w-md">
           <div class="text-center mb-8">
-            <div class="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div class="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
               <i class="fas fa-water text-white text-2xl"></i>
             </div>
             <h1 class="text-white text-2xl font-bold">아쿠아모빌리티코리아</h1>
-            <p class="text-gray-400 text-sm mt-1">통합 관리자 시스템</p>
+            <p class="text-gray-400 text-sm mt-1">통합 관리자 시스템 · Admin Portal</p>
           </div>
           <div class="bg-white rounded-2xl shadow-2xl p-8">
-            <h2 class="text-gray-800 font-semibold text-lg mb-6 text-center">관리자 로그인</h2>
+            <div class="flex items-center gap-2 mb-6">
+              <i class="fas fa-lock text-blue-500"></i>
+              <h2 class="text-gray-800 font-semibold text-lg">관리자 로그인</h2>
+            </div>
+            ${isLocked ? `
+            <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+              <i class="fas fa-ban"></i>
+              <span>로그인 시도 횟수가 초과되었습니다. 브라우저를 새로고침 후 다시 시도하세요.</span>
+            </div>` : failCount > 0 ? `
+            <div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span>로그인 실패 ${failCount}회. ${5 - failCount}회 더 실패 시 잠금됩니다.</span>
+            </div>` : ''}
             <div class="space-y-4">
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">아이디</label>
-                <input id="admin-id" type="text" value="admin" placeholder="관리자 아이디"
-                  class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
+                <input id="admin-id" type="text" placeholder="관리자 아이디" ${isLocked ? 'disabled' : ''}
+                  class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm ${isLocked ? 'bg-gray-100' : ''}"
                   onkeypress="if(event.key==='Enter') AdminModule.doLogin()">
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
-                <input id="admin-pw" type="password" value="admin1234" placeholder="비밀번호"
-                  class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
-                  onkeypress="if(event.key==='Enter') AdminModule.doLogin()">
+                <div class="relative">
+                  <input id="admin-pw" type="password" placeholder="비밀번호" ${isLocked ? 'disabled' : ''}
+                    class="w-full border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm ${isLocked ? 'bg-gray-100' : ''}"
+                    onkeypress="if(event.key==='Enter') AdminModule.doLogin()">
+                  <button type="button" onclick="(function(){const el=document.getElementById('admin-pw');el.type=el.type==='password'?'text':'password';})()"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-eye text-sm"></i>
+                  </button>
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">지역 선택 (지역관리자인 경우)</label>
-                <select id="admin-region" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-                  <option value="">본사 슈퍼관리자</option>
-                  <option value="tongyeong">통영 지역관리자</option>
-                  <option value="buyeo">부여 지역관리자</option>
-                  <option value="hapcheon">합천 지역관리자</option>
-                </select>
-              </div>
-              <button onclick="AdminModule.doLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors">
-                <i class="fas fa-sign-in-alt mr-2"></i>로그인
+              <button onclick="AdminModule.doLogin()" ${isLocked ? 'disabled' : ''}
+                class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <i class="fas fa-sign-in-alt"></i>로그인
               </button>
             </div>
-            <div class="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-              <strong>데모 계정:</strong> admin / admin1234 (슈퍼관리자)
+
+            <!-- 데모 계정 안내 -->
+            <div class="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <p class="text-xs font-semibold text-gray-600 mb-2"><i class="fas fa-info-circle mr-1 text-blue-500"></i>데모 계정 안내</p>
+              <div class="grid grid-cols-2 gap-1 text-xs text-gray-500">
+                <button onclick="AdminModule.fillLogin('admin','admin1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
+                  🔑 admin / admin1234 <span class="text-blue-500">(슈퍼관리자)</span>
+                </button>
+                <button onclick="AdminModule.fillLogin('tongyeong','tong1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
+                  🗺️ tongyeong / tong1234 <span class="text-green-500">(통영관리자)</span>
+                </button>
+                <button onclick="AdminModule.fillLogin('buyeo','buye1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
+                  🗺️ buyeo / buye1234 <span class="text-green-500">(부여관리자)</span>
+                </button>
+                <button onclick="AdminModule.fillLogin('hapcheon','hapc1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
+                  🗺️ hapcheon / hapc1234 <span class="text-green-500">(합천관리자)</span>
+                </button>
+                <button onclick="AdminModule.fillLogin('field01','field1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
+                  🖥️ field01 / field1234 <span class="text-orange-500">(현장매표소)</span>
+                </button>
+                <button onclick="AdminModule.fillLogin('account','acct1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
+                  💰 account / acct1234 <span class="text-purple-500">(회계담당)</span>
+                </button>
+              </div>
             </div>
           </div>
+          <p class="text-center text-gray-500 text-xs mt-4">
+            <i class="fas fa-shield-alt mr-1"></i>보안 접속 · 무단 접근 시 법적 조치
+          </p>
         </div>
       </div>
     `;
   };
 
-  const doLogin = () => {
-    const id = document.getElementById('admin-id')?.value;
-    const pw = document.getElementById('admin-pw')?.value;
-    const regionId = document.getElementById('admin-region')?.value;
+  // 로그인 폼 자동 채우기 (데모용)
+  const fillLogin = (id, pw) => {
+    const idEl = document.getElementById('admin-id');
+    const pwEl = document.getElementById('admin-pw');
+    if (idEl) idEl.value = id;
+    if (pwEl) pwEl.value = pw;
+  };
 
+  const doLogin = () => {
+    // 실패 횟수 제한
+    const failCount = parseInt(sessionStorage.getItem('amk_fail_count') || '0');
+    if (failCount >= 5) {
+      Utils.toast('로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도하세요.', 'error');
+      return;
+    }
+
+    const id = document.getElementById('admin-id')?.value?.trim();
+    const pw = document.getElementById('admin-pw')?.value;
     if (!id || !pw) { Utils.toast('아이디와 비밀번호를 입력하세요', 'error'); return; }
 
-    // 데모 로그인 처리
-    const role = regionId ? ROLES.REGIONAL : ROLES.SUPER;
+    const account = DEMO_ACCOUNTS.find(a => a.id === id && a.pw === pw);
+    if (!account) {
+      sessionStorage.setItem('amk_fail_count', String(failCount + 1));
+      const remain = 5 - (failCount + 1);
+      Utils.toast(`아이디 또는 비밀번호가 올바르지 않습니다. (${failCount + 1}/5회, 남은 시도: ${remain}회)`, 'error');
+      return;
+    }
+
+    // 로그인 성공
+    sessionStorage.setItem('amk_fail_count', '0');
     _adminState.loggedIn = true;
-    _adminState.user = { id, name: regionId ? `${regionId}관리자` : '슈퍼관리자', role, regionId: regionId || null };
-    _adminState.selectedRegion = regionId || null;
+    _adminState.user = { id: account.id, name: account.name, role: account.role, regionId: account.regionId };
+    _adminState.selectedRegion = account.regionId || null;
     Store.set('adminUser', _adminState.user);
-    Utils.toast('로그인 성공!', 'success');
-    Router.go('/admin/dashboard');
+    Store.set('adminLoginTime', Date.now());
+    _addAccessLog(account.id, '로그인 성공');
+    Utils.toast(`${account.name}으로 로그인되었습니다.`, 'success');
+
+    // 권한별 리다이렉트
+    if (account.role === ROLES.STAFF) {
+      Router.go('/field');
+    } else if (account.role === ROLES.REGIONAL) {
+      Router.go('/admin/region-dashboard');
+    } else {
+      Router.go('/admin/dashboard');
+    }
   };
 
   const logout = () => {
+    const userName = _adminState.user?.name || 'unknown';
+    _addAccessLog(_adminState.user?.id || 'unknown', '로그아웃');
     _adminState.loggedIn = false;
     _adminState.user = null;
+    _adminState.mobileOpen = false;
     Store.set('adminUser', null);
+    Store.set('adminLoginTime', null);
+    Utils.toast(`${userName} 로그아웃되었습니다.`, 'info');
     Router.go('/admin/login');
   };
 
   const toggleSidebar = () => {
+    _adminState.sidebarCollapsed = !_adminState.sidebarCollapsed;
+    // DOM 직접 조작 - 리렌더링 없이 즉시 적용
     const sb = document.getElementById('admin-sidebar');
     if (!sb) return;
-    sb.classList.toggle('w-64');
-    sb.classList.toggle('w-16');
+    if (_adminState.sidebarCollapsed) {
+      sb.classList.remove('lg:w-64');
+      sb.classList.add('lg:w-16');
+    } else {
+      sb.classList.remove('lg:w-16');
+      sb.classList.add('lg:w-64');
+    }
+    // 현재 섹션 재렌더링하여 메뉴 텍스트 표시/숨김 동기화
+    const section = _adminState.currentSection;
+    Router.go(`/admin/${section}`, false);
+  };
+
+  const toggleMobileSidebar = () => {
+    _adminState.mobileOpen = !_adminState.mobileOpen;
+    const sb = document.getElementById('admin-sidebar');
+    const overlay = document.getElementById('sb-overlay');
+    if (!sb) return;
+    if (_adminState.mobileOpen) {
+      sb.classList.remove('-translate-x-full');
+      sb.classList.add('translate-x-0', 'w-64');
+      if (overlay) overlay.classList.remove('hidden');
+    } else {
+      sb.classList.add('-translate-x-full');
+      sb.classList.remove('translate-x-0');
+      if (overlay) overlay.classList.add('hidden');
+    }
+  };
+
+  const closeMobileSidebar = () => {
+    _adminState.mobileOpen = false;
+    const sb = document.getElementById('admin-sidebar');
+    const overlay = document.getElementById('sb-overlay');
+    if (sb) { sb.classList.add('-translate-x-full'); sb.classList.remove('translate-x-0'); }
+    if (overlay) overlay.classList.add('hidden');
   };
 
   const navigate = (section) => {
     _adminState.currentSection = section;
+    _adminState.mobileOpen = false; // 모바일에서 메뉴 클릭 시 사이드바 닫기
     Router.go(`/admin/${section}`);
   };
 
@@ -1120,62 +1287,135 @@ const AdminModule = (() => {
     Utils.toast(`${regionId} 지역 좌석 배분이 저장되었습니다.`, 'success');
   };
 
+  // ── 예약 데모 데이터 생성 ──────────────────────────────────
+  const _generateDemoReservations = () => {
+    const regions = [
+      { id:'tongyeong', name:'통영', count:120, fareBase:35000 },
+      { id:'buyeo',     name:'부여', count:80,  fareBase:30000 },
+      { id:'hapcheon',  name:'합천', count:45,  fareBase:28000 },
+    ];
+    const schedules = ['10:00','12:00','14:00','15:30','17:00'];
+    const statuses = ['confirmed','confirmed','confirmed','confirmed','checkedin','checkedin','pending','cancelled'];
+    const names = ['김민준','이서연','박지호','최하늘','정다은','강민서','윤재원','임수아','한도윤','오지수',
+                   '신현우','황예린','조성민','류나연','백준혁','전수빈','홍태양','문지아','안준서','장하은'];
+    const sources = ['네이버','카카오','인스타그램','블로그','지인소개','여행사','현수막QR'];
+    const res = [];
+    let seq = 1;
+    const today = new Date();
+
+    regions.forEach(reg => {
+      for (let i = 0; i < reg.count; i++) {
+        const daysAgo = Math.floor(Math.random() * 30);
+        const d = new Date(today);
+        d.setDate(d.getDate() - daysAgo);
+        const dateStr = d.toISOString().slice(0,10);
+        const pax = Math.floor(Math.random() * 5) + 1;
+        const adultCnt = Math.ceil(pax * 0.6);
+        const childCnt = pax - adultCnt;
+        const amount = adultCnt * reg.fareBase + childCnt * Math.round(reg.fareBase * 0.5);
+        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        const seqStr = String(seq).padStart(4,'0');
+        res.push({
+          id: `AMK-${dateStr.replace(/-/g,'')}-${seqStr}`,
+          regionId: reg.id, regionName: reg.name,
+          name: names[Math.floor(Math.random()*names.length)],
+          date: dateStr,
+          schedule: schedules[Math.floor(Math.random()*schedules.length)],
+          totalPassengers: pax, adultCnt, childCnt,
+          totalAmount: amount,
+          status,
+          payMethod: Math.random() > 0.3 ? '카드' : '간편결제',
+          source: sources[Math.floor(Math.random()*sources.length)],
+          isRefunded: status === 'cancelled' && Math.random() > 0.3,
+        });
+        seq++;
+      }
+    });
+
+    // 날짜 내림차순 정렬
+    res.sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    return res;
+  };
+
   // ── 예약 관리 ──────────────────────────────────────────────
   const reservationsPage = async () => {
     _adminState.currentSection = 'reservations';
-    const reservations = window.SAMPLE_RESERVATIONS || [];
+    const allRes = _generateDemoReservations();
+    const user = _adminState.user || { role: 'super', regionId: null };
+    // 지역관리자는 자기 지역만
+    const reservations = user.role === 'regional' && user.regionId
+      ? allRes.filter(r => r.regionId === user.regionId)
+      : allRes;
+
     const statusColors = { confirmed:'bg-green-100 text-green-700', cancelled:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', checkedin:'bg-blue-100 text-blue-700' };
     const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
 
-    const rows = reservations.slice(0, 20).map(r => `
+    // 통계 카드용 집계
+    const totalRevenue = reservations.filter(r=>r.status!=='cancelled').reduce((s,r)=>s+r.totalAmount,0);
+    const todayRes = reservations.filter(r=>r.date===new Date().toISOString().slice(0,10));
+    const cancelCount = reservations.filter(r=>r.status==='cancelled').length;
+
+    const rows = reservations.slice(0, 30).map(r => `
       <tr class="hover:bg-gray-50">
-        <td class="px-3 py-2 text-xs font-mono text-blue-600">${r.id}</td>
-        <td class="px-3 py-2 text-sm">${r.name || '홍길동'}</td>
-        <td class="px-3 py-2 text-sm text-center">${r.regionId || '통영'}</td>
-        <td class="px-3 py-2 text-sm text-center">${r.date || '2025-05-11'}</td>
-        <td class="px-3 py-2 text-sm text-center">${r.schedule || '10:00'}</td>
-        <td class="px-3 py-2 text-sm text-center">${r.totalPassengers || 2}명</td>
-        <td class="px-3 py-2 text-right text-sm font-medium">₩${(r.totalAmount||70000).toLocaleString()}</td>
+        <td class="px-3 py-2 text-xs font-mono text-blue-600 whitespace-nowrap">${r.id}</td>
+        <td class="px-3 py-2 text-sm font-medium">${r.name}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.regionName}</td>
+        <td class="px-3 py-2 text-sm text-center whitespace-nowrap">${r.date}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.schedule}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.totalPassengers}명</td>
+        <td class="px-3 py-2 text-right text-sm font-medium whitespace-nowrap">₩${r.totalAmount.toLocaleString()}</td>
+        <td class="px-3 py-2 text-center text-xs text-gray-500">${r.payMethod}</td>
         <td class="px-3 py-2 text-center">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[r.status]||'bg-gray-100 text-gray-600'}">
             ${statusLabels[r.status]||r.status}
           </span>
         </td>
-        <td class="px-3 py-2 text-center">
+        <td class="px-3 py-2 text-center whitespace-nowrap">
           <button onclick="AdminModule.viewReservation('${r.id}')" class="text-blue-600 hover:underline text-xs mr-1">상세</button>
-          ${r.status !== 'cancelled' ? `<button onclick="AdminModule.cancelReservation('${r.id}')" class="text-red-500 hover:underline text-xs">취소</button>` : ''}
+          ${r.status !== 'cancelled' ? `<button onclick="AdminModule.cancelReservation('${r.id}')" class="text-red-500 hover:underline text-xs">취소</button>` : `<span class="text-xs text-gray-400">${r.isRefunded?'환불완료':'환불전'}</span>`}
         </td>
       </tr>
-    `).join('') || '<tr><td colspan="9" class="text-center py-4 text-gray-500">예약이 없습니다.</td></tr>';
+    `).join('') || '<tr><td colspan="10" class="text-center py-4 text-gray-500">예약이 없습니다.</td></tr>';
 
     const content = `
       <div class="space-y-4">
+        <!-- 통계 요약 카드 -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          ${statCard('fas fa-ticket-alt', '전체 예약', `${reservations.length.toLocaleString()}건`, '최근 30일', 'blue')}
+          ${statCard('fas fa-won-sign', '총 매출', '₩'+totalRevenue.toLocaleString(), '취소 제외', 'green')}
+          ${statCard('fas fa-calendar-day', '오늘 예약', `${todayRes.length}건`, new Date().toLocaleDateString('ko-KR'), 'purple')}
+          ${statCard('fas fa-times-circle', '취소 건수', `${cancelCount}건`, `환불률 ${Math.round(cancelCount/reservations.length*100)}%`, 'red')}
+        </div>
+
         <!-- 필터 -->
         <div class="bg-white rounded-xl shadow-sm p-4">
-          <div class="flex flex-wrap gap-3">
+          <div class="flex flex-wrap gap-2">
             <select class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
               <option>전체 지역</option>
-              ${(window.REGIONS||[]).filter(r=>r.status==='active').map(r=>`<option>${r.name}</option>`).join('')}
+              <option>통영</option><option>부여</option><option>합천</option>
             </select>
             <input type="date" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
             <select class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
               <option>전체 상태</option>
               <option>확정</option><option>대기</option><option>취소</option><option>탑승완료</option>
             </select>
-            <input type="text" placeholder="예약번호/예약자명 검색" class="border rounded-lg px-3 py-2 text-sm flex-1 min-w-40 focus:ring-2 focus:ring-blue-500 outline-none">
+            <input type="text" placeholder="예약번호/예약자명 검색" class="border rounded-lg px-3 py-2 text-sm flex-1 min-w-36 focus:ring-2 focus:ring-blue-500 outline-none">
             <button class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">검색</button>
             <button onclick="AdminModule.exportReservations()" class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2">
-              <i class="fas fa-download"></i> 엑셀 다운로드
+              <i class="fas fa-download"></i> 엑셀
             </button>
           </div>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-4 py-3 border-b flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-700">총 ${reservations.length}건 (최근 30건 표시)</span>
+          </div>
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
               <thead>
                 <tr class="bg-gray-50">
-                  ${['예약번호','예약자','지역','날짜','회차','인원','금액','상태','관리'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600">${h}</th>`).join('')}
+                  ${['예약번호','예약자','지역','날짜','회차','인원','금액','결제','상태','관리'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">${rows}</tbody>
@@ -1191,26 +1431,77 @@ const AdminModule = (() => {
   const cancelReservation = (id) => { Utils.confirm(`예약 ${id}를 취소하시겠습니까?`, () => Utils.toast('예약이 취소되었습니다.', 'success')); };
   const exportReservations = () => { Utils.toast('엑셀 파일 다운로드가 시작됩니다.', 'info'); };
 
+  // ── 손목밴드 데모 데이터 생성 ──────────────────────────────
+  const _generateDemoWristbands = () => {
+    const ticketTypes = ['성인','어린이','청소년','경로','단체'];
+    const statuses = ['used','used','used','active','active','invalidated'];
+    const regions = [
+      { id:'tongyeong', name:'통영', schedules:['10:00','12:00','14:00','15:30'] },
+      { id:'buyeo',     name:'부여', schedules:['10:00','13:00','15:30'] },
+      { id:'hapcheon',  name:'합천', schedules:['10:30','13:30','16:00'] },
+    ];
+    const bands = [];
+    let seq = 1;
+    const today = new Date();
+
+    regions.forEach(reg => {
+      const count = reg.id === 'tongyeong' ? 40 : reg.id === 'buyeo' ? 25 : 15;
+      for (let i = 0; i < count; i++) {
+        const daysAgo = Math.floor(Math.random() * 14);
+        const d = new Date(today);
+        d.setDate(d.getDate() - daysAgo);
+        const dateStr = d.toISOString().slice(0,10);
+        const hour = d.getHours() < 10 ? '0'+d.getHours() : d.getHours();
+        const min  = d.getMinutes() < 10 ? '0'+d.getMinutes() : d.getMinutes();
+        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        bands.push({
+          id: `WB-${reg.id.slice(0,3).toUpperCase()}-${String(seq).padStart(5,'0')}`,
+          reservationId: `AMK-${dateStr.replace(/-/g,'')}-${String(Math.floor(Math.random()*9000)+1000).padStart(4,'0')}`,
+          regionName: reg.name,
+          round: reg.schedules[Math.floor(Math.random()*reg.schedules.length)] + ' 회차',
+          ticketType: ticketTypes[Math.floor(Math.random()*ticketTypes.length)],
+          status,
+          issuedAt: `${dateStr} ${hour}:${min}`,
+          qrCode: `QR-${String(seq).padStart(8,'0')}`,
+        });
+        seq++;
+      }
+    });
+    return bands.sort((a,b) => b.issuedAt.localeCompare(a.issuedAt));
+  };
+
   // ── 손목밴드 관리 ──────────────────────────────────────────
   const wristbandsPage = async () => {
     _adminState.currentSection = 'wristbands';
-    const wristbands = window.WRISTBANDS || [];
+    const allBands = _generateDemoWristbands();
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const wristbands = user.role === 'regional' && user.regionId
+      ? allBands.filter(w => w.regionName === ({tongyeong:'통영',buyeo:'부여',hapcheon:'합천'}[user.regionId]))
+      : allBands;
     const wbText = Settings.get('wristbandText') || { brand: 'Aqua Mobility Korea', footer: '분실 시 재발급 불가', warning: '이 밴드는 탑승권입니다' };
 
-    const rows = wristbands.slice(0, 10).map(w => `
+    const activeCount = wristbands.filter(w=>w.status==='active').length;
+    const usedCount   = wristbands.filter(w=>w.status==='used').length;
+    const invalidCount= wristbands.filter(w=>w.status==='invalidated').length;
+
+    const rows = wristbands.slice(0, 20).map(w => `
       <tr class="hover:bg-gray-50">
-        <td class="px-3 py-2 text-xs font-mono">${w.id}</td>
-        <td class="px-3 py-2 text-xs font-mono text-blue-600">${w.reservationId}</td>
-        <td class="px-3 py-2 text-sm text-center">${w.round || '1회차'}</td>
-        <td class="px-3 py-2 text-sm text-center">${w.ticketType || '성인'}</td>
+        <td class="px-3 py-2 text-xs font-mono whitespace-nowrap">${w.id}</td>
+        <td class="px-3 py-2 text-xs font-mono text-blue-600 whitespace-nowrap">${w.reservationId}</td>
+        <td class="px-3 py-2 text-sm text-center">${w.regionName}</td>
+        <td class="px-3 py-2 text-sm text-center whitespace-nowrap">${w.round}</td>
+        <td class="px-3 py-2 text-sm text-center">${w.ticketType}</td>
         <td class="px-3 py-2 text-center">
-          <span class="px-2 py-0.5 rounded-full text-xs ${w.status==='active'?'bg-green-100 text-green-700':w.status==='used'?'bg-gray-100 text-gray-500':'bg-red-100 text-red-700'}">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${w.status==='active'?'bg-green-100 text-green-700':w.status==='used'?'bg-gray-100 text-gray-500':'bg-red-100 text-red-700'}">
             ${w.status==='active'?'유효':w.status==='used'?'사용완료':'무효화'}
           </span>
         </td>
-        <td class="px-3 py-2 text-xs text-gray-500 text-center">${w.issuedAt || '2025-05-11 09:30'}</td>
+        <td class="px-3 py-2 text-xs text-gray-500 text-center whitespace-nowrap">${w.issuedAt}</td>
+        <td class="px-3 py-2 text-center">
+          <button onclick="Utils.toast('QR: ${w.qrCode}', 'info')" class="text-blue-600 hover:underline text-xs">QR확인</button>
+        </td>
       </tr>
-    `).join('') || '<tr><td colspan="6" class="text-center py-4 text-gray-500">발급 내역이 없습니다.</td></tr>';
+    `).join('') || '<tr><td colspan="8" class="text-center py-4 text-gray-500">발급 내역이 없습니다.</td></tr>';
 
     const content = `
       <div class="space-y-4">
@@ -1246,11 +1537,16 @@ const AdminModule = (() => {
         <!-- 밴드 발급 현황 -->
         <div class="bg-white rounded-xl shadow-sm p-6">
           <h2 class="font-semibold text-gray-800 mb-4">손목밴드 발급 현황</h2>
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            ${statCard('fas fa-check-circle','유효 밴드',`${activeCount}개`,'체크인 대기','green')}
+            ${statCard('fas fa-history','사용 완료',`${usedCount}개`,'탑승 처리됨','blue')}
+            ${statCard('fas fa-ban','무효화',`${invalidCount}개`,'취소/만료','red')}
+          </div>
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
               <thead>
                 <tr class="bg-gray-50">
-                  ${['밴드ID','예약번호','회차','유형','상태','발급시간'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+                  ${['밴드ID','예약번호','지역','회차','유형','상태','발급시간','QR'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">${rows}</tbody>
@@ -1970,7 +2266,7 @@ const AdminModule = (() => {
     seatsPage, reservationsPage, wristbandsPage, popupsPage, termsPage, seoManagePage,
     regionsPage, settlementPage, adminsPage, settingsAdminPage, backupPage, statsAdminPage,
     // 액션
-    doLogin, logout, navigate, toggleSidebar, approveFare,
+    doLogin, logout, navigate, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, approveFare, fillLogin,
     addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal,
     selectScheduleRegion, addSchedule, editSchedule, saveSchedule, toggleScheduleStatus,
     deleteSchedule, showRecurringModal, addRecTime, generateRecurring, updateSeatPreview,
