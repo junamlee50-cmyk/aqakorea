@@ -971,198 +971,395 @@ ${Footer.render()}
 
   // ── 예약 확인/취소 ──────────────────────────────────────────
   bookingCheck: async () => {
+    // URL 파라미터로 예약번호 자동 채우기
+    const urlId = new URLSearchParams(window.location.search).get('id') || '';
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
-  <div class="max-w-xl mx-auto px-4 py-12">
+  <div class="max-w-xl mx-auto px-4 py-10">
+
+    <!-- 헤더 -->
     <div class="text-center mb-8">
-      <h1 class="text-3xl font-black text-navy-800 mb-2">예약 확인 / 취소</h1>
-      <p class="text-gray-500">예약번호로 탑승권을 확인하거나 예약을 취소하세요</p>
+      <div class="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🎫</div>
+      <h1 class="text-2xl font-black text-navy-800 mb-2">예약 확인 / 취소</h1>
+      <p class="text-gray-500 text-sm">예약번호와 휴대폰번호로 탑승권을 조회하거나 예약을 취소할 수 있습니다</p>
     </div>
-    <div class="bg-white rounded-2xl p-6 shadow-sm mb-4">
-      <div class="form-group">
-        <label class="form-label">예약번호</label>
-        <input type="text" class="form-input" id="chk-resId" placeholder="RES-2025-000000">
+
+    <!-- 기본 조회: 예약번호 + 전화번호 -->
+    <div class="bg-white rounded-2xl shadow-sm p-6 mb-3">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">1</span>
+        <h2 class="font-semibold text-gray-700 text-sm">예약번호 + 휴대폰번호로 조회</h2>
       </div>
-      <div class="form-group">
-        <label class="form-label">예약자 휴대폰번호</label>
-        <input type="tel" class="form-input" id="chk-phone" placeholder="010-0000-0000">
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">예약번호 <span class="text-red-400">*</span></label>
+          <input type="text" class="form-input" id="chk-resId"
+            placeholder="예) RES-2025-052668 또는 AMK-20250501-0001"
+            value="${urlId}"
+            oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">예약자 휴대폰번호 <span class="text-red-400">*</span></label>
+          <input type="tel" class="form-input" id="chk-phone" placeholder="010-0000-0000">
+        </div>
+        <button onclick="CustomerPages.checkBooking('primary')"
+          class="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+          <i class="fas fa-search"></i> 예약 조회하기
+        </button>
       </div>
-      <button onclick="CustomerPages.checkBooking()" class="btn-primary btn-xl">조회하기</button>
     </div>
+
+    <!-- 보조 조회: 전화번호 + 탑승일자 -->
+    <div class="bg-white rounded-2xl shadow-sm p-5 mb-4 border border-dashed border-gray-200">
+      <button onclick="document.getElementById('alt-search').classList.toggle('hidden')"
+        class="w-full flex items-center justify-between text-sm text-gray-500 hover:text-gray-700">
+        <span class="flex items-center gap-2">
+          <span class="w-6 h-6 bg-gray-100 text-gray-500 text-xs font-bold rounded-full flex items-center justify-center">2</span>
+          예약번호를 모르시나요? <strong class="text-blue-600 ml-1">전화번호 + 탑승일자로 조회</strong>
+        </span>
+        <i class="fas fa-chevron-down text-xs"></i>
+      </button>
+      <div id="alt-search" class="hidden mt-4 space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">휴대폰번호</label>
+          <input type="tel" class="form-input" id="chk-alt-phone" placeholder="010-0000-0000">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">탑승일자</label>
+          <input type="date" class="form-input" id="chk-alt-date">
+        </div>
+        <button onclick="CustomerPages.checkBooking('alt')"
+          class="w-full border border-blue-300 text-blue-600 py-2.5 rounded-xl font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 text-sm">
+          <i class="fas fa-search"></i> 탑승일자로 조회하기
+        </button>
+      </div>
+    </div>
+
+    <!-- 결과 영역 -->
     <div id="booking-result"></div>
+
+    <!-- 고객센터 안내 -->
+    <div class="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
+      <div class="flex items-start gap-2">
+        <i class="fas fa-headset mt-0.5 text-amber-500"></i>
+        <div>
+          <div class="font-semibold mb-0.5">고객센터 운영안내</div>
+          <div class="text-xs text-amber-700">평일 09:00–18:00 | ☎ 1588-0000 | 카카오톡 채널: 아쿠아모빌리티코리아</div>
+          <div class="text-xs text-amber-600 mt-1">예약번호를 모르시거나 조회가 안 될 경우 고객센터로 문의해주세요.</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 ${Footer.render()}`;
   },
 
-  checkBooking: async () => {
-    const resId = (document.getElementById('chk-resId')?.value || '').trim().toUpperCase();
-    const phone = (document.getElementById('chk-phone')?.value || '').trim().replace(/[^0-9]/g, '');
-    const el    = document.getElementById('booking-result');
+  // ── 예약 조회 실행 ──────────────────────────────────────────
+  checkBooking: async (mode = 'primary') => {
+    const el = document.getElementById('booking-result');
 
-    // 입력 검증
-    if (!resId) { Utils.toast('예약번호를 입력해주세요', 'warning'); return; }
-    if (!phone || phone.length < 10) { Utils.toast('휴대폰번호를 정확히 입력해주세요', 'warning'); return; }
+    // ── 입력값 수집 ─────────────────────────────────────────
+    let resId = '', phone = '', altDate = '';
+    if (mode === 'primary') {
+      resId = (document.getElementById('chk-resId')?.value || '').trim().toUpperCase();
+      phone = (document.getElementById('chk-phone')?.value || '').trim().replace(/[^0-9]/g, '');
+      if (!resId) { Utils.toast('예약번호를 입력해주세요', 'warning'); return; }
+      if (!phone || phone.length < 10) { Utils.toast('휴대폰번호를 정확히 입력해주세요', 'warning'); return; }
+    } else {
+      phone   = (document.getElementById('chk-alt-phone')?.value || '').trim().replace(/[^0-9]/g, '');
+      altDate = (document.getElementById('chk-alt-date')?.value  || '').trim();
+      if (!phone || phone.length < 10) { Utils.toast('휴대폰번호를 정확히 입력해주세요', 'warning'); return; }
+      if (!altDate) { Utils.toast('탑승일자를 선택해주세요', 'warning'); return; }
+    }
 
-    // 로딩 표시
+    // 로딩
     if (el) el.innerHTML = `
-      <div class="flex items-center justify-center py-8 text-gray-400">
-        <i class="fas fa-spinner fa-spin text-2xl mr-3"></i>
-        <span>조회 중...</span>
+      <div class="flex flex-col items-center justify-center py-12 text-gray-400 gap-3">
+        <i class="fas fa-spinner fa-spin text-3xl text-blue-400"></i>
+        <span class="text-sm">예약 정보를 조회 중입니다...</span>
       </div>`;
 
-    // 전화번호 유효성 검증 헬퍼
     const phoneMatch = (stored, input) => {
-      const s = (stored||'').replace(/[^0-9]/g,'');
+      const s = (stored || '').replace(/[^0-9]/g, '');
       return s === input || s.slice(-4) === input.slice(-4);
     };
 
     try {
-      // 1) 실제 API 호출 시도
       let found = null;
+
+      // 1) 실제 API 시도
       try {
         const res = await API.get('/api/reservations');
         const list = res.data || [];
-        found = list.find(r => r.id === resId && phoneMatch(r.phone, phone));
-      } catch (_) { /* API 실패 시 데모 데이터 fallback */ }
+        if (mode === 'primary') {
+          found = list.find(r => r.id === resId && phoneMatch(r.phone, phone));
+        } else {
+          found = list.find(r => phoneMatch(r.phone, phone) && r.date === altDate);
+        }
+      } catch (_) { /* fallback */ }
 
-      // 2) API 데이터에 없으면 데모 데이터에서 검색
+      // 2) 데모 데이터 fallback
       if (!found) {
-        // 데모 예약 생성 (AdminModule의 _generateDemoReservations 활용)
-        const demoList = typeof AdminModule !== 'undefined'
-          ? (() => {
-              // AdminModule이 있을 때는 내부 함수로 생성
-              const regions = [
-                { id:'tongyeong', name:'통영', count:120, fareBase:35000 },
-                { id:'buyeo',     name:'부여', count:80,  fareBase:30000 },
-                { id:'hapcheon',  name:'합천', count:45,  fareBase:28000 },
-              ];
-              const names = ['김민준','이서연','박지호','최하늘','정다은'];
-              const schedules = ['10:00','12:00','14:00','15:30'];
-              const statuses = ['confirmed','confirmed','confirmed','checkedin'];
-              const res = [];
-              let seq = 1;
-              const today = new Date();
-              regions.forEach(reg => {
-                for (let i = 0; i < reg.count; i++) {
-                  const d = new Date(today);
-                  d.setDate(d.getDate() - Math.floor(Math.random()*30));
-                  const dateStr = d.toISOString().slice(0,10);
-                  const pax = Math.floor(Math.random()*4)+1;
-                  const adultCnt = Math.ceil(pax*0.6);
-                  const childCnt = pax - adultCnt;
-                  res.push({
-                    id: `AMK-${dateStr.replace(/-/g,'')}-${String(seq).padStart(4,'0')}`,
-                    regionId: reg.id, regionName: reg.name,
-                    name: names[seq % names.length],
-                    phone: `010-${String(3000+seq).padStart(4,'0')}-${String(7000+seq).padStart(4,'0')}`,
-                    date: dateStr,
-                    schedule: schedules[seq % schedules.length],
-                    totalPassengers: pax, adultCnt, childCnt,
-                    totalAmount: adultCnt*reg.fareBase + childCnt*Math.round(reg.fareBase*0.5),
-                    status: statuses[seq % statuses.length],
-                  });
-                  seq++;
-                }
+        const DEMO_RESERVATIONS = (() => {
+          const regions = [
+            { id:'tongyeong', name:'통영해양관광',     boardingPlace:'통영 해양공원 선착장', fareBase:35000 },
+            { id:'buyeo',     name:'부여수륙양용투어', boardingPlace:'부여 구드래 나루터',   fareBase:30000 },
+            { id:'hapcheon',  name:'합천수륙양용투어', boardingPlace:'합천 황강 선착장',     fareBase:28000 },
+          ];
+          const names   = ['김민준','이서연','박지호','최하늘','정다은','오현우','강지수','임도현'];
+          const schedules = ['10:00','12:00','14:00','15:30'];
+          // 8가지 상태
+          const statuses = [
+            'confirmed','confirmed','confirmed','confirmed',
+            'payment_pending','payment_done','checkedin',
+            'cancelled','refunded','noshow',
+          ];
+          const statusLabelMap = {
+            confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
+            payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
+            payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
+            checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
+            cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
+            refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
+            noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
+          };
+          const res = [];
+          let seq = 1;
+          const today = new Date();
+          // RES-2025-XXXXXX 형식 고정 데이터 (조회 예시)
+          const FIXED = [
+            { id:'RES-2025-052668', regionId:'buyeo',     name:'김민준', phone:'010-1234-5678',
+              date:'2025-06-15', schedule:'10:00', adultCnt:2, childCnt:1, status:'confirmed',
+              wristband:true, qr:true },
+            { id:'RES-2025-000001', regionId:'tongyeong', name:'이서연', phone:'010-9876-5432',
+              date:'2025-06-20', schedule:'14:00', adultCnt:1, childCnt:0, status:'payment_pending',
+              wristband:false, qr:false },
+            { id:'RES-2025-001234', regionId:'hapcheon',  name:'박지호', phone:'010-5555-1111',
+              date:'2025-05-30', schedule:'12:00', adultCnt:2, childCnt:2, status:'checkedin',
+              wristband:true, qr:true },
+            { id:'RES-2025-099999', regionId:'buyeo',     name:'최하늘', phone:'010-2222-3333',
+              date:'2025-05-10', schedule:'15:30', adultCnt:1, childCnt:0, status:'cancelled',
+              wristband:false, qr:false },
+          ];
+          FIXED.forEach(f => {
+            const reg = regions.find(r => r.id === f.regionId);
+            const adultFare = reg.fareBase;
+            const childFare = Math.round(reg.fareBase * 0.5);
+            res.push({
+              ...f,
+              regionName: reg.name,
+              boardingPlace: reg.boardingPlace,
+              totalPassengers: f.adultCnt + f.childCnt,
+              totalAmount: f.adultCnt * adultFare + f.childCnt * childFare,
+              statusBadge: statusLabelMap[f.status] || { cls:'bg-gray-100 text-gray-600', label: f.status },
+              cancelable: ['confirmed','payment_done','payment_pending'].includes(f.status),
+            });
+          });
+          // 동적 생성 데모 데이터
+          regions.forEach(reg => {
+            for (let i = 0; i < 30; i++) {
+              const d = new Date(today);
+              d.setDate(d.getDate() - Math.floor(Math.random() * 60));
+              const dateStr = d.toISOString().slice(0, 10);
+              const adultCnt = Math.floor(Math.random() * 3) + 1;
+              const childCnt = Math.floor(Math.random() * 2);
+              const st = statuses[seq % statuses.length];
+              const seqStr = String(10000 + seq).padStart(6, '0');
+              const yr = dateStr.slice(0, 4);
+              res.push({
+                id: `RES-${yr}-${seqStr}`,
+                regionId: reg.id, regionName: reg.name,
+                boardingPlace: reg.boardingPlace,
+                name: names[seq % names.length],
+                phone: `010-${String(3000 + seq).padStart(4, '0')}-${String(7000 + seq).padStart(4, '0')}`,
+                date: dateStr,
+                schedule: schedules[seq % schedules.length],
+                adultCnt, childCnt,
+                totalPassengers: adultCnt + childCnt,
+                totalAmount: adultCnt * reg.fareBase + childCnt * Math.round(reg.fareBase * 0.5),
+                status: st,
+                statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+                cancelable: ['confirmed','payment_done','payment_pending'].includes(st),
+                wristband: ['confirmed','payment_done','checkedin'].includes(st),
+                qr: ['confirmed','payment_done','checkedin'].includes(st),
               });
-              return res;
-            })()
-          : [];
-        found = demoList.find(r => r.id === resId);
-        // 데모에서 찾은 경우 전화번호 무조건 매칭 허용 (뒤 4자리)
-        if (found && phone.length >= 4) {
-          // 데모 전화번호가 없으니 뒤 4자리만 체크
-          const last4 = phone.slice(-4);
-          if (!/^\d{4}$/.test(last4)) found = null;
+              seq++;
+            }
+          });
+          return res;
+        })();
+
+        if (mode === 'primary') {
+          // RES-XXXX 또는 AMK-XXXX 형식 모두 지원
+          found = DEMO_RESERVATIONS.find(r => r.id === resId);
+          if (found && phone.length >= 4) {
+            // 고정 데모: 전화번호 뒤 4자리 허용
+            const storedLast4 = (found.phone || '').replace(/[^0-9]/g, '').slice(-4);
+            const inputLast4  = phone.slice(-4);
+            if (storedLast4 !== inputLast4) found = null;
+          }
+        } else {
+          found = DEMO_RESERVATIONS.find(r => phoneMatch(r.phone, phone) && r.date === altDate);
         }
       }
 
+      // ── 조회 실패 ───────────────────────────────────────────
       if (!found) {
         if (el) el.innerHTML = `
           <div class="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
-            <i class="fas fa-times-circle text-red-400 text-3xl mb-3"></i>
-            <p class="font-semibold text-red-700 mb-1">예약 정보를 찾을 수 없습니다</p>
-            <p class="text-sm text-red-500">예약번호 또는 휴대폰번호를 다시 확인해주세요.</p>
-            <p class="text-xs text-gray-400 mt-3">
-              ※ 예약번호 형식: AMK-YYYYMMDD-0001<br>
-              ※ 데모 환경에서는 임의 예약번호로 조회할 수 없습니다.
+            <div class="text-4xl mb-3">😔</div>
+            <p class="font-bold text-red-700 mb-1 text-lg">예약 정보를 찾을 수 없습니다</p>
+            <p class="text-sm text-red-500 mb-4">
+              ${mode === 'primary'
+                ? '예약번호 또는 휴대폰번호를 다시 확인해주세요.<br>예약번호 형식: <strong>RES-2025-052668</strong> 또는 <strong>AMK-20250501-0001</strong>'
+                : '입력하신 휴대폰번호 또는 탑승일자와 일치하는 예약을 찾을 수 없습니다.'}
             </p>
+            <div class="flex flex-col sm:flex-row gap-2 justify-center">
+              <button onclick="document.getElementById('booking-result').innerHTML=''"
+                class="border border-gray-300 text-gray-600 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">
+                <i class="fas fa-redo mr-1"></i>다시 조회하기
+              </button>
+              <button onclick="Router.go('/inquiry')"
+                class="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700">
+                <i class="fas fa-headset mr-1"></i>고객센터 문의
+              </button>
+            </div>
           </div>`;
         return;
       }
 
-      // 상태 배지 색상
-      const statusBadge = {
-        confirmed:  { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
-        checkedin:  { cls:'bg-blue-100 text-blue-700',    label:'탑승 완료' },
-        pending:    { cls:'bg-yellow-100 text-yellow-700',label:'대기 중' },
-        cancelled:  { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
-      };
-      const badge = statusBadge[found.status] || { cls:'bg-gray-100 text-gray-600', label:found.status };
-      const isCancelled = found.status === 'cancelled';
+      // ── 조회 성공 ───────────────────────────────────────────
+      const badge = found.statusBadge || { cls:'bg-gray-100 text-gray-600', label: found.status };
+      const isCancelled = ['cancelled','refunded','noshow'].includes(found.status);
+      const isCancelable = found.cancelable !== false && !isCancelled;
+      // 탑승일 기준 취소 가능 여부 (24시간 전)
+      const boardingDate  = new Date(found.date + 'T00:00:00');
+      const hoursUntil    = (boardingDate - Date.now()) / 36e5;
+      const cancelWarning = hoursUntil > 0 && hoursUntil < 24
+        ? '<p class="text-xs text-orange-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>탑승 24시간 이내 취소 시 수수료가 발생합니다.</p>'
+        : '';
 
       if (el) el.innerHTML = `
-        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <div class="flex items-center justify-between mb-5">
-            <div>
-              <p class="text-xs text-gray-400 mb-1">예약번호</p>
-              <span class="font-black text-gray-800 text-lg tracking-wide">${found.id}</span>
-            </div>
-            <span class="px-3 py-1 rounded-full text-sm font-semibold ${badge.cls}">${badge.label}</span>
-          </div>
-          <div class="space-y-3 text-sm border-t pt-4">
-            <div class="flex justify-between">
-              <span class="text-gray-500">지역</span>
-              <span class="font-medium">${found.regionName}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">탑승일자</span>
-              <span class="font-medium">${found.date}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">탑승 회차</span>
-              <span class="font-medium">${found.schedule} 출발</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">예약자</span>
-              <span class="font-medium">${Utils.maskName ? Utils.maskName(found.name) : found.name.slice(0,1)+'*'.repeat(found.name.length-1)}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">인원</span>
-              <span class="font-medium">성인 ${found.adultCnt}명 · 소아 ${found.childCnt}명</span>
-            </div>
-            <div class="flex justify-between border-t pt-3">
-              <span class="text-gray-500 font-medium">결제금액</span>
-              <span class="font-black text-lg text-blue-700">₩${found.totalAmount.toLocaleString()}</span>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <!-- 상단 헤더 바 -->
+          <div class="bg-gradient-to-r from-navy-900 to-blue-800 px-5 py-4 text-white">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-xs text-white/60 mb-1">예약번호</p>
+                <span class="font-black tracking-widest text-lg">${found.id}</span>
+              </div>
+              <span class="px-3 py-1.5 rounded-full text-xs font-bold ${badge.cls}">${badge.label}</span>
             </div>
           </div>
-          ${isCancelled ? `
-          <div class="mt-4 p-3 bg-red-50 rounded-xl text-sm text-red-600 text-center">
-            <i class="fas fa-info-circle mr-1"></i>취소된 예약입니다. 환불 문의는 고객센터로 연락해주세요.
-          </div>` : `
-          <div class="flex gap-3 mt-5">
-            <button onclick="Router.go('/ticket/${found.id}')"
-              class="btn-ocean flex-1 text-sm py-3">
-              <i class="fas fa-qrcode mr-2"></i>QR 탑승권 보기
-            </button>
-            <button onclick="Utils.confirm('예약을 취소하시겠습니까?\\n취소 정책에 따라 환불됩니다.', () => {
-              document.getElementById('booking-result').innerHTML = '<div class=\\'text-center py-6 text-gray-400\\'>취소 요청이 접수되었습니다.</div>';
-              Utils.toast('취소 요청이 접수되었습니다', \\'success\\');
-            })"
-              class="border border-red-300 text-red-500 hover:bg-red-50 text-sm px-4 rounded-xl transition-colors">
-              예약 취소
-            </button>
-          </div>`}
+
+          <!-- 탑승 정보 -->
+          <div class="p-5">
+            <div class="space-y-2.5 text-sm">
+              <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-map-marker-alt w-4 text-center text-blue-400"></i>운행 지역</span>
+                <span class="font-semibold">${found.regionName}</span>
+              </div>
+              <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-calendar-alt w-4 text-center text-blue-400"></i>탑승일자</span>
+                <span class="font-semibold">${found.date}</span>
+              </div>
+              <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-clock w-4 text-center text-blue-400"></i>출발 회차</span>
+                <span class="font-semibold">${found.schedule} 출발</span>
+              </div>
+              <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-anchor w-4 text-center text-blue-400"></i>탑승장</span>
+                <span class="font-medium text-xs text-right max-w-[180px]">${found.boardingPlace || '현장 안내 확인'}</span>
+              </div>
+              <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-user w-4 text-center text-blue-400"></i>예약자</span>
+                <span class="font-medium">${(found.name||'').slice(0,1)}${'*'.repeat(Math.max(0,(found.name||'').length-1))}</span>
+              </div>
+              <div class="flex justify-between items-center border-b border-gray-50 pb-2">
+                <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-users w-4 text-center text-blue-400"></i>탑승인원</span>
+                <span class="font-medium">성인 ${found.adultCnt}명${found.childCnt ? ' · 소아 '+found.childCnt+'명' : ''}</span>
+              </div>
+              <div class="flex justify-between items-center pt-1">
+                <span class="text-gray-500 font-medium">결제금액</span>
+                <span class="font-black text-xl text-blue-700">₩${(found.totalAmount||0).toLocaleString()}</span>
+              </div>
+            </div>
+
+            <!-- 안내 배지 -->
+            ${found.wristband ? `
+            <div class="mt-4 flex items-center gap-2 bg-cyan-50 border border-cyan-200 rounded-xl p-3 text-xs text-cyan-800">
+              <i class="fas fa-band-aid text-cyan-500"></i>
+              <span><strong>QR 손목밴드</strong> — 현장 도착 시 탑승신고서 작성 후 직원에게 QR 제시 → 손목밴드 수령</span>
+            </div>` : ''}
+            ${isCancelled ? `
+            <div class="mt-4 bg-red-50 rounded-xl p-3 text-xs text-red-700 text-center">
+              <i class="fas fa-info-circle mr-1"></i>
+              ${found.status === 'cancelled' ? '취소된 예약입니다. 환불 문의: ☎ 1588-0000' :
+                found.status === 'refunded'  ? '환불 처리가 완료된 예약입니다.' :
+                '노쇼 처리된 예약입니다. 환불 불가 — 고객센터 문의 요망.'}
+            </div>` : cancelWarning ? `<div class="mt-3">${cancelWarning}</div>` : ''}
+
+            <!-- 액션 버튼 -->
+            <div class="mt-5 space-y-2">
+              ${!isCancelled ? `
+              <div class="grid grid-cols-2 gap-2">
+                <button onclick="Router.go('/ticket/${found.id}')"
+                  class="bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+                  <i class="fas fa-qrcode"></i>QR 탑승권 보기
+                </button>
+                <button onclick="Router.go('/reservation/check?id=${found.id}')"
+                  class="border border-blue-300 text-blue-600 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors">
+                  <i class="fas fa-share-alt"></i>링크 공유
+                </button>
+              </div>
+              ${isCancelable ? `
+              <button onclick="Utils.confirm('예약을 취소하시겠습니까?\\n\\n취소 정책:\\n• 탑승 7일 전: 전액 환불\\n• 탑승 3일 전: 90% 환불\\n• 탑승 1일 전: 50% 환불\\n• 당일: 환불 불가', () => {
+                document.getElementById('booking-result').innerHTML = '<div class=\\'bg-green-50 border border-green-200 rounded-2xl p-6 text-center\\'>'+
+                  '<i class=\\'fas fa-check-circle text-green-400 text-3xl mb-3\\'></i>'+
+                  '<p class=\\'font-bold text-green-700 mb-1\\'>취소 요청이 접수되었습니다</p>'+
+                  '<p class=\\'text-sm text-gray-500\\'>환불 처리는 영업일 3~5일 소요됩니다.</p>'+
+                  '<button onclick=\\'Router.go(\\\\\\'/ \\\\\\')\\'  class=\\'mt-4 btn-ocean px-6 py-2 text-sm\\'>홈으로</button>'+
+                  '</div>';
+                Utils.toast(\\'취소 요청 접수 완료\\', \\'success\\');
+              })"
+                class="w-full border border-red-300 text-red-500 py-2.5 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                <i class="fas fa-times-circle"></i>예약 취소 신청
+              </button>` : ''}` : ''}
+
+              <div class="grid grid-cols-2 gap-2 mt-1">
+                <button onclick="document.getElementById('booking-result').innerHTML='';document.getElementById('chk-resId').value='';document.getElementById('chk-phone').value=''"
+                  class="border border-gray-200 text-gray-500 py-2.5 rounded-xl text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
+                  <i class="fas fa-search"></i>다시 조회
+                </button>
+                <button onclick="Router.go('/inquiry')"
+                  class="border border-gray-200 text-gray-500 py-2.5 rounded-xl text-xs hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
+                  <i class="fas fa-headset"></i>고객센터
+                </button>
+              </div>
+            </div>
+          </div>
         </div>`;
+
     } catch (err) {
       console.error('checkBooking error:', err);
       if (el) el.innerHTML = `
         <div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-6 text-center">
           <i class="fas fa-exclamation-triangle text-yellow-400 text-2xl mb-2"></i>
-          <p class="text-yellow-700 font-semibold">조회 중 오류가 발생했습니다</p>
+          <p class="font-semibold text-yellow-700">조회 중 오류가 발생했습니다</p>
           <p class="text-sm text-gray-500 mt-1">잠시 후 다시 시도해주세요.</p>
+          <div class="flex gap-2 justify-center mt-4">
+            <button onclick="CustomerPages.checkBooking()"
+              class="border border-yellow-300 text-yellow-600 px-5 py-2 rounded-xl text-sm hover:bg-yellow-50">
+              <i class="fas fa-redo mr-1"></i>다시 시도
+            </button>
+            <button onclick="Router.go('/inquiry')"
+              class="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm hover:bg-blue-700">
+              <i class="fas fa-headset mr-1"></i>고객센터
+            </button>
+          </div>
         </div>`;
     }
   },

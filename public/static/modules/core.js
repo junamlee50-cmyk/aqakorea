@@ -407,7 +407,7 @@ const Navbar = {
         <a href="/faq" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors ${active==='faq'?'text-cyan-400':''}">자주 묻는 질문</a>
         <a href="/notice" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors">공지사항</a>
         <a href="/inquiry" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors">고객문의</a>
-        <a href="/booking/check" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors">예약확인</a>
+        <a href="/reservation/check" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors">예약확인</a>
         <a href="/admin" data-link class="text-xs bg-white/10 text-white px-3 py-1.5 rounded-lg hover:bg-white/20 transition-all">관리자</a>
       </div>
       <button class="md:hidden text-white text-xl" onclick="Navbar.toggleMobile()">
@@ -424,7 +424,7 @@ const Navbar = {
         <a href="/faq" data-link class="text-white/80 py-2 text-sm font-medium">❓ 자주 묻는 질문</a>
         <a href="/notice" data-link class="text-white/80 py-2 text-sm font-medium">📢 공지사항</a>
         <a href="/inquiry" data-link class="text-white/80 py-2 text-sm font-medium">💬 고객문의</a>
-        <a href="/booking/check" data-link class="text-white/80 py-2 text-sm font-medium">🎫 예약확인/취소</a>
+        <a href="/reservation/check" data-link class="text-white/80 py-2 text-sm font-medium">🎫 예약확인/취소</a>
         <a href="/admin" data-link class="text-cyan-400 py-2 text-sm font-medium">🔧 관리자</a>
       </div>
     </div>
@@ -476,7 +476,7 @@ const Footer = {
           <ul class="space-y-2 text-sm text-white/60">
             <li><a href="/faq" data-link class="hover:text-white transition-colors">자주 묻는 질문</a></li>
             <li><a href="/inquiry" data-link class="hover:text-white transition-colors">고객문의</a></li>
-            <li><a href="/booking/check" data-link class="hover:text-white transition-colors">예약확인/취소</a></li>
+            <li><a href="/reservation/check" data-link class="hover:text-white transition-colors">예약확인/취소</a></li>
             <li><a href="/notice" data-link class="hover:text-white transition-colors">공지사항</a></li>
           </ul>
           <div class="mt-4 text-sm">

@@ -254,6 +254,12 @@ ${Navbar.render()}
         <div class="text-center text-xs text-gray-400 mb-3">현장에서 QR을 제시하면 손목밴드를 발급받을 수 있습니다</div>
         <div class="qr-code-area"><canvas id="qr-main" style="border-radius:12px;border:3px solid #e2e8f0"></canvas></div>
         <div class="text-center mt-3 font-mono text-xs text-gray-400">${reservation.reservationId}</div>
+      <div class="text-center mt-2">
+        <button onclick="Router.go('/reservation/check?id=\${reservation.reservationId}')"
+          class="text-xs text-blue-500 border border-blue-200 px-4 py-1.5 rounded-full hover:bg-blue-50 transition-colors">
+          <i class="fas fa-search mr-1"></i>상세보기
+        </button>
+      </div>
       </div>
     </div>
     <div class="px-6 pb-4 space-y-2">
@@ -280,14 +286,28 @@ ${Navbar.render()}
   </div>
 
   <!-- 버튼 -->
-  <div class="grid grid-cols-2 gap-3 mb-4">
-    <button onclick="Utils.print()" class="btn-outline py-3 text-sm"><i class="fas fa-print mr-2"></i>탑승권 인쇄</button>
-    <button onclick="Utils.copy('${reservation.reservationId}')" class="btn-outline py-3 text-sm"><i class="fas fa-copy mr-2"></i>예약번호 복사</button>
+  <div class="space-y-3 mb-4">
+    <!-- 주요 액션 버튼 -->
+    <button onclick="Router.go('/reservation/check?id=\${reservation.reservationId}')"
+      class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+      <i class="fas fa-ticket-alt"></i>예약내역 확인하기
+    </button>
+    <!-- 보조 버튼 2개 -->
+    <div class="grid grid-cols-2 gap-3">
+      <button onclick="Utils.print()" class="btn-outline py-3 text-sm"><i class="fas fa-print mr-2"></i>탑승권 인쇄</button>
+      <button onclick="Utils.copy('\${reservation.reservationId}');Utils.toast('예약번호가 복사되었습니다','success')"
+        class="btn-outline py-3 text-sm"><i class="fas fa-copy mr-2"></i>예약번호 복사</button>
+    </div>
+    <!-- 홈 + 고객센터 -->
+    <div class="grid grid-cols-2 gap-3">
+      <button onclick="Router.go('/')" class="btn-outline py-3 text-sm">
+        <i class="fas fa-home mr-2"></i>홈으로
+      </button>
+      <button onclick="Router.go('/inquiry')" class="btn-outline py-3 text-sm">
+        <i class="fas fa-headset mr-2"></i>고객센터
+      </button>
+    </div>
   </div>
-  <button onclick="Router.go('/booking/check')" class="btn-primary btn-xl mb-4">
-    <i class="fas fa-search mr-2"></i>예약 상세 조회
-  </button>
-  <button onclick="Router.go('/')" class="btn-outline btn-xl">홈으로</button>
 
   <!-- 알림 상태 -->
   <div class="bg-white rounded-2xl p-5 shadow-sm mt-4">

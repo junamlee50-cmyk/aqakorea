@@ -1888,7 +1888,7 @@ const StatsModule = (() => {
     Utils.downloadCSV(data, `aqua_stats_${new Date().toISOString().slice(0,10)}.csv`);
   };
 
-  const generateReport = (type, btnEl) => {
+  const generateReport = (type, btnEl, settings = {}) => {
     const labels = {
       monthly: '월간 운영보고서', quarterly: '분기별 실적보고서',
       settlement: '정산 확인서', passengers: '승객 현황보고서',
@@ -1906,7 +1906,7 @@ const StatsModule = (() => {
       return;
     }
 
-    if (btnEl) { btnEl.disabled = true; btnEl.textContent = '생성 중...'; }
+    if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>생성 중...'; }
     Utils.toast(`${label} 생성 중...`, 'info');
 
     setTimeout(() => {
@@ -1914,9 +1914,11 @@ const StatsModule = (() => {
         const now = new Date();
         const ts = now.toISOString().replace('T', ' ').slice(0, 19);
 
-        // ── 보고기간: reportTab의 입력값 우선 반영 ──────────
-        const rptStart = document.getElementById('rpt-start-date')?.value || '';
-        const rptEnd   = document.getElementById('rpt-end-date')?.value   || '';
+        // ── 보고기간: settings 우선 → DOM fallback ──────────
+        const rptStart = settings?.startDate
+          || document.getElementById('rpt-start-date')?.value || '';
+        const rptEnd   = settings?.endDate
+          || document.getElementById('rpt-end-date')?.value   || '';
         const hasRange = rptStart && rptEnd;
         // 기간이 없으면 현재 월 기준
         const yyyy = hasRange ? rptStart.slice(0,4) : String(now.getFullYear());
@@ -2111,31 +2113,254 @@ const StatsModule = (() => {
           ];
         }
 
-        // CSV 다운로드
-        Utils.downloadCSV(rows, filename);
-
-        // 다운로드 로그 저장 (sessionStorage)
-        const logs = JSON.parse(sessionStorage.getItem('amk_dl_logs') || '[]');
-        logs.unshift({
+        // ── 로그 엔트리 준비 ─────────────────────────────────
+        const logEntry = {
           adminId: user.id || 'unknown',
           adminName: user.name || '관리자',
           role,
           reportType: type,
           reportLabel: label,
           regions: regionNames,
-          period: `${yyyy}-${mm}`,
+          period: periodLabel,
           format: 'CSV',
           datetime: ts,
           success: true,
-        });
-        sessionStorage.setItem('amk_dl_logs', JSON.stringify(logs.slice(0, 50))); // 최대 50건
+        };
 
-        Utils.toast(`✅ ${label} 다운로드 완료!`, 'success');
+        // ── 금액 원화 형식 변환 헬퍼 ─────────────────────────
+        const fmtWon = (v) => typeof v === 'number' ? v.toLocaleString('ko-KR') + '원' : v;
+        const fmtCell = (cell) => (typeof cell === 'number' && cell > 9999) ? fmtWon(cell) : cell;
+        const fmtRows = (arr) => arr.map(r => Array.isArray(r) ? r.map(fmtCell) : r);
+
+        // ── 출력 형식 결정 ────────────────────────────────────
+        const fmt = settings?.format || 'csv';
+
+        if (fmt === 'pdf') {
+          // ── PDF: A4 인쇄용 HTML ───────────────────────────
+          const orgName = settings?.orgName || '아쿠아모빌리티코리아';
+          const hasSeal = settings?.seal || false;
+          let tableHtml = '';
+          let inTable = false;
+          const bodyRows = rows.slice(7);
+          for (let i = 0; i < bodyRows.length; i++) {
+            const row = bodyRows[i];
+            if (!Array.isArray(row) || row.length === 0) {
+              if (inTable) { tableHtml += '</tbody></table>'; inTable = false; }
+              continue;
+            }
+            if (row.length === 1) {
+              if (inTable) { tableHtml += '</tbody></table>'; inTable = false; }
+              const txt = String(row[0]);
+              if (txt.startsWith('===')) {
+                tableHtml += `<h3 style="margin:20px 0 8px;font-size:13px;color:#1e3a5f;border-bottom:2px solid #1e3a5f;padding-bottom:4px">${txt.replace(/===/g,'').trim()}</h3>`;
+              } else {
+                tableHtml += `<p style="font-size:11px;color:#666;margin:6px 0">${txt}</p>`;
+              }
+              continue;
+            }
+            if (!inTable) {
+              tableHtml += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:4px"><thead><tr>';
+              row.forEach(h => { tableHtml += `<th style="background:#1e3a5f;color:#fff;padding:5px 8px;text-align:left;white-space:nowrap">${fmtCell(h)}</th>`; });
+              tableHtml += '</tr></thead><tbody>';
+              inTable = true;
+            } else {
+              const bg = (i % 2 === 0) ? '#f8fafc' : '#fff';
+              tableHtml += `<tr style="background:${bg}">`;
+              row.forEach(cell => { tableHtml += `<td style="padding:4px 8px;border-bottom:1px solid #e2e8f0">${fmtCell(cell)}</td>`; });
+              tableHtml += '</tr>';
+            }
+          }
+          if (inTable) tableHtml += '</tbody></table>';
+
+          const reportHtml = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<title>${label} — ${periodLabel}</title>
+<style>
+  @page{size:A4;margin:15mm 12mm}
+  body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:12px;color:#1a1a1a;margin:0;padding:0}
+  .cover{text-align:center;padding:40px 0 30px;border-bottom:3px solid #1e3a5f;margin-bottom:24px}
+  .cover h1{font-size:22px;font-weight:900;color:#1e3a5f;margin:0 0 6px}
+  .cover .sub{font-size:13px;color:#555;margin:4px 0}
+  .cover .period{font-size:15px;font-weight:700;color:#0369a1;margin:10px 0 0}
+  table{page-break-inside:auto}tr{page-break-inside:avoid}
+  .seal{border:2px solid #e00;padding:6px 18px;display:inline-block;color:#e00;font-weight:700;transform:rotate(-8deg);margin-top:16px;font-size:13px}
+  .fnote{font-size:10px;color:#888;margin-top:30px;padding-top:8px;border-top:1px solid #ddd}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<div class="cover">
+  <div style="font-size:11px;color:#888;margin-bottom:8px">AQUA MOBILITY KOREA | 아쿠아모빌리티코리아</div>
+  <h1>${label}</h1>
+  <div class="sub">기관명: ${orgName}</div>
+  <div class="period">보고기간: ${periodLabel}</div>
+  <div class="sub" style="margin-top:8px">대상 지역: ${regionNames} &nbsp;|&nbsp; 생성자: ${user.name||'관리자'} (${role})</div>
+  <div class="sub">생성일시: ${ts}</div>
+  ${hasSeal ? '<div class="seal">전자서명 완료<br>' + orgName + '</div>' : ''}
+</div>
+${tableHtml}
+<div class="fnote">※ 본 보고서는 아쿠아모빌리티코리아 통합 운영 플랫폼에서 자동 생성되었습니다. 생성일시: ${ts}</div>
+</body></html>`;
+          Utils.printPDF(reportHtml, filename.replace('.csv','.pdf'));
+          logEntry.format = 'PDF';
+          Utils.toast(`✅ ${label} PDF 인쇄 창이 열렸습니다.`, 'success');
+
+        } else if (fmt === 'excel') {
+          // ── Excel: XLSX 다중 시트 ─────────────────────────
+          let sheets = [];
+          if (type === 'monthly') {
+            // 9개 시트 구조 (월간 운영보고서)
+            sheets = [
+              {
+                name: '①표지',
+                rows: [
+                  ['아쿠아모빌리티코리아 통합 운영 플랫폼'],
+                  [label],
+                  [''],
+                  ['보고기간', periodLabel],
+                  ['대상 지역', regionNames],
+                  ['기관명', settings?.orgName||'아쿠아모빌리티코리아'],
+                  ['생성자', (user.name||'관리자')+' ('+role+')'],
+                  ['생성일시', ts],
+                ],
+              },
+              {
+                name: '②종합요약',
+                rows: [
+                  [label+' — 종합 요약', '', '', '', '', '', '', ''],
+                  ['보고기간: '+periodLabel, '', '', '', '', '', '', ''],
+                  [''],
+                  ['지역', '탑승객(명)', '총 매출', '온라인 매출', '현장 매출', '운행횟수', '평균요금', '취소율'],
+                  ...sampleKeys.map(k => {
+                    const r = MONTHLY_SAMPLE[k];
+                    const cRate = ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1)+'%';
+                    return [r.name, r.totalPax, fmtWon(r.totalSales), fmtWon(r.onlineSales),
+                            fmtWon(r.offlineSales), r.trips, fmtWon(Math.round(r.totalSales/r.totalPax)), cRate];
+                  }),
+                  ...(sampleKeys.length > 1 ? [[
+                    '합계', _calcMonthlyTotal(sampleKeys).totalPax,
+                    fmtWon(_calcMonthlyTotal(sampleKeys).totalSales),
+                    fmtWon(sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlineSales,0)),
+                    fmtWon(sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlineSales,0)),
+                    _calcMonthlyTotal(sampleKeys).trips, '-', '-',
+                  ]] : []),
+                ],
+              },
+              {
+                name: '③일별탑승',
+                rows: [
+                  ['일별 탑승객 현황 — '+periodLabel],
+                  [''],
+                  ['날짜', ...sampleKeys.map(k=>MONTHLY_SAMPLE[k].name+'(명)'), '합계(명)'],
+                  ...(MONTHLY_SAMPLE[sampleKeys[0]].daily||[]).map((d,i) => {
+                    const vals = sampleKeys.map(k => (MONTHLY_SAMPLE[k].daily||[])[i]?.pax || 0);
+                    return [d.date, ...vals, vals.reduce((a,b)=>a+b,0)];
+                  }),
+                ],
+              },
+              {
+                name: '④요금구분',
+                rows: [
+                  ['요금 구분별 탑승 현황 — '+periodLabel],
+                  [''],
+                  ['지역', '성인', '청소년', '소아', '경로', '단체', '합계'],
+                  ...sampleKeys.map(k => {
+                    const r = MONTHLY_SAMPLE[k];
+                    return [r.name, ...r.fareBreakdown.map(f=>f.cnt), r.totalPax];
+                  }),
+                ],
+              },
+              {
+                name: '⑤매출분석',
+                rows: [
+                  ['매출 분석 — '+periodLabel],
+                  [''],
+                  ['지역', '온라인 매출', '현장 매출', '총 매출', '목표대비(%)'],
+                  ...sampleKeys.map(k => {
+                    const r = MONTHLY_SAMPLE[k];
+                    return [r.name, fmtWon(r.onlineSales), fmtWon(r.offlineSales),
+                            fmtWon(r.totalSales), ((r.totalSales/(r.totalSales*0.9))*100).toFixed(1)+'%'];
+                  }),
+                ],
+              },
+              {
+                name: '⑥취소환불',
+                rows: [
+                  ['취소·환불 현황 — '+periodLabel],
+                  [''],
+                  ['지역', '취소건수', '취소금액', '환불금액', '취소수수료', '취소율'],
+                  ...sampleKeys.map(k => {
+                    const r = MONTHLY_SAMPLE[k];
+                    return [r.name, r.cancelCnt, fmtWon(r.cancelAmt), fmtWon(r.refundAmt),
+                            fmtWon(r.cancelAmt-r.refundAmt),
+                            ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1)+'%'];
+                  }),
+                ],
+              },
+              {
+                name: '⑦손목밴드',
+                rows: [
+                  ['손목밴드 현황 — '+periodLabel],
+                  [''],
+                  ['지역', '발급(개)', '재발급(개)', '재발급률'],
+                  ...sampleKeys.map(k => {
+                    const r = MONTHLY_SAMPLE[k];
+                    return [r.name, r.wristbandIssued, r.wristbandReissued,
+                            ((r.wristbandReissued/r.wristbandIssued)*100).toFixed(2)+'%'];
+                  }),
+                ],
+              },
+              {
+                name: '⑧예약채널',
+                rows: [
+                  ['예약 채널 분석 — '+periodLabel],
+                  [''],
+                  ['지역', ...MONTHLY_SAMPLE[sampleKeys[0]].channels.map(c=>c.ch)],
+                  ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, ...MONTHLY_SAMPLE[k].channels.map(c=>c.pct+'%')]),
+                ],
+              },
+              {
+                name: '⑨고객만족도',
+                rows: [
+                  ['고객 만족도 — '+periodLabel],
+                  [''],
+                  ['지역', '만족도(5점)', '리뷰 건수'],
+                  ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, MONTHLY_SAMPLE[k].satisfaction, MONTHLY_SAMPLE[k].reviewCnt]),
+                  [''],
+                  ['※ 보고기간: '+periodLabel+' / 생성일시: '+ts],
+                ],
+              },
+            ];
+          } else {
+            // 기타 보고서: 2시트 구조
+            const fRows = fmtRows(rows);
+            sheets = [
+              { name: '표지', rows: fRows.slice(0, 7) },
+              { name: '보고서 데이터', rows: fRows.slice(7) },
+            ];
+          }
+          Utils.downloadXLSX(sheets, filename.replace('.csv','.xlsx'));
+          logEntry.format = 'Excel';
+          Utils.toast(`✅ ${label} Excel 다운로드 완료!`, 'success');
+
+        } else {
+          // ── CSV (기본) ────────────────────────────────────
+          Utils.downloadCSV(fmtRows(rows), filename);
+          logEntry.format = 'CSV';
+          Utils.toast(`✅ ${label} CSV 다운로드 완료!`, 'success');
+        }
+
+        // 다운로드 로그 저장 (sessionStorage)
+        const logs = JSON.parse(sessionStorage.getItem('amk_dl_logs') || '[]');
+        logs.unshift(logEntry);
+        sessionStorage.setItem('amk_dl_logs', JSON.stringify(logs.slice(0, 50)));
+
       } catch (err) {
         console.error('Report generation error:', err);
         Utils.toast('보고서 생성 중 오류가 발생했습니다.', 'error');
       } finally {
-        if (btnEl) { btnEl.disabled = false; btnEl.textContent = '보고서 생성'; }
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = '<i class="fas fa-file-alt"></i> 보고서 생성';
+        }
       }
     }, 800);
   };
@@ -2172,7 +2397,9 @@ const StatsModule = (() => {
       regions = checked.length ? checked.filter(v => ALL_SAMPLE_KEYS.includes(v)) : ALL_SAMPLE_KEYS;
     }
 
-    generateReport(type, btnEl, { format, startDate, endDate, regions, orgName });
+    // 직인 여부
+    const seal = document.getElementById('report-seal')?.checked || false;
+    generateReport(type, btnEl, { format, startDate, endDate, regions, orgName, seal });
   };
 
   // ── PDF 보고서 HTML 생성 ────────────────────────────────────────

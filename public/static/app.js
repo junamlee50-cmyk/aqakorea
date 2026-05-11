@@ -59,6 +59,7 @@
 
     // ── 고객 서비스 ───────────────────────────────────────
     Router.add('/booking-check', CustomerPages.bookingCheck);
+    Router.add('/reservation/check', CustomerPages.bookingCheck); // 서버 라우트와 동일 경로
     Router.add('/inquiry',       CustomerPages.inquiry);
     Router.add('/notice',        CustomerPages.notice);
 
