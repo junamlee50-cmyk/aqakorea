@@ -1761,6 +1761,8 @@ ${Footer.render()}`;
       }
 
       // ── 조회 성공 ───────────────────────────────────────────
+      // 전역 임시 변수에 저장 → onclick 속성에서 JSON 직렬화 없이 호출 (따옴표 충돌 방지)
+      window.__amkTicket = found;
       const badge = found.statusBadge || { cls:'bg-gray-100 text-gray-600', label: found.status };
       const isCancelled = ['cancelled','refunded','noshow'].includes(found.status);
       const isCancelable = found.cancelable !== false && !isCancelled;
@@ -1835,7 +1837,7 @@ ${Footer.render()}`;
             <div class="mt-5 space-y-2">
               ${!isCancelled ? `
               <div class="grid grid-cols-2 gap-2">
-                <button onclick="CustomerPages._openTicketModal(${JSON.stringify(JSON.stringify(found))})"
+                <button onclick="CustomerPages._openTicketModal()"
                   class="bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
                   <i class="fas fa-qrcode"></i>QR 탑승권 보기
                 </button>
@@ -2108,8 +2110,14 @@ ${Footer.render()}`;
 
   // ── QR 탑승권 모달 ─────────────────────────────────────────
   _openTicketModal: (foundJson) => {
+    // 인자 없으면 전역 임시 변수에서 읽음 (onclick 속성 따옴표 충돌 방지)
     let f;
-    try { f = typeof foundJson === 'string' ? JSON.parse(foundJson) : foundJson; } catch(e) { return; }
+    if (foundJson === undefined || foundJson === null) {
+      f = window.__amkTicket || null;
+    } else {
+      try { f = typeof foundJson === 'string' ? JSON.parse(foundJson) : foundJson; } catch(e) { f = null; }
+    }
+    if (!f) return;
 
     // 기존 모달 제거 후 재생성
     let existing = document.getElementById('ticket-modal');
