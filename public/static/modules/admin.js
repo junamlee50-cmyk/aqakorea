@@ -85,6 +85,7 @@ const AdminModule = (() => {
       { icon: 'fas fa-search', label: 'SEO 관리', section: 'seo' },
       { icon: 'fas fa-calculator', label: '정산 관리', section: 'settlement' },
       { icon: 'fas fa-chart-bar', label: '통계', section: 'stats-admin' },
+      { icon: 'fas fa-map-marked-alt', label: '관광정보 관리', section: 'tourism' },
     ];
     return role === ROLES.SUPER ? superMenus : regionalMenus;
   };
@@ -553,101 +554,371 @@ const AdminModule = (() => {
     Utils.toast(approve ? '요금 변경이 승인되었습니다.' : '요금 변경이 반려되었습니다.', approve ? 'success' : 'info');
   };
 
-  // ── 지역 대시보드 ──────────────────────────────────────────
+  // ── 지역 대시보드 (지역별 독립 데이터) ───────────────────────
+  const _REGION_DASH_DATA = {
+    tongyeong: {
+      todayRes: 248, todayGoal: 300, todaySales: 8680000, onlineSales: 6944000,
+      remainSeats: 42, remainRound: '14:00 회차', wristbands: 221, wristbandRate: 89,
+      schedules: [
+        { time:'10:00', capacity:45, booked:38, status:'active', label:'1회차' },
+        { time:'12:00', capacity:45, booked:45, status:'full',   label:'2회차' },
+        { time:'14:00', capacity:45, booked:3,  status:'active', label:'3회차' },
+        { time:'15:30', capacity:45, booked:0,  status:'active', label:'4회차' },
+      ],
+      recentRes: [
+        {no:'AMK-20250511-T001',name:'김**',count:4,amount:140000,status:'confirmed'},
+        {no:'AMK-20250511-T002',name:'이**',count:2,amount:70000, status:'confirmed'},
+        {no:'AMK-20250511-T003',name:'박**',count:6,amount:210000,status:'checkedin'},
+        {no:'AMK-20250511-T004',name:'최**',count:3,amount:105000,status:'pending'},
+      ],
+      monthSales: [320,410,280,520,490,600,380,720,650,580,460,390],
+      alerts: [
+        { type:'warning', msg:'3회차 좌석 3석만 남아 있습니다.', time:'12:35' },
+        { type:'info',    msg:'오늘 단체 예약(20명) 입금 확인이 필요합니다.', time:'11:20' },
+        { type:'success', msg:'이번 주 예약률 94% 달성!', time:'09:00' },
+      ],
+    },
+    buyeo: {
+      todayRes: 312, todayGoal: 350, todaySales: 10920000, onlineSales: 8736000,
+      remainSeats: 38, remainRound: '15:30 회차', wristbands: 287, wristbandRate: 92,
+      schedules: [
+        { time:'10:00', capacity:45, booked:45, status:'full',   label:'1회차' },
+        { time:'13:00', capacity:45, booked:40, status:'active', label:'2회차' },
+        { time:'15:30', capacity:45, booked:7,  status:'active', label:'3회차' },
+      ],
+      recentRes: [
+        {no:'RES-2025-052668',name:'김**',count:3,amount:90000, status:'confirmed'},
+        {no:'AMK-20250511-B002',name:'박**',count:5,amount:175000,status:'checkedin'},
+        {no:'AMK-20250511-B003',name:'이**',count:2,amount:70000, status:'confirmed'},
+        {no:'AMK-20250511-B004',name:'정**',count:4,amount:140000,status:'pending'},
+      ],
+      monthSales: [280,360,420,510,590,680,520,810,760,690,540,470],
+      alerts: [
+        { type:'success', msg:'오늘 목표 인원 89% 달성 중', time:'13:10' },
+        { type:'info',    msg:'15:30 회차 잔여석 38석', time:'12:55' },
+        { type:'warning', msg:'우천 예보로 내일 운행 여부 확인 필요', time:'10:30' },
+      ],
+    },
+    hapcheon: {
+      todayRes: 95, todayGoal: 150, todaySales: 3325000, onlineSales: 2660000,
+      remainSeats: 55, remainRound: '16:00 회차', wristbands: 82, wristbandRate: 86,
+      schedules: [
+        { time:'10:30', capacity:40, booked:30, status:'active', label:'1회차' },
+        { time:'13:30', capacity:40, booked:25, status:'active', label:'2회차' },
+        { time:'16:00', capacity:40, booked:0,  status:'active', label:'3회차' },
+      ],
+      recentRes: [
+        {no:'AMK-20250511-H001',name:'오**',count:4,amount:140000,status:'confirmed'},
+        {no:'AMK-20250511-H002',name:'강**',count:2,amount:70000, status:'confirmed'},
+        {no:'AMK-20250511-H003',name:'윤**',count:3,amount:105000,status:'checkedin'},
+        {no:'AMK-20250511-H004',name:'장**',count:1,amount:35000, status:'pending'},
+      ],
+      monthSales: [60,85,110,130,145,170,120,190,175,155,125,100],
+      alerts: [
+        { type:'warning', msg:'오늘 목표 대비 63%로 저조합니다.', time:'13:00' },
+        { type:'info',    msg:'주말 단체 투어 10명 예약 접수', time:'11:45' },
+      ],
+    },
+  };
+
   const regionDashboard = async (params) => {
     _adminState.currentSection = 'region-dashboard';
-    const regionId = params?.regionId || _adminState.selectedRegion || _adminState.user?.regionId || 'tongyeong';
-    const regions = window.REGIONS || [];
-    const region = regions.find(r => r.id === regionId) || regions[0];
-    if (!region) return renderAdminLayout('region-dashboard', '<p>지역을 찾을 수 없습니다.</p>', '지역 대시보드');
+    const user = _adminState.user || {};
 
-    const schedules = (window.SCHEDULES || {})[regionId] || [];
-    const scheduleCards = schedules.slice(0, 3).map(s => `
-      <div class="border rounded-lg p-4">
-        <div class="flex justify-between items-center mb-2">
-          <span class="font-medium text-gray-800">${s.time || s.name}</span>
-          <span class="text-xs px-2 py-0.5 rounded-full ${s.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
-            ${s.status === 'active' ? '운영중' : '중단'}
+    // 로그인 계정 regionId 우선 → URL 파라미터 → 선택값 → 기본값
+    const regionId = (user.role === 'regional' && user.regionId)
+      ? user.regionId
+      : (params?.regionId || _adminState.selectedRegion || 'tongyeong');
+
+    const regions = (window.REGIONS || []).filter(r => r.status !== 'hidden');
+    // 지역 데이터가 없을 때도 지역명을 표시할 수 있도록 폴백 처리
+    const region = regions.find(r => r.id === regionId) || {
+      id: regionId,
+      name: regionId === 'buyeo' ? '부여' : regionId === 'tongyeong' ? '통영' : regionId === 'hapcheon' ? '합천' : regionId,
+      location: `${regionId} 지역`,
+      customerService: '1588-0000',
+    };
+
+    const d = _REGION_DASH_DATA[regionId] || _REGION_DASH_DATA.tongyeong;
+    const today = new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
+    const fmtWon = (v) => v.toLocaleString('ko-KR');
+
+    // 지역관리자는 자기 지역만 / 슈퍼는 전 지역 선택 가능
+    const regionSelector = (user.role === 'regional')
+      ? `<span class="text-sm font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg"><i class="fas fa-map-marker-alt mr-1"></i>${region.name} 전용</span>`
+      : `<div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">지역 선택:</span>
+          <select onchange="AdminModule.switchRegionDashboard(this.value)" class="border rounded-lg px-3 py-1.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+            ${['tongyeong','buyeo','hapcheon'].map(id => {
+              const nm = id==='tongyeong'?'통영':id==='buyeo'?'부여':'합천';
+              return `<option value="${id}" ${id===regionId?'selected':''}>${nm}</option>`;
+            }).join('')}
+          </select>
+        </div>`;
+
+    // 회차별 상황 테이블 행
+    const roundRows = d.schedules.map(s => {
+      const pct = Math.round(s.booked / s.capacity * 100);
+      const isFull = s.status === 'full' || s.booked >= s.capacity;
+      return `
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 text-sm font-medium">${s.label} <span class="text-gray-400">(${s.time})</span></td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-sm font-bold ${isFull?'text-red-600':'text-blue-600'}">${s.booked}</span>
+            <span class="text-gray-400 text-xs"> / ${s.capacity}석</span>
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <div class="flex-1 bg-gray-200 rounded-full h-2">
+                <div class="h-2 rounded-full ${isFull?'bg-red-500':pct>70?'bg-amber-500':'bg-blue-500'}" style="width:${pct}%"></div>
+              </div>
+              <span class="text-xs text-gray-600 w-8 text-right">${pct}%</span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${isFull?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}">
+              ${isFull?'매진':'예약가능'}
+            </span>
+          </td>
+        </tr>`;
+    }).join('');
+
+    // 최근 예약 행
+    const resRows = d.recentRes.map(r => `
+      <tr class="hover:bg-gray-50">
+        <td class="px-3 py-2 text-xs font-mono text-blue-600">${r.no}</td>
+        <td class="px-3 py-2 text-sm">${r.name}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.count}명</td>
+        <td class="px-3 py-2 text-sm text-right">₩${r.amount.toLocaleString()}</td>
+        <td class="px-3 py-2 text-center">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='checkedin'?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'}">
+            ${r.status==='confirmed'?'확정':r.status==='checkedin'?'탑승완료':'대기'}
           </span>
+        </td>
+      </tr>`).join('');
+
+    // 알림 행
+    const alertIcons = { warning:'fas fa-exclamation-triangle text-amber-500', info:'fas fa-info-circle text-blue-500', success:'fas fa-check-circle text-green-500' };
+    const alertItems = d.alerts.map(a => `
+      <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
+        <i class="${alertIcons[a.type]||alertIcons.info} mt-0.5 flex-shrink-0"></i>
+        <div class="flex-1">
+          <p class="text-sm text-gray-800">${a.msg}</p>
+          <p class="text-xs text-gray-400 mt-0.5">${a.time}</p>
         </div>
-        <div class="text-sm text-gray-600">좌석: ${Math.floor(Math.random()*30)+10} / ${s.capacity || 45}석</div>
-        <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-          <div class="bg-blue-500 h-1.5 rounded-full" style="width:${Math.floor(Math.random()*80)+10}%"></div>
-        </div>
-      </div>
-    `).join('');
+      </div>`).join('');
+
+    // 월별 매출 미니차트 (bar-style CSS)
+    const monthLabels = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+    const maxSales = Math.max(...d.monthSales);
+    const salesBars = d.monthSales.map((v, i) => {
+      const h = Math.round(v / maxSales * 60);
+      return `<div class="flex flex-col items-center gap-1">
+        <div class="text-xs text-gray-400" style="font-size:10px">${(v/10000).toFixed(0)}만</div>
+        <div class="w-5 bg-blue-500 rounded-t" style="height:${h}px;min-height:4px"></div>
+        <div class="text-gray-400" style="font-size:10px">${monthLabels[i]}</div>
+      </div>`;
+    }).join('');
 
     const content = `
       <div class="space-y-6">
-        <!-- 지역 선택 -->
-        <div class="flex items-center gap-4 flex-wrap">
-          <select onchange="AdminModule.navigate('region-dashboard')" class="border rounded-lg px-3 py-2 text-sm" id="region-select">
-            ${regions.filter(r=>r.status==='active').map(r=>
-              `<option value="${r.id}" ${r.id===regionId?'selected':''}>${r.name}</option>`
-            ).join('')}
-          </select>
-          <span class="text-gray-500 text-sm">|</span>
-          <span class="text-sm text-gray-600"><i class="fas fa-map-marker-alt text-blue-500 mr-1"></i>${region.location}</span>
-          <span class="text-sm text-gray-600"><i class="fas fa-phone text-green-500 mr-1"></i>${region.customerService}</span>
+        <!-- 헤더: 지역 선택 + 날짜 -->
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-3 flex-wrap">
+            ${regionSelector}
+            <span class="text-sm text-gray-500">${today}</span>
+            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+              <i class="fas fa-phone mr-1"></i>${region.customerService}
+            </span>
+          </div>
+          <button onclick="location.reload()" class="text-xs text-gray-500 border rounded-lg px-3 py-1.5 hover:bg-gray-50 flex items-center gap-1">
+            <i class="fas fa-sync-alt"></i> 새로고침
+          </button>
         </div>
 
-        <!-- 통계 카드 -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          ${statCard('fas fa-calendar-check', '오늘 예약', '312명', '목표 350명', 'blue')}
-          ${statCard('fas fa-won-sign', '오늘 매출', '₩10,920,000', '온라인 ₩8,736,000', 'green')}
-          ${statCard('fas fa-chair', '잔여 좌석', '38석', '오후 2시 회차', 'purple')}
-          ${statCard('fas fa-qrcode', '손목밴드 발급', '287개', '체크인 대비 92%', 'orange')}
+        <!-- ① 예약현황 (4개 통계 카드) -->
+        <section>
+          <h2 class="font-semibold text-gray-700 text-sm mb-3 flex items-center gap-2">
+            <span class="w-5 h-5 bg-blue-500 rounded text-white flex items-center justify-center text-xs">①</span>예약현황
+          </h2>
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            ${statCard('fas fa-calendar-check','오늘 예약',`${d.todayRes}명`,`목표 ${d.todayGoal}명`,'blue')}
+            ${statCard('fas fa-won-sign','오늘 매출',`₩${fmtWon(d.todaySales)}`,`온라인 ₩${fmtWon(d.onlineSales)}`,'green')}
+            ${statCard('fas fa-chair','잔여 좌석',`${d.remainSeats}석`,d.remainRound,'purple')}
+            ${statCard('fas fa-qrcode','손목밴드',`${d.wristbands}개`,`체크인 대비 ${d.wristbandRate}%`,'orange')}
+          </div>
+        </section>
+
+        <!-- ② 운행현황 + ③ 회차별현황 -->
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- ② 운행현황 -->
+          <section class="bg-white rounded-xl shadow-sm p-5">
+            <h2 class="font-semibold text-gray-700 text-sm mb-4 flex items-center gap-2">
+              <span class="w-5 h-5 bg-green-500 rounded text-white flex items-center justify-center text-xs">②</span>운행현황
+            </h2>
+            <div class="space-y-3">
+              ${d.schedules.map(s => {
+                const pct = Math.round(s.booked / s.capacity * 100);
+                const isFull = s.status === 'full' || s.booked >= s.capacity;
+                return `<div class="flex items-center gap-3">
+                  <div class="w-16 text-xs font-medium text-gray-700">${s.time}</div>
+                  <div class="flex-1">
+                    <div class="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>${s.label}</span>
+                      <span>${s.booked}/${s.capacity}석 (${pct}%)</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                      <div class="h-2.5 rounded-full transition-all ${isFull?'bg-red-500':pct>70?'bg-amber-400':'bg-green-500'}" style="width:${pct}%"></div>
+                    </div>
+                  </div>
+                  <span class="text-xs px-2 py-0.5 rounded-full ${isFull?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}">${isFull?'매진':'운행중'}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </section>
+
+          <!-- ③ 회차별현황 -->
+          <section class="bg-white rounded-xl shadow-sm p-5">
+            <h2 class="font-semibold text-gray-700 text-sm mb-4 flex items-center gap-2">
+              <span class="w-5 h-5 bg-purple-500 rounded text-white flex items-center justify-center text-xs">③</span>회차별현황
+            </h2>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead><tr class="bg-gray-50 text-xs text-gray-600">
+                  <th class="px-4 py-2">회차</th><th class="px-4 py-2 text-center">예약/정원</th>
+                  <th class="px-4 py-2">점유율</th><th class="px-4 py-2 text-center">상태</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100">${roundRows}</tbody>
+              </table>
+            </div>
+          </section>
         </div>
 
-        <!-- 오늘 운행 일정 -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h2 class="font-semibold text-gray-800 mb-4">오늘 운행 일정</h2>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">${scheduleCards || '<p class="text-gray-500 text-sm">일정이 없습니다.</p>'}</div>
+        <!-- ④ 좌석현황 -->
+        <section class="bg-white rounded-xl shadow-sm p-5">
+          <h2 class="font-semibold text-gray-700 text-sm mb-4 flex items-center gap-2">
+            <span class="w-5 h-5 bg-cyan-500 rounded text-white flex items-center justify-center text-xs">④</span>좌석현황
+          </h2>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            ${d.schedules.map(s => {
+              const avail = s.capacity - s.booked;
+              const pct = Math.round(s.booked / s.capacity * 100);
+              return `<div class="border rounded-xl p-4 text-center">
+                <div class="text-xs text-gray-500 mb-1">${s.label} (${s.time})</div>
+                <div class="text-2xl font-black ${avail===0?'text-red-500':'text-blue-600'}">${avail}</div>
+                <div class="text-xs text-gray-400">잔여석</div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-1.5">
+                  <div class="h-1.5 rounded-full bg-blue-400" style="width:${pct}%"></div>
+                </div>
+                <div class="text-xs text-gray-400 mt-1">${s.booked}/${s.capacity}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </section>
+
+        <!-- ⑤ 탑승현황 + ⑥ 매출현황 -->
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- ⑤ 탑승현황 -->
+          <section class="bg-white rounded-xl shadow-sm p-5">
+            <h2 class="font-semibold text-gray-700 text-sm mb-4 flex items-center gap-2">
+              <span class="w-5 h-5 bg-amber-500 rounded text-white flex items-center justify-center text-xs">⑤</span>탑승현황 (오늘)
+            </h2>
+            <div class="space-y-3 mb-4">
+              ${[
+                {label:'총 탑승 인원',  val:`${d.wristbands}명`, color:'blue'},
+                {label:'체크인 완료',   val:`${d.wristbands}명`, color:'green'},
+                {label:'체크인 대기',   val:`${d.todayRes - d.wristbands}명`, color:'amber'},
+                {label:'탑승 완료율',   val:`${d.wristbandRate}%`, color:'purple'},
+              ].map(i=>`
+                <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span class="text-sm text-gray-600">${i.label}</span>
+                  <span class="font-bold text-${i.color}-600">${i.val}</span>
+                </div>`).join('')}
+            </div>
+            <button onclick="AdminModule.navigate('wristbands')" class="w-full border border-blue-200 text-blue-600 py-2 rounded-lg text-xs hover:bg-blue-50 transition-colors">
+              <i class="fas fa-qrcode mr-1"></i>손목밴드 관리로 이동
+            </button>
+          </section>
+
+          <!-- ⑥ 매출현황 -->
+          <section class="bg-white rounded-xl shadow-sm p-5">
+            <h2 class="font-semibold text-gray-700 text-sm mb-4 flex items-center gap-2">
+              <span class="w-5 h-5 bg-green-600 rounded text-white flex items-center justify-center text-xs">⑥</span>매출현황
+            </h2>
+            <div class="space-y-2 mb-4">
+              ${[
+                {label:'오늘 총 매출',   val:`₩${fmtWon(d.todaySales)}`},
+                {label:'온라인 매출',    val:`₩${fmtWon(d.onlineSales)}`},
+                {label:'현장 매출',     val:`₩${fmtWon(d.todaySales - d.onlineSales)}`},
+              ].map(i=>`
+                <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span class="text-sm text-gray-600">${i.label}</span>
+                  <span class="font-bold text-gray-800">${i.val}</span>
+                </div>`).join('')}
+            </div>
+            <div class="mt-3">
+              <div class="text-xs text-gray-500 mb-2">월별 매출 추이 (만원)</div>
+              <div class="flex items-end gap-1 h-20">${salesBars}</div>
+            </div>
+          </section>
         </div>
 
-        <!-- 최근 예약 -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
+        <!-- ⑦ 알림 -->
+        <section class="bg-white rounded-xl shadow-sm p-5">
+          <h2 class="font-semibold text-gray-700 text-sm mb-4 flex items-center gap-2">
+            <span class="w-5 h-5 bg-red-500 rounded text-white flex items-center justify-center text-xs">⑦</span>알림
+          </h2>
+          <div class="space-y-2">${alertItems || '<p class="text-gray-400 text-sm text-center py-4">알림이 없습니다.</p>'}</div>
+        </section>
+
+        <!-- ⑧ 바로가기 -->
+        <section class="bg-white rounded-xl shadow-sm p-5">
+          <h2 class="font-semibold text-gray-700 text-sm mb-4 flex items-center gap-2">
+            <span class="w-5 h-5 bg-gray-600 rounded text-white flex items-center justify-center text-xs">⑧</span>바로가기
+          </h2>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            ${[
+              {icon:'fas fa-ticket-alt',   label:'예약 관리',   section:'reservations',  color:'blue'},
+              {icon:'fas fa-bus',          label:'차량 관리',   section:'vehicles',      color:'green'},
+              {icon:'fas fa-calendar-alt', label:'일정 관리',   section:'schedules',     color:'purple'},
+              {icon:'fas fa-tag',          label:'요금 관리',   section:'fares',         color:'amber'},
+              {icon:'fas fa-calculator',   label:'정산 관리',   section:'settlement',    color:'red'},
+              {icon:'fas fa-chart-bar',    label:'통계 보기',   section:'stats-admin',   color:'cyan'},
+              {icon:'fas fa-qrcode',       label:'손목밴드',    section:'wristbands',    color:'indigo'},
+              {icon:'fas fa-map-marked-alt',label:'관광정보 관리', section:'tourism',    color:'teal'},
+            ].map(b=>`
+              <button onclick="AdminModule.navigate('${b.section}')"
+                class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-${b.color}-100 hover:border-${b.color}-300 hover:bg-${b.color}-50 transition-all text-center">
+                <i class="${b.icon} text-${b.color}-500 text-xl"></i>
+                <span class="text-xs font-medium text-gray-700">${b.label}</span>
+              </button>`).join('')}
+          </div>
+        </section>
+
+        <!-- 최근 예약 현황 -->
+        <section class="bg-white rounded-xl shadow-sm p-5">
           <div class="flex justify-between items-center mb-4">
-            <h2 class="font-semibold text-gray-800">최근 예약 현황</h2>
-            <button onclick="AdminModule.navigate('reservations')" class="text-blue-600 text-sm hover:underline">전체보기</button>
+            <h2 class="font-semibold text-gray-700 text-sm">최근 예약 현황 <span class="text-xs text-gray-400 font-normal">(${region.name})</span></h2>
+            <button onclick="AdminModule.navigate('reservations')" class="text-blue-600 text-xs hover:underline">전체보기 →</button>
           </div>
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
-              <thead>
-                <tr class="bg-gray-50">
-                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">예약번호</th>
-                  <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">예약자</th>
-                  <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">인원</th>
-                  <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600">금액</th>
-                  <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">상태</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100">
-                ${[
-                  {no:'AMK-20250511-0001',name:'김**',count:4,amount:140000,status:'confirmed'},
-                  {no:'AMK-20250511-0002',name:'이**',count:2,amount:70000,status:'confirmed'},
-                  {no:'AMK-20250511-0003',name:'박**',count:6,amount:210000,status:'checkedin'},
-                  {no:'AMK-20250511-0004',name:'최**',count:3,amount:105000,status:'pending'},
-                ].map(r=>`
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-3 py-2 text-xs font-mono text-blue-600">${r.no}</td>
-                    <td class="px-3 py-2 text-sm">${r.name}</td>
-                    <td class="px-3 py-2 text-sm text-center">${r.count}명</td>
-                    <td class="px-3 py-2 text-sm text-right">₩${r.amount.toLocaleString()}</td>
-                    <td class="px-3 py-2 text-center">
-                      <span class="px-2 py-0.5 rounded-full text-xs font-medium ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='checkedin'?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'}">
-                        ${r.status==='confirmed'?'확정':r.status==='checkedin'?'탑승완료':'대기'}
-                      </span>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
+              <thead><tr class="bg-gray-50">
+                ${['예약번호','예약자','인원','금액','상태'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600">${h}</th>`).join('')}
+              </tr></thead>
+              <tbody class="divide-y divide-gray-100">${resRows}</tbody>
             </table>
           </div>
-        </div>
+        </section>
       </div>
     `;
     return renderAdminLayout('region-dashboard', content, `${region.name} 대시보드`);
+  };
+
+  // 지역 대시보드 지역 전환 (슈퍼관리자 전용)
+  const switchRegionDashboard = (regionId) => {
+    _adminState.selectedRegion = regionId;
+    regionDashboard({ regionId }).then(html => { document.getElementById('app').innerHTML = html; });
   };
 
   // ── 차량 관리 ──────────────────────────────────────────────
@@ -1062,110 +1333,239 @@ const AdminModule = (() => {
   };
 
   // ── 요금 관리 ──────────────────────────────────────────────
+  // ── 요금 승인 Store 키 ────────────────────────────────────
+  const FARE_STORE_KEY = 'amk_fares';
+  const FARE_APPROVAL_KEY = 'amk_fare_approvals';
+
+  // 세션 내 요금 데이터 로드 (Store 우선 → window.REGIONS fallback)
+  const _getFares = (regionId) => {
+    const stored = JSON.parse(sessionStorage.getItem(FARE_STORE_KEY) || '{}');
+    if (stored[regionId]) return stored[regionId];
+    const region = (window.REGIONS||[]).find(r=>r.id===regionId);
+    return region?.fares || [];
+  };
+  const _setFares = (regionId, fares) => {
+    const stored = JSON.parse(sessionStorage.getItem(FARE_STORE_KEY) || '{}');
+    stored[regionId] = fares;
+    sessionStorage.setItem(FARE_STORE_KEY, JSON.stringify(stored));
+  };
+  const _getFareApprovals = () => JSON.parse(sessionStorage.getItem(FARE_APPROVAL_KEY) || '[]');
+  const _setFareApprovals = (list) => sessionStorage.setItem(FARE_APPROVAL_KEY, JSON.stringify(list));
+
+  // 요금 상태 레이블/색상
+  const FARE_STATUS = {
+    pending:   { label:'승인대기',  color:'yellow' },
+    approved:  { label:'승인완료',  color:'blue'   },
+    rejected:  { label:'반려',      color:'red'    },
+    active:    { label:'적용중',    color:'green'  },
+    ended:     { label:'종료',      color:'gray'   },
+    inactive:  { label:'비활성',    color:'gray'   },
+  };
+  const fareStatusBadge = (s) => {
+    const st = FARE_STATUS[s] || { label: s, color:'gray' };
+    return `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-${st.color}-100 text-${st.color}-700">${st.label}</span>`;
+  };
+
   const faresPage = async () => {
     _adminState.currentSection = 'fares';
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active');
-    const activeRegionId = _adminState.selectedRegion || regions[0]?.id || 'tongyeong';
-    const region = regions.find(r=>r.id===activeRegionId);
-    const fares = region?.fares || [];
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super' || user.role === 'accountant';
+
+    // 지역관리자는 자기 지역만, 슈퍼는 선택 가능
+    let activeRegionId;
+    if (user.role === 'regional' && user.regionId) {
+      activeRegionId = user.regionId;
+    } else {
+      const allRegions = (window.REGIONS||[]).filter(r=>r.status!=='hidden');
+      activeRegionId = _adminState.selectedRegion || allRegions[0]?.id || 'tongyeong';
+    }
+
+    const allRegions = (window.REGIONS||[]).filter(r=>r.status!=='hidden');
+    const region = allRegions.find(r=>r.id===activeRegionId) || { id: activeRegionId, name: activeRegionId, shortName: activeRegionId };
+    const fares = _getFares(activeRegionId);
+    const approvals = _getFareApprovals().filter(a => a.regionId === activeRegionId);
     const fareMode = Settings.get('fareChangeMode') || 'approval';
 
-    const regionTabs = regions.map(r=>`
+    // 지역관리자: 즉시적용 권한 여부 확인
+    const instantPerm = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+    const hasInstantPerm = isSuper || instantPerm[activeRegionId];
+
+    // 지역 탭 (슈퍼만)
+    const regionTabs = isSuper ? allRegions.map(r=>`
       <button onclick="AdminModule.selectFareRegion('${r.id}')"
         class="px-4 py-2 rounded-lg text-sm font-medium transition-colors ${r.id===activeRegionId?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-        ${r.shortName}
-      </button>
-    `).join('');
+        ${r.shortName || r.name}
+      </button>`).join('') : `<span class="text-sm font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg"><i class="fas fa-map-marker-alt mr-1"></i>${region.name} 전용</span>`;
 
+    // 적용중 요금 행
     const fareRows = fares.map((f, i) => `
-      <tr class="hover:bg-gray-50">
+      <tr class="hover:bg-gray-50" id="fare-row-${i}">
         <td class="px-4 py-3 text-sm font-medium">${f.label}</td>
-        <td class="px-4 py-3 text-sm text-center text-gray-500">${f.type}</td>
-        <td class="px-4 py-3 text-right">
-          <span class="font-semibold text-gray-800">₩${(f.price||0).toLocaleString()}</span>
-        </td>
-        <td class="px-4 py-3 text-right text-gray-500">
-          ${f.discountPrice ? `₩${f.discountPrice.toLocaleString()}` : '-'}
-        </td>
+        <td class="px-4 py-3 text-sm text-center text-gray-500">${f.type||'일반'}</td>
+        <td class="px-4 py-3 text-right font-semibold text-gray-800">₩${(f.price||0).toLocaleString()}</td>
+        <td class="px-4 py-3 text-right text-gray-500">${f.discountPrice ? `₩${f.discountPrice.toLocaleString()}` : '-'}</td>
+        <td class="px-4 py-3 text-center">${fareStatusBadge(f.status||'active')}</td>
+        <td class="px-4 py-3 text-xs text-gray-400 text-center">${f.effectiveFrom||'-'} ~ ${f.effectiveTo||'무기한'}</td>
         <td class="px-4 py-3 text-center">
-          <button onclick="AdminModule.editFare('${activeRegionId}', ${i})" class="text-blue-600 hover:underline text-xs">수정</button>
+          <button onclick="AdminModule.editFare('${activeRegionId}', ${i})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
+          <button onclick="AdminModule.toggleFareStatus('${activeRegionId}', ${i})" class="text-gray-500 hover:underline text-xs">
+            ${(f.status||'active')==='active'?'비활성화':'활성화'}
+          </button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`).join('');
+
+    // 승인 대기 행
+    const approvalRows = approvals.length === 0
+      ? '<tr><td colspan="7" class="text-center py-4 text-gray-400 text-sm">승인 대기 요청이 없습니다.</td></tr>'
+      : approvals.map((a, i) => `
+        <tr class="hover:bg-yellow-50" id="appr-row-${i}">
+          <td class="px-4 py-3 text-sm font-medium">${a.label}</td>
+          <td class="px-4 py-3 text-sm text-center text-gray-500">${a.type||'일반'}</td>
+          <td class="px-4 py-3 text-right font-semibold">₩${(a.price||0).toLocaleString()}</td>
+          <td class="px-4 py-3 text-right text-gray-500">${a.discountPrice ? `₩${a.discountPrice.toLocaleString()}` : '-'}</td>
+          <td class="px-4 py-3 text-center text-xs text-gray-500">${a.reason||'-'}</td>
+          <td class="px-4 py-3 text-xs text-gray-400 text-center">${a.requestedBy||'지역관리자'} · ${a.requestedAt||'-'}</td>
+          <td class="px-4 py-3 text-center">
+            ${isSuper ? `
+              <button onclick="AdminModule.approvefare(${i}, true)" class="text-green-600 hover:underline text-xs mr-2 font-medium">승인</button>
+              <button onclick="AdminModule.approvefare(${i}, false)" class="text-red-500 hover:underline text-xs">반려</button>
+            ` : `<span class="text-xs text-yellow-600">승인 대기중</span>`}
+          </td>
+        </tr>`).join('');
 
     const content = `
-      <div class="space-y-4">
+      <div class="space-y-6">
+        <!-- 상단 탭 + 버튼 -->
         <div class="flex flex-wrap gap-3 items-center justify-between">
-          <div class="flex gap-2 flex-wrap">${regionTabs}</div>
-          <div class="flex items-center gap-3">
-            <div class="flex items-center gap-2 bg-white border rounded-lg px-3 py-2">
-              <span class="text-xs text-gray-600">요금 변경 방식:</span>
-              <select onchange="AdminModule.setFareMode(this.value)" class="text-xs border-0 focus:ring-0 outline-none font-medium">
-                <option value="approval" ${fareMode==='approval'?'selected':''}>HQ 승인 후 적용</option>
-                <option value="auto" ${fareMode==='auto'?'selected':''}>즉시 자동 적용</option>
-              </select>
-            </div>
-            <button onclick="AdminModule.addFare('${activeRegionId}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
-              <i class="fas fa-plus"></i> 요금 추가
+          <div class="flex gap-2 flex-wrap items-center">${regionTabs}</div>
+          <div class="flex items-center gap-2">
+            ${isSuper ? `
+              <div class="flex items-center gap-2 bg-white border rounded-lg px-3 py-2 text-xs">
+                <span class="text-gray-600">요금 변경 방식:</span>
+                <select onchange="AdminModule.setFareMode(this.value)" class="border-0 focus:ring-0 outline-none font-medium text-xs">
+                  <option value="approval" ${fareMode==='approval'?'selected':''}>HQ 승인 후 적용</option>
+                  <option value="auto" ${fareMode==='auto'?'selected':''}>즉시 자동 적용</option>
+                </select>
+              </div>
+              <button onclick="AdminModule.grantInstantPerm('${activeRegionId}')"
+                class="border border-purple-300 text-purple-600 px-3 py-2 rounded-lg text-xs hover:bg-purple-50 flex items-center gap-1">
+                <i class="fas fa-bolt"></i>즉시적용 권한 부여
+              </button>
+            ` : (hasInstantPerm ? `<span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full"><i class="fas fa-bolt mr-1"></i>즉시 적용 권한 있음</span>` : '')}
+            <button onclick="AdminModule.addFare('${activeRegionId}')"
+              class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
+              <i class="fas fa-plus"></i>요금 추가
             </button>
           </div>
         </div>
 
-        ${fareMode==='approval' ? `
+        <!-- 안내 배너 -->
+        ${fareMode==='approval' && !hasInstantPerm ? `
           <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
-            <i class="fas fa-info-circle"></i>
-            <span>현재 HQ 승인 후 적용 모드입니다. 요금 수정 시 본사 승인 후 적용됩니다.</span>
+            <i class="fas fa-shield-alt"></i>
+            <span>HQ 승인 후 적용 모드 · 요금 변경 요청 → 본사 승인 → 고객 화면 반영 순으로 처리됩니다. 기존 예약 금액은 변경되지 않습니다.</span>
           </div>` : `
-          <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
+          <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 flex items-center gap-2">
             <i class="fas fa-bolt"></i>
-            <span>현재 즉시 자동 적용 모드입니다. 요금 수정 즉시 고객 화면에 반영됩니다.</span>
+            <span>즉시 적용 모드 · 저장 즉시 고객 예약 화면에 반영됩니다. 기존 예약 금액은 변경되지 않습니다.</span>
           </div>`}
 
+        <!-- 적용중 요금 목록 -->
         <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-          <table class="admin-table w-full">
-            <thead>
-              <tr class="bg-gray-50">
-                ${['구분','유형코드','정가','할인가','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">${fareRows || '<tr><td colspan="5" class="text-center py-4 text-gray-500">요금이 없습니다.</td></tr>'}</tbody>
-          </table>
+          <div class="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
+            <h3 class="font-semibold text-gray-700 text-sm">요금 목록 <span class="text-xs text-gray-400 font-normal ml-1">(고객 예약화면: 승인완료·적용중·활성 요금만 표시)</span></h3>
+            <span class="text-xs text-gray-400">${fares.length}건</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="admin-table w-full">
+              <thead><tr class="bg-gray-50">
+                ${['구분명','유형','정가','할인가','상태','적용기간','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+              </tr></thead>
+              <tbody class="divide-y divide-gray-100">
+                ${fareRows || '<tr><td colspan="7" class="text-center py-6 text-gray-400 text-sm">등록된 요금이 없습니다. 요금 추가 버튼을 눌러 추가해주세요.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 승인 대기 요금 -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-3 bg-yellow-50 border-b flex items-center justify-between">
+            <h3 class="font-semibold text-gray-700 text-sm flex items-center gap-2">
+              <i class="fas fa-clock text-yellow-500"></i>승인 대기 요금
+              ${approvals.length > 0 ? `<span class="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">${approvals.length}</span>` : ''}
+            </h3>
+            ${isSuper ? '<span class="text-xs text-gray-400">승인/반려 처리가 가능합니다</span>' : '<span class="text-xs text-gray-400">본사 승인 대기중인 요금 변경 요청</span>'}
+          </div>
+          <div class="overflow-x-auto">
+            <table class="admin-table w-full">
+              <thead><tr class="bg-gray-50">
+                ${['구분명','유형','정가','할인가','변경사유','요청자·일시','처리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+              </tr></thead>
+              <tbody class="divide-y divide-gray-100">${approvalRows}</tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <!-- 요금 수정 모달 -->
-      <div id="fare-modal" class="modal-overlay hidden">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-          <h3 class="font-semibold text-gray-800 text-lg mb-4" id="fare-modal-title">요금 수정</h3>
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">구분명</label>
-              <input id="f-label" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
+      <!-- 요금 추가/수정 모달 -->
+      <div id="fare-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg" onclick="event.stopPropagation()">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="font-semibold text-gray-800 text-lg" id="fare-modal-title">요금 추가</h3>
+            <button onclick="document.getElementById('fare-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          </div>
+          <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3">
+              <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-700 mb-1">구분명 <span class="text-red-500">*</span></label>
+                <input id="f-label" type="text" placeholder="예: 성인, 청소년, 경로우대" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
               <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">정가 (원)</label>
-                <input id="f-price" type="number" min="0" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <label class="block text-xs font-medium text-gray-700 mb-1">유형 코드</label>
+                <select id="f-type" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="adult">adult (성인)</option>
+                  <option value="child">child (소아)</option>
+                  <option value="senior">senior (경로)</option>
+                  <option value="group">group (단체)</option>
+                  <option value="etc">etc (기타)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">상태</label>
+                <select id="f-status" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="active">적용중</option>
+                  <option value="inactive">비활성</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">정가 (원) <span class="text-red-500">*</span></label>
+                <input id="f-price" type="number" min="0" step="1000" placeholder="35000" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">할인가 (원, 없으면 빈칸)</label>
-                <input id="f-discount" type="number" min="0" step="1000" placeholder="없으면 빈칸" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <input id="f-discount" type="number" min="0" step="1000" placeholder="빈칸 = 없음" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">적용 시작일</label>
+                <input id="f-effective" type="date" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">적용 종료일 (빈칸=무기한)</label>
+                <input id="f-effective-to" type="date" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-xs font-medium text-gray-700 mb-1">변경 사유 <span class="text-red-500">*</span></label>
+                <textarea id="f-reason" rows="2" placeholder="요금 변경 사유를 입력하세요" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
               </div>
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">적용 시작일 (즉시 적용 시 오늘)</label>
-              <input id="f-effective" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">변경 사유</label>
-              <textarea id="f-reason" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="요금 변경 사유를 입력하세요"></textarea>
-            </div>
+            <div id="f-mode-notice" class="text-xs text-gray-500 bg-gray-50 rounded-lg p-3"></div>
           </div>
-          <div class="flex gap-2 mt-4">
-            <button onclick="AdminModule.saveFare()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700">
-              ${fareMode==='approval' ? '승인 요청' : '저장'}
-            </button>
-            <button onclick="document.getElementById('fare-modal').classList.add('hidden')" class="flex-1 border py-2 rounded-lg text-sm hover:bg-gray-50">취소</button>
+          <div class="flex gap-2 mt-5">
+            <button onclick="AdminModule.saveFare()" id="fare-save-btn"
+              class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">저장</button>
+            <button onclick="document.getElementById('fare-modal').classList.add('hidden')"
+              class="flex-1 border py-2.5 rounded-lg text-sm hover:bg-gray-50">취소</button>
           </div>
         </div>
       </div>
@@ -1173,28 +1573,167 @@ const AdminModule = (() => {
     return renderAdminLayout('fares', content, '요금 관리');
   };
 
-  const selectFareRegion = (regionId) => { _adminState.selectedRegion = regionId; faresPage().then(html => { document.getElementById('app').innerHTML = html; }); };
-  const setFareMode = (mode) => { Settings.set('fareChangeMode', mode); Utils.toast(`요금 변경 방식이 "${mode==='approval'?'HQ 승인 후 적용':'즉시 자동 적용'}"으로 변경되었습니다.`, 'info'); };
+  const selectFareRegion = (regionId) => {
+    _adminState.selectedRegion = regionId;
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+  const setFareMode = (mode) => {
+    Settings.set('fareChangeMode', mode);
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+    Utils.toast(`요금 변경 방식이 "${mode==='approval'?'HQ 승인 후 적용':'즉시 자동 적용'}"으로 변경되었습니다.`, 'info');
+  };
+
+  // 즉시적용 권한 부여 (슈퍼 → 지역관리자)
+  const grantInstantPerm = (regionId) => {
+    Utils.confirm(`<div class="text-sm">
+      <p class="mb-2"><strong>${regionId}</strong> 지역 관리자에게 즉시 적용 권한을 부여하시겠습니까?</p>
+      <p class="text-gray-500 text-xs">이 권한이 있으면 HQ 승인 없이 요금을 즉시 적용할 수 있습니다.</p>
+    </div>`, () => {
+      const perms = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+      perms[regionId] = true;
+      sessionStorage.setItem('amk_instant_perm', JSON.stringify(perms));
+      Utils.toast(`${regionId} 지역에 즉시 적용 권한이 부여되었습니다.`, 'success');
+      faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+    });
+  };
+
   let _editingFareRegion = null, _editingFareIdx = null;
-  const addFare = (regionId) => { _editingFareRegion = regionId; _editingFareIdx = null; document.getElementById('fare-modal-title').textContent='요금 추가'; ['f-label','f-price','f-discount','f-reason'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.getElementById('fare-modal').classList.remove('hidden'); };
-  const editFare = (regionId, idx) => {
-    const region = (window.REGIONS||[]).find(r=>r.id===regionId);
-    const f = region?.fares?.[idx]; if(!f) return;
-    _editingFareRegion = regionId; _editingFareIdx = idx;
-    document.getElementById('fare-modal-title').textContent='요금 수정';
-    document.getElementById('f-label').value = f.label||'';
-    document.getElementById('f-price').value = f.price||0;
-    document.getElementById('f-discount').value = f.discountPrice||'';
+
+  const addFare = (regionId) => {
+    _editingFareRegion = regionId;
+    _editingFareIdx = null;
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super';
+    const instantPerm = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+    const hasInstant = isSuper || instantPerm[regionId];
+    const fareMode = Settings.get('fareChangeMode') || 'approval';
+    document.getElementById('fare-modal-title').textContent = '요금 추가';
+    ['f-label','f-price','f-discount','f-reason','f-effective','f-effective-to'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value = '';
+    });
+    const ftype = document.getElementById('f-type'); if(ftype) ftype.value = 'adult';
+    const fstatus = document.getElementById('f-status'); if(fstatus) fstatus.value = 'active';
+    const notice = document.getElementById('f-mode-notice');
+    if (notice) {
+      if (hasInstant || fareMode === 'auto') {
+        notice.innerHTML = '<i class="fas fa-bolt text-green-500 mr-1"></i>저장 즉시 고객 예약화면에 반영됩니다. 기존 예약 금액은 변경되지 않습니다.';
+        notice.className = 'text-xs text-green-700 bg-green-50 rounded-lg p-3';
+      } else {
+        notice.innerHTML = '<i class="fas fa-clock text-amber-500 mr-1"></i>본사 승인 후 적용됩니다. 승인 요청이 접수되며 HQ에서 검토 후 반영됩니다.';
+        notice.className = 'text-xs text-amber-700 bg-amber-50 rounded-lg p-3';
+      }
+    }
+    const saveBtn = document.getElementById('fare-save-btn');
+    if (saveBtn) saveBtn.textContent = (hasInstant || fareMode === 'auto') ? '저장' : '승인 요청';
     document.getElementById('fare-modal').classList.remove('hidden');
   };
+
+  const editFare = (regionId, idx) => {
+    const fares = _getFares(regionId);
+    const f = fares[idx]; if (!f) return;
+    _editingFareRegion = regionId; _editingFareIdx = idx;
+    document.getElementById('fare-modal-title').textContent = '요금 수정';
+    document.getElementById('f-label').value = f.label || '';
+    document.getElementById('f-price').value = f.price || 0;
+    document.getElementById('f-discount').value = f.discountPrice || '';
+    document.getElementById('f-reason').value = '';
+    document.getElementById('f-effective').value = f.effectiveFrom || '';
+    document.getElementById('f-effective-to').value = f.effectiveTo || '';
+    const ftype = document.getElementById('f-type'); if(ftype) ftype.value = f.type || 'adult';
+    const fstatus = document.getElementById('f-status'); if(fstatus) fstatus.value = f.status || 'active';
+    addFare(regionId); // 안내 문구 갱신
+    document.getElementById('fare-modal-title').textContent = '요금 수정';
+    document.getElementById('f-label').value = f.label || '';
+    document.getElementById('f-price').value = f.price || 0;
+    document.getElementById('f-discount').value = f.discountPrice || '';
+  };
+
   const saveFare = () => {
-    const get = (id) => document.getElementById(id)?.value||'';
-    const label = get('f-label'); const price = parseInt(get('f-price'))||0;
+    const get = (id) => document.getElementById(id)?.value || '';
+    const label = get('f-label').trim();
+    const price = parseInt(get('f-price')) || 0;
+    const reason = get('f-reason').trim();
     if (!label) { Utils.toast('구분명을 입력하세요', 'error'); return; }
+    if (!price) { Utils.toast('정가를 입력하세요', 'error'); return; }
+    if (!reason) { Utils.toast('변경 사유를 입력하세요', 'error'); return; }
+
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super';
+    const instantPerm = JSON.parse(sessionStorage.getItem('amk_instant_perm') || '{}');
+    const hasInstant = isSuper || instantPerm[_editingFareRegion];
     const fareMode = Settings.get('fareChangeMode') || 'approval';
-    if (fareMode === 'approval') { Utils.toast('요금 변경 승인 요청이 접수되었습니다. HQ 승인 후 적용됩니다.', 'success'); }
-    else { Utils.toast('요금이 즉시 적용되었습니다.', 'success'); }
+    const regionId = _editingFareRegion;
+
+    const newFare = {
+      label,
+      type: get('f-type') || 'adult',
+      price,
+      discountPrice: parseInt(get('f-discount')) || null,
+      effectiveFrom: get('f-effective') || new Date().toISOString().slice(0,10),
+      effectiveTo: get('f-effective-to') || null,
+      reason,
+    };
+
+    if (hasInstant || fareMode === 'auto') {
+      // 즉시 저장
+      newFare.status = 'active';
+      const fares = _getFares(regionId);
+      if (_editingFareIdx !== null) {
+        fares[_editingFareIdx] = { ...fares[_editingFareIdx], ...newFare };
+      } else {
+        fares.push(newFare);
+      }
+      _setFares(regionId, fares);
+      Utils.toast('요금이 즉시 저장되었습니다. 고객 예약화면에 반영됩니다.', 'success');
+    } else {
+      // 승인 요청
+      const approvals = _getFareApprovals();
+      approvals.push({
+        ...newFare,
+        status: 'pending',
+        regionId,
+        editIdx: _editingFareIdx,
+        requestedBy: user.name || '지역관리자',
+        requestedAt: new Date().toLocaleString('ko-KR'),
+      });
+      _setFareApprovals(approvals);
+      Utils.toast('요금 변경 승인 요청이 접수되었습니다. 본사 승인 후 적용됩니다.', 'success');
+    }
     document.getElementById('fare-modal').classList.add('hidden');
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  // 요금 활성/비활성 토글
+  const toggleFareStatus = (regionId, idx) => {
+    const fares = _getFares(regionId);
+    if (!fares[idx]) return;
+    fares[idx].status = (fares[idx].status === 'active') ? 'inactive' : 'active';
+    _setFares(regionId, fares);
+    Utils.toast(`요금이 ${fares[idx].status==='active'?'활성화':'비활성화'}되었습니다.`, 'success');
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  // 요금 승인/반려 (슈퍼관리자)
+  const approvefare = (approvalIdx, isApprove) => {
+    const approvals = _getFareApprovals();
+    const item = approvals[approvalIdx];
+    if (!item) return;
+
+    if (isApprove) {
+      const fares = _getFares(item.regionId);
+      const fare = { ...item, status: 'active' };
+      delete fare.regionId; delete fare.editIdx; delete fare.requestedBy; delete fare.requestedAt;
+      if (item.editIdx !== null && fares[item.editIdx]) {
+        fares[item.editIdx] = fare;
+      } else {
+        fares.push(fare);
+      }
+      _setFares(item.regionId, fares);
+    }
+    approvals.splice(approvalIdx, 1);
+    _setFareApprovals(approvals);
+    Utils.toast(isApprove ? '요금 변경이 승인되었습니다. 고객 화면에 반영됩니다.' : '요금 변경 요청이 반려되었습니다.', isApprove ? 'success' : 'info');
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
   // ── 좌석 배분 관리 ─────────────────────────────────────────
@@ -1512,17 +2051,45 @@ const AdminModule = (() => {
     const r = allRes.find(x => x.id === id);
     if (!r) { Utils.toast('예약 정보를 찾을 수 없습니다.', 'error'); return; }
     const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
+    // 특이사항에서 안전 확인 필요 여부 감지
+    const safetyFlags = [];
+    if (r.memo) {
+      if (/임산부/i.test(r.memo)) safetyFlags.push('임산부 포함');
+      if (/유아/i.test(r.memo)) safetyFlags.push('36개월 미만 유아 동반');
+      if (/심장|고혈압/i.test(r.memo)) safetyFlags.push('심장·고혈압 질환');
+      if (/보행|보조/i.test(r.memo)) safetyFlags.push('보행 보조 필요');
+      if (/고령/i.test(r.memo)) safetyFlags.push('고령자 동반');
+    }
+    // 임의로 일부 예약에 안전 플래그 시뮬레이션 (데모용)
+    if (!safetyFlags.length && r.adultCnt >= 3 && Math.random() > 0.6) {
+      safetyFlags.push('임산부 포함');
+    }
+    const safetyBadge = safetyFlags.length > 0 ? `
+      <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+        <div class="flex items-center gap-1.5 text-red-600 font-semibold text-xs mb-1">
+          <i class="fas fa-exclamation-triangle"></i>⚠️ 안전 확인 필요
+        </div>
+        <div class="flex flex-wrap gap-1">
+          ${safetyFlags.map(f=>`<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full">${f}</span>`).join('')}
+        </div>
+        <p class="text-xs text-red-500 mt-1">탑승 전 현장 직원이 반드시 확인해야 합니다.</p>
+      </div>` : '';
     Utils.confirm(
       `<div class="text-left space-y-1.5 text-sm">
-        <div class="font-bold text-base mb-2">${r.id}</div>
-        <div class="flex justify-between"><span class="text-gray-500">예약자</span><span class="font-medium">${r.name}</span></div>
+        <div class="font-bold text-base mb-2 font-mono">${r.id}</div>
+        ${safetyBadge}
+        <div class="flex justify-between pt-1"><span class="text-gray-500">예약자</span><span class="font-medium">${r.name}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">지역</span><span>${r.regionName}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">날짜·회차</span><span>${r.date} ${r.schedule}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">인원</span><span>성인 ${r.adultCnt}명 / 소아 ${r.childCnt}명</span></div>
         <div class="flex justify-between"><span class="text-gray-500">결제금액</span><span class="font-bold">₩${r.totalAmount.toLocaleString()}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">결제수단</span><span>${r.payMethod}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">유입경로</span><span>${r.source}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">상태</span><span>${statusLabels[r.status]||r.status}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">상태</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='checkedin'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-700':'bg-yellow-100 text-yellow-700'}">
+            ${statusLabels[r.status]||r.status}
+          </span>
+        </div>
       </div>`,
       () => {},
       { confirmText: '닫기', cancelText: null, title: '예약 상세 정보' }
@@ -2450,6 +3017,330 @@ const AdminModule = (() => {
     return renderAdminLayout('backup', content, '백업/로그');
   };
 
+  // ── 관광정보 관리 ───────────────────────────────────────────
+  const TOURISM_STORE_KEY = 'amk_tourism_contents';
+  const TOURISM_TYPES = [
+    { id:'attraction', label:'관광지',   icon:'fas fa-landmark',    color:'blue'   },
+    { id:'restaurant', label:'맛집',     icon:'fas fa-utensils',    color:'red'    },
+    { id:'cafe',       label:'카페',     icon:'fas fa-coffee',      color:'amber'  },
+    { id:'course',     label:'코스',     icon:'fas fa-route',       color:'green'  },
+    { id:'lodging',    label:'숙박',     icon:'fas fa-bed',         color:'purple' },
+    { id:'parking',    label:'주차',     icon:'fas fa-parking',     color:'gray'   },
+    { id:'toilet',     label:'화장실',   icon:'fas fa-restroom',    color:'gray'   },
+    { id:'partner',    label:'제휴업체', icon:'fas fa-handshake',   color:'indigo' },
+    { id:'event',      label:'이벤트',   icon:'fas fa-calendar-star',color:'pink'  },
+    { id:'etc',        label:'기타',     icon:'fas fa-ellipsis-h',  color:'gray'   },
+  ];
+  const _getTourismContents = () => JSON.parse(sessionStorage.getItem(TOURISM_STORE_KEY) || '[]');
+  const _setTourismContents = (list) => sessionStorage.setItem(TOURISM_STORE_KEY, JSON.stringify(list));
+
+  // 관광정보 관리 페이지
+  const tourismManagePage = async () => {
+    _adminState.currentSection = 'tourism';
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super' || user.role === 'content';
+    const userRegionId = user.regionId || null;
+
+    // 지역 필터
+    const filterRegion = _adminState.tourismFilter?.region ||
+      (userRegionId ? userRegionId : 'all');
+    const filterType = _adminState.tourismFilter?.type || 'all';
+
+    const allContents = _getTourismContents();
+    // 데모 초기 데이터 (없을 경우)
+    if (allContents.length === 0) {
+      const demoContents = [
+        { id:1, regionId:'buyeo', type:'attraction', title:'부소산성', desc:'백제 왕도의 핵심 유적지. 낙화암, 고란사 등을 포함합니다.', address:'충남 부여군 부여읍 관북리', mapLink:'https://maps.google.com', phone:'041-830-2330', hours:'09:00~18:00', tags:['백제','역사','유네스코'], visible:true, order:1 },
+        { id:2, regionId:'buyeo', type:'restaurant', title:'부여한정식', desc:'백제 전통 음식을 현대적으로 재해석한 한정식 맛집.', address:'충남 부여군 부여읍', mapLink:'', phone:'041-830-0000', hours:'11:00~21:00', tags:['한식','전통'], visible:true, order:2 },
+        { id:3, regionId:'tongyeong', type:'attraction', title:'한산도 이충무공 유적', desc:'이순신 장군의 주요 거점이었던 역사 유적지.', address:'경남 통영시 한산면', mapLink:'https://maps.google.com', phone:'055-650-4681', hours:'09:00~18:00', tags:['이순신','역사'], visible:true, order:1 },
+        { id:4, regionId:'hapcheon', type:'course', title:'합천 드라이브 코스', desc:'합천호를 따라 달리는 아름다운 드라이브 코스.', address:'경남 합천군', mapLink:'', phone:'', hours:'상시', tags:['드라이브','자연'], visible:true, order:1 },
+      ];
+      _setTourismContents(demoContents);
+    }
+
+    // 필터 적용
+    let contents = _getTourismContents();
+    if (userRegionId && user.role === 'regional') {
+      contents = contents.filter(c => c.regionId === userRegionId);
+    } else if (filterRegion !== 'all') {
+      contents = contents.filter(c => c.regionId === filterRegion);
+    }
+    if (filterType !== 'all') contents = contents.filter(c => c.type === filterType);
+
+    const allRegions = (window.REGIONS||[]).filter(r=>r.status!=='hidden');
+    const regionName = (id) => {
+      if (id==='buyeo') return '부여'; if (id==='tongyeong') return '통영'; if (id==='hapcheon') return '합천';
+      return allRegions.find(r=>r.id===id)?.name || id;
+    };
+
+    // 지역 필터 탭 (슈퍼/콘텐츠만)
+    const regionFilterHtml = isSuper ? `
+      <div class="flex gap-2 flex-wrap">
+        ${[{id:'all',label:'전체'},...(['tongyeong','buyeo','hapcheon'].map(id=>({id,label:regionName(id)})))].map(r=>`
+          <button onclick="AdminModule.setTourismFilter('region','${r.id}')"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterRegion===r.id?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            ${r.label}
+          </button>`).join('')}
+      </div>` : `<span class="text-sm font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg"><i class="fas fa-map-marker-alt mr-1"></i>${regionName(userRegionId)} 전용</span>`;
+
+    // 유형 필터 탭
+    const typeFilterHtml = `
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="AdminModule.setTourismFilter('type','all')"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterType==='all'?'bg-gray-700 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">전체</button>
+        ${TOURISM_TYPES.map(t=>`
+          <button onclick="AdminModule.setTourismFilter('type','${t.id}')"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterType===t.id?'bg-'+t.color+'-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+            <i class="${t.icon} mr-1"></i>${t.label}
+          </button>`).join('')}
+      </div>`;
+
+    // 콘텐츠 카드 목록
+    const contentCards = contents.length === 0
+      ? `<div class="col-span-full text-center py-16 text-gray-400">
+          <i class="fas fa-map-marked-alt text-4xl mb-3"></i>
+          <p class="text-sm">등록된 관광정보가 없습니다.</p>
+          <button onclick="AdminModule.addTourism()" class="mt-3 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">첫 콘텐츠 등록하기</button>
+        </div>`
+      : contents.sort((a,b)=>(a.order||99)-(b.order||99)).map(c => {
+          const tt = TOURISM_TYPES.find(t=>t.id===c.type) || TOURISM_TYPES[9];
+          return `
+            <div class="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-shadow ${!c.visible?'opacity-60':''}">
+              <div class="h-2 bg-${tt.color}-400"></div>
+              <div class="p-4">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 bg-${tt.color}-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <i class="${tt.icon} text-${tt.color}-600 text-xs"></i>
+                    </span>
+                    <div>
+                      <div class="font-semibold text-gray-800 text-sm">${c.title}</div>
+                      <div class="text-xs text-gray-400">${regionName(c.regionId)} · ${tt.label}</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    <span class="px-1.5 py-0.5 rounded text-xs ${c.visible?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${c.visible?'공개':'비공개'}</span>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500 mb-3 line-clamp-2">${c.desc}</p>
+                ${c.address ? `<p class="text-xs text-gray-400 mb-1"><i class="fas fa-map-marker-alt mr-1"></i>${c.address}</p>` : ''}
+                ${c.phone ? `<p class="text-xs text-gray-400 mb-1"><i class="fas fa-phone mr-1"></i>${c.phone}</p>` : ''}
+                ${c.hours ? `<p class="text-xs text-gray-400 mb-2"><i class="fas fa-clock mr-1"></i>${c.hours}</p>` : ''}
+                ${c.tags?.length ? `<div class="flex flex-wrap gap-1 mb-3">${c.tags.map(t=>`<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">#${t}</span>`).join('')}</div>` : ''}
+                <div class="flex gap-2 border-t pt-3">
+                  <button onclick="AdminModule.editTourism(${c.id})" class="flex-1 text-blue-600 border border-blue-200 py-1.5 rounded-lg text-xs hover:bg-blue-50">수정</button>
+                  <button onclick="AdminModule.toggleTourismVisible(${c.id})" class="text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50">
+                    ${c.visible?'숨기기':'공개'}
+                  </button>
+                  ${isSuper ? `<button onclick="AdminModule.deleteTourism(${c.id})" class="text-red-500 border border-red-200 px-3 py-1.5 rounded-lg text-xs hover:bg-red-50">삭제</button>` : ''}
+                </div>
+              </div>
+            </div>`;
+        }).join('');
+
+    const content = `
+      <div class="space-y-6">
+        <!-- 헤더 -->
+        <div class="flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-teal-500 rounded-xl flex items-center justify-center">
+              <i class="fas fa-map-marked-alt text-white"></i>
+            </div>
+            <div>
+              <h2 class="font-semibold text-gray-800">관광정보 관리</h2>
+              <p class="text-xs text-gray-500">등록 즉시 고객 지역 페이지에 반영됩니다</p>
+            </div>
+          </div>
+          <button onclick="AdminModule.addTourism()"
+            class="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-teal-700 flex items-center gap-2">
+            <i class="fas fa-plus"></i>콘텐츠 등록
+          </button>
+        </div>
+
+        <!-- 지역 필터 -->
+        <div class="bg-white rounded-xl shadow-sm p-4 space-y-3">
+          ${regionFilterHtml}
+          <div class="border-t pt-3">${typeFilterHtml}</div>
+          <div class="text-xs text-gray-400 text-right">${contents.length}건 표시중</div>
+        </div>
+
+        <!-- 콘텐츠 카드 그리드 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${contentCards}</div>
+
+        ${!isSuper ? `
+          <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700 flex items-center gap-2">
+            <i class="fas fa-info-circle"></i>
+            <span>완전 삭제는 본사 슈퍼관리자만 가능합니다. "숨기기"로 비공개 처리할 수 있습니다.</span>
+          </div>` : ''}
+      </div>
+
+      <!-- 관광정보 등록/수정 모달 -->
+      <div id="tourism-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-screen overflow-y-auto" onclick="event.stopPropagation()">
+          <div class="flex items-center justify-between mb-5">
+            <h3 class="font-semibold text-gray-800 text-lg" id="tourism-modal-title">관광정보 등록</h3>
+            <button onclick="document.getElementById('tourism-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="${isSuper?'':'hidden'}">
+              <label class="block text-xs font-medium text-gray-700 mb-1">지역 <span class="text-red-500">*</span></label>
+              <select id="tm-region" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                ${['tongyeong','buyeo','hapcheon'].map(id=>`<option value="${id}">${regionName(id)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">유형 <span class="text-red-500">*</span></label>
+              <select id="tm-type" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                ${TOURISM_TYPES.map(t=>`<option value="${t.id}">${t.label}</option>`).join('')}
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-gray-700 mb-1">제목 <span class="text-red-500">*</span></label>
+              <input id="tm-title" type="text" placeholder="관광지/맛집/카페 이름" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-gray-700 mb-1">설명</label>
+              <textarea id="tm-desc" rows="3" placeholder="간단한 소개를 입력해주세요" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-none"></textarea>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-gray-700 mb-1">주소</label>
+              <input id="tm-address" type="text" placeholder="도로명 주소" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">지도 링크</label>
+              <input id="tm-map" type="url" placeholder="https://map.naver.com/..." class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">전화번호</label>
+              <input id="tm-phone" type="tel" placeholder="031-123-4567" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">운영시간</label>
+              <input id="tm-hours" type="text" placeholder="09:00~18:00" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">노출 순서</label>
+              <input id="tm-order" type="number" min="1" value="99" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-gray-700 mb-1">이미지 URL</label>
+              <input id="tm-image" type="url" placeholder="https://..." class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-gray-700 mb-1">태그 (쉼표로 구분)</label>
+              <input id="tm-tags" type="text" placeholder="역사, 유네스코, 백제" class="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            </div>
+            <div class="col-span-2 flex items-center gap-3">
+              <input type="checkbox" id="tm-visible" checked class="rounded text-teal-600 w-4 h-4">
+              <label for="tm-visible" class="text-sm text-gray-700 cursor-pointer">고객 페이지에 공개</label>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-5">
+            <button onclick="AdminModule.saveTourism()"
+              class="flex-1 bg-teal-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors">저장</button>
+            <button onclick="document.getElementById('tourism-modal').classList.add('hidden')"
+              class="flex-1 border py-2.5 rounded-lg text-sm hover:bg-gray-50">취소</button>
+          </div>
+        </div>
+      </div>
+    `;
+    return renderAdminLayout('tourism', content, '관광정보 관리');
+  };
+
+  // 관광정보 필터 변경
+  const setTourismFilter = (key, val) => {
+    if (!_adminState.tourismFilter) _adminState.tourismFilter = {};
+    _adminState.tourismFilter[key] = val;
+    tourismManagePage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  let _editingTourismId = null;
+
+  const addTourism = () => {
+    _editingTourismId = null;
+    const user = _adminState.user || {};
+    document.getElementById('tourism-modal-title').textContent = '관광정보 등록';
+    ['tm-title','tm-desc','tm-address','tm-map','tm-phone','tm-hours','tm-tags','tm-image'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.value='';
+    });
+    const tmRegion = document.getElementById('tm-region');
+    if (tmRegion && user.regionId) tmRegion.value = user.regionId;
+    const tmOrder = document.getElementById('tm-order'); if(tmOrder) tmOrder.value = 99;
+    const tmVisible = document.getElementById('tm-visible'); if(tmVisible) tmVisible.checked = true;
+    document.getElementById('tourism-modal').classList.remove('hidden');
+  };
+
+  const editTourism = (id) => {
+    const contents = _getTourismContents();
+    const c = contents.find(x=>x.id===id);
+    if (!c) return;
+    _editingTourismId = id;
+    document.getElementById('tourism-modal-title').textContent = '관광정보 수정';
+    const set = (eid, v) => { const el=document.getElementById(eid); if(el) el.value=v||''; };
+    set('tm-title', c.title); set('tm-desc', c.desc); set('tm-address', c.address);
+    set('tm-map', c.mapLink); set('tm-phone', c.phone); set('tm-hours', c.hours);
+    set('tm-image', c.image); set('tm-order', c.order||99);
+    set('tm-tags', (c.tags||[]).join(', '));
+    const tmRegion = document.getElementById('tm-region'); if(tmRegion) tmRegion.value = c.regionId;
+    const tmType = document.getElementById('tm-type'); if(tmType) tmType.value = c.type;
+    const tmVisible = document.getElementById('tm-visible'); if(tmVisible) tmVisible.checked = !!c.visible;
+    document.getElementById('tourism-modal').classList.remove('hidden');
+  };
+
+  const saveTourism = () => {
+    const get = (id) => document.getElementById(id)?.value || '';
+    const user = _adminState.user || {};
+    const title = get('tm-title').trim();
+    if (!title) { Utils.toast('제목을 입력하세요', 'error'); return; }
+    const regionId = user.role === 'regional' ? (user.regionId||get('tm-region')) : get('tm-region');
+    const contents = _getTourismContents();
+    const item = {
+      id: _editingTourismId || (Date.now()),
+      regionId,
+      type: get('tm-type') || 'attraction',
+      title,
+      desc: get('tm-desc'),
+      address: get('tm-address'),
+      mapLink: get('tm-map'),
+      phone: get('tm-phone'),
+      hours: get('tm-hours'),
+      image: get('tm-image'),
+      tags: get('tm-tags').split(',').map(t=>t.trim()).filter(Boolean),
+      order: parseInt(get('tm-order'))||99,
+      visible: document.getElementById('tm-visible')?.checked !== false,
+      updatedAt: new Date().toLocaleDateString('ko-KR'),
+    };
+    if (_editingTourismId) {
+      const idx = contents.findIndex(x=>x.id===_editingTourismId);
+      if (idx>=0) contents[idx] = item;
+    } else {
+      contents.push(item);
+    }
+    _setTourismContents(contents);
+    Utils.toast(_editingTourismId ? '관광정보가 수정되었습니다.' : '관광정보가 등록되었습니다. 고객 페이지에 즉시 반영됩니다.', 'success');
+    document.getElementById('tourism-modal').classList.add('hidden');
+    tourismManagePage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  const toggleTourismVisible = (id) => {
+    const contents = _getTourismContents();
+    const c = contents.find(x=>x.id===id);
+    if (!c) return;
+    c.visible = !c.visible;
+    _setTourismContents(contents);
+    Utils.toast(c.visible ? '콘텐츠가 공개되었습니다.' : '콘텐츠가 비공개 처리되었습니다.', 'success');
+    tourismManagePage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  const deleteTourism = (id) => {
+    Utils.confirm('이 콘텐츠를 완전히 삭제하시겠습니까?<br><span class="text-xs text-gray-500">삭제 후에는 복구할 수 없습니다.</span>', () => {
+      const contents = _getTourismContents().filter(x=>x.id!==id);
+      _setTourismContents(contents);
+      Utils.toast('콘텐츠가 삭제되었습니다.', 'success');
+      tourismManagePage().then(html => { document.getElementById('app').innerHTML = html; });
+    });
+  };
+
   // ── 통계 빠른 링크 ─────────────────────────────────────────
   const statsAdminPage = async () => {
     _adminState.currentSection = 'stats-admin';
@@ -2467,18 +3358,45 @@ const AdminModule = (() => {
     `, '통계/보고서');
   };
 
+  // ── navigate 라우터 (tourism 추가) ──────────────────────────
+  const _navigateInternal = (section, params) => {
+    const pageMap = {
+      'hq-dashboard': () => hqDashboard(),
+      'region-dashboard': () => regionDashboard(params),
+      'vehicles': () => vehiclesPage(),
+      'schedules': () => schedulesPage(),
+      'fares': () => faresPage(),
+      'seats': () => seatsPage(),
+      'reservations': () => reservationsPage(),
+      'wristbands': () => wristbandsPage(),
+      'popups': () => popupsPage(),
+      'terms': () => termsPage(),
+      'seo': () => seoManagePage(),
+      'regions': () => regionsPage(),
+      'settlement': () => settlementPage(),
+      'admins': () => adminsPage(),
+      'settings-admin': () => settingsAdminPage(),
+      'backup': () => backupPage(),
+      'stats-admin': () => statsAdminPage(),
+      'tourism': () => tourismManagePage(),
+    };
+    return pageMap[section] ? pageMap[section]() : hqDashboard();
+  };
+
   // ── 공개 API ───────────────────────────────────────────────
   return {
     // 페이지
     loginPage, hqDashboard, regionDashboard, vehiclesPage, schedulesPage, faresPage,
     seatsPage, reservationsPage, wristbandsPage, popupsPage, termsPage, seoManagePage,
     regionsPage, settlementPage, adminsPage, settingsAdminPage, backupPage, statsAdminPage,
+    tourismManagePage,
     // 액션
     doLogin, logout, navigate, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, approveFare, fillLogin,
     addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal,
     selectScheduleRegion, addSchedule, editSchedule, saveSchedule, toggleScheduleStatus,
     deleteSchedule, showRecurringModal, addRecTime, generateRecurring, updateSeatPreview,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
+    grantInstantPerm, toggleFareStatus, approvefare,
     updateSeatRatio, saveSeatRatio,
     viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter,
     saveWristbandText,
@@ -2489,6 +3407,8 @@ const AdminModule = (() => {
     closeDay, viewSettlement, exportSettlement,
     addAdmin, resetPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,
+    switchRegionDashboard,
+    setTourismFilter, addTourism, editTourism, saveTourism, toggleTourismVisible, deleteTourism,
   };
 })();
 

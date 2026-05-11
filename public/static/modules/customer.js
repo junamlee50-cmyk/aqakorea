@@ -452,11 +452,21 @@ ${Navbar.render('reservation')}
             <h3 class="font-semibold text-navy-800 text-sm">특이사항 <span class="text-xs text-gray-500 font-normal">(선택)</span></h3>
           </div>
           <div class="pl-8">
+            <!-- 휠체어 탑승 제한 안내 -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+              <i class="fas fa-exclamation-triangle text-amber-500 mt-0.5 flex-shrink-0"></i>
+              <div class="text-xs text-amber-800 leading-relaxed">
+                <strong>휠체어 탑승 제한 안내</strong><br>
+                수륙양용버스의 특수 구조상 <strong>휠체어 상태로의 탑승이 제한</strong>됩니다. 거동이 불편하신 분은 탑승 전 반드시 고객센터에 사전 문의해 주시기 바랍니다.
+                <div class="mt-1.5">
+                  <button onclick="Router.go('/inquiry')"
+                    class="inline-flex items-center gap-1 bg-amber-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-amber-600 transition-colors font-medium">
+                    <i class="fas fa-headset"></i> 사전 문의하기
+                  </button>
+                </div>
+              </div>
+            </div>
             <div class="grid grid-cols-2 gap-2 mb-3">
-              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                <input type="checkbox" id="sp-wheelchair" class="rounded text-cyan-600">
-                <span class="text-sm text-gray-700">휠체어 탑승자</span>
-              </label>
               <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
                 <input type="checkbox" id="sp-pregnant" class="rounded text-cyan-600">
                 <span class="text-sm text-gray-700">임산부 포함</span>
@@ -467,10 +477,22 @@ ${Navbar.render('reservation')}
               </label>
               <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
                 <input type="checkbox" id="sp-heart" class="rounded text-cyan-600">
-                <span class="text-sm text-gray-700">심장·고혈압 환자</span>
+                <span class="text-sm text-gray-700">심장·고혈압 질환</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                <input type="checkbox" id="sp-mobility" class="rounded text-cyan-600">
+                <span class="text-sm text-gray-700">보행 보조 필요</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                <input type="checkbox" id="sp-elderly" class="rounded text-cyan-600">
+                <span class="text-sm text-gray-700">고령자 동반</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                <input type="checkbox" id="sp-other" class="rounded text-cyan-600">
+                <span class="text-sm text-gray-700">기타 특이사항</span>
               </label>
             </div>
-            <textarea id="inp-memo" rows="2" placeholder="기타 요청사항 (선택)"
+            <textarea id="inp-memo" rows="2" placeholder="기타 요청사항 또는 특이사항을 입력해주세요 (선택)"
               class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400 outline-none resize-none"></textarea>
           </div>
         </div>

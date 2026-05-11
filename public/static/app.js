@@ -117,6 +117,7 @@
     Router.add('/admin/settings-admin', _adminGuard(AdminModule.settingsAdminPage));
     Router.add('/admin/backup',       _adminGuard(AdminModule.backupPage));
     Router.add('/admin/stats-admin',  _adminGuard(AdminModule.statsAdminPage));
+    Router.add('/admin/tourism',      _adminGuard(AdminModule.tourismManagePage));
 
     // ── 404 ───────────────────────────────────────────────
     Router.add('*', CustomerPages._404);
