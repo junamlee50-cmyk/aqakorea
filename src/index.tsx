@@ -294,6 +294,21 @@ app.get('/', (c) => {
   return c.html(buildPage(meta, { page: 'home' }))
 })
 
+// 예약 확인/취소 페이지
+app.get('/reservation/check', (c) => {
+  const meta = buildMeta({
+    title: '예약 확인/취소 | 아쿠아모빌리티코리아',
+    description: '예약번호와 휴대폰번호로 예약 내역을 확인하고 취소하세요.',
+    keywords: ['예약확인','예약취소','탑승권 확인'],
+    canonicalUrl: `${SEO_CONFIG.siteUrl}/reservation/check`,
+    breadcrumbs: [
+      { name: '홈', url: SEO_CONFIG.siteUrl },
+      { name: '예약 확인', url: `${SEO_CONFIG.siteUrl}/reservation/check` },
+    ]
+  })
+  return c.html(buildPage(meta, { page: 'booking-check' }))
+})
+
 // 예약 허브
 app.get('/reservation', (c) => {
   const meta = buildMeta({

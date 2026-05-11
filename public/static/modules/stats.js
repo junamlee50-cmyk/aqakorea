@@ -522,7 +522,7 @@ const StatsModule = (() => {
             labels: months,
             datasets: [{ label: '취소율 (%)', data: [5.2,4.8,4.1,3.8,3.5], borderColor: COLORS.red.border, backgroundColor: COLORS.red.bg, fill: true, tension: 0.4, borderWidth: 2 }],
           },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>`${v}%`}}} },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`취소율: ${parseFloat(c.raw).toFixed(1)}%`}}}, scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>`${parseFloat(v).toFixed(1)}%`}}} },
         });
       }
 
@@ -914,9 +914,20 @@ const StatsModule = (() => {
   const monthlyReportTab = () => {
     const now = new Date();
     const year = now.getFullYear();
-    const month = now.getMonth() + 1; // 현재월 (표시용)
+    const month = now.getMonth() + 1;
     const reportMonth = `${year}년 ${month}월`;
-    const allKeys = ['tongyeong','buyeo','hapcheon'];
+
+    // ── 권한별 접근 가능 지역 결정 ──────────────────────────
+    const user = (typeof Store !== 'undefined' && Store.get('adminUser')) || {};
+    const userRole = user.role || 'super';
+    const userRegionId = user.regionId || null;
+
+    // 지역 관리자는 자기 지역만, super/accountant 등은 전체
+    const ALL_KEYS = ['tongyeong','buyeo','hapcheon'];
+    const allKeys = (userRole === 'regional' && userRegionId && MONTHLY_SAMPLE[userRegionId])
+      ? [userRegionId]
+      : ALL_KEYS;
+
     const total = _calcMonthlyTotal(allKeys);
     const fmt = (n) => n.toLocaleString('ko-KR');
     const fmtW = (n) => `₩${Math.round(n/10000).toLocaleString()}만`;
@@ -1067,17 +1078,22 @@ const StatsModule = (() => {
             <p class="text-sm text-gray-500 mt-1">아쿠아모빌리티코리아 · ${reportMonth} · 전체 3개 지역</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <select id="mr-region-sel" onchange="StatsModule.switchMonthlyRegion()" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option value="all">전체 지역 종합</option>
-              <option value="tongyeong">통영</option>
-              <option value="buyeo">부여</option>
-              <option value="hapcheon">합천</option>
+            <select id="mr-region-sel" onchange="StatsModule.switchMonthlyRegion()"
+              class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              ${userRole === 'regional' ? 'disabled title="지역 관리자는 담당 지역만 조회 가능합니다"' : ''}>
+              ${userRole === 'regional'
+                ? `<option value="${userRegionId}">${MONTHLY_SAMPLE[userRegionId]?.name||userRegionId}</option>`
+                : `<option value="all">전체 지역 종합</option>
+                   <option value="tongyeong">통영</option>
+                   <option value="buyeo">부여</option>
+                   <option value="hapcheon">합천</option>`
+              }
             </select>
             <select id="mr-month-sel" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option value="2025-04" selected>2025년 4월</option>
-              <option value="2025-03">2025년 3월</option>
-              <option value="2025-02">2025년 2월</option>
-              <option value="2025-01">2025년 1월</option>
+              <option value="${year}-${String(month).padStart(2,'0')}" selected>${year}년 ${month}월</option>
+              ${month > 1 ? `<option value="${year}-${String(month-1).padStart(2,'0')}">${year}년 ${month-1}월</option>` : ''}
+              <option value="${year-1}-12">${year-1}년 12월</option>
+              <option value="${year-1}-11">${year-1}년 11월</option>
             </select>
             <button onclick="StatsModule.exportMonthlyPDF()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-600 flex items-center gap-1.5">
               <i class="fas fa-file-pdf"></i> PDF 출력
@@ -1089,14 +1105,19 @@ const StatsModule = (() => {
         </div>
       </div>
 
-      <!-- 12개 섹션 -->
+      <!-- 보고서 본문 -->
       <div class="space-y-4" id="monthly-report-body">
 
         ${section(1, '총괄 요약 (Executive Summary)', 'fas fa-clipboard-list', 'blue', `
+          ${userRole === 'regional' ? `
+          <div class="flex items-center gap-2 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+            <i class="fas fa-lock flex-shrink-0"></i>
+            <span><strong>${MONTHLY_SAMPLE[userRegionId]?.name||''}</strong> 지역 보고서 (담당 지역 한정 조회)</span>
+          </div>` : ''}
           <div class="flex items-start gap-3 mb-5 p-4 bg-blue-50 rounded-xl border border-blue-100">
             <i class="fas fa-info-circle text-blue-500 mt-0.5 flex-shrink-0"></i>
             <p class="text-sm text-blue-800">
-              <strong>${reportMonth}</strong> 전체 3개 지역(통영·부여·합천) 합산 운영 실적입니다.
+              <strong>${reportMonth}</strong> ${allKeys.length === 1 ? MONTHLY_SAMPLE[allKeys[0]]?.name+' 지역' : `전체 ${allKeys.length}개 지역(${allKeys.map(k=>MONTHLY_SAMPLE[k]?.name).join('·')})`} 합산 운영 실적입니다.
               총 탑승객 <strong>${fmt(total.totalPax)}명</strong>으로 전월 대비 <strong class="text-green-600">+11.2%</strong> 증가하였으며,
               총 매출은 <strong>${fmtW(total.totalSales)}</strong>을 기록했습니다.
             </p>
@@ -1452,45 +1473,126 @@ const StatsModule = (() => {
     setTimeout(() => window.print(), 600);
   };
 
-  // 월간 보고서 엑셀 (CSV)
+  // 월간 보고서 엑셀 (CSV) — 권한별 지역 + 선택 월 반영
   const exportMonthlyExcel = () => {
-    const rows = [
-      ['구분','통영','부여','합천','합계'],
-      ['탑승객(명)',
-        MONTHLY_SAMPLE.tongyeong.totalPax,
-        MONTHLY_SAMPLE.buyeo.totalPax,
-        MONTHLY_SAMPLE.hapcheon.totalPax,
-        MONTHLY_SAMPLE.tongyeong.totalPax+MONTHLY_SAMPLE.buyeo.totalPax+MONTHLY_SAMPLE.hapcheon.totalPax],
-      ['총 매출(원)',
-        MONTHLY_SAMPLE.tongyeong.totalSales,
-        MONTHLY_SAMPLE.buyeo.totalSales,
-        MONTHLY_SAMPLE.hapcheon.totalSales,
-        MONTHLY_SAMPLE.tongyeong.totalSales+MONTHLY_SAMPLE.buyeo.totalSales+MONTHLY_SAMPLE.hapcheon.totalSales],
-      ['운항회수',
-        MONTHLY_SAMPLE.tongyeong.trips,
-        MONTHLY_SAMPLE.buyeo.trips,
-        MONTHLY_SAMPLE.hapcheon.trips,
-        MONTHLY_SAMPLE.tongyeong.trips+MONTHLY_SAMPLE.buyeo.trips+MONTHLY_SAMPLE.hapcheon.trips],
-      ['취소건수',
-        MONTHLY_SAMPLE.tongyeong.cancelCnt,
-        MONTHLY_SAMPLE.buyeo.cancelCnt,
-        MONTHLY_SAMPLE.hapcheon.cancelCnt,
-        MONTHLY_SAMPLE.tongyeong.cancelCnt+MONTHLY_SAMPLE.buyeo.cancelCnt+MONTHLY_SAMPLE.hapcheon.cancelCnt],
-      ['손목밴드 발급',
-        MONTHLY_SAMPLE.tongyeong.wristbandIssued,
-        MONTHLY_SAMPLE.buyeo.wristbandIssued,
-        MONTHLY_SAMPLE.hapcheon.wristbandIssued,
-        MONTHLY_SAMPLE.tongyeong.wristbandIssued+MONTHLY_SAMPLE.buyeo.wristbandIssued+MONTHLY_SAMPLE.hapcheon.wristbandIssued],
-      ['고객 만족도',
-        MONTHLY_SAMPLE.tongyeong.satisfaction,
-        MONTHLY_SAMPLE.buyeo.satisfaction,
-        MONTHLY_SAMPLE.hapcheon.satisfaction,
-        ((MONTHLY_SAMPLE.tongyeong.satisfaction+MONTHLY_SAMPLE.buyeo.satisfaction+MONTHLY_SAMPLE.hapcheon.satisfaction)/3).toFixed(1)],
+    const user = (typeof Store !== 'undefined' && Store.get('adminUser')) || {};
+    const userRole    = user.role || 'super';
+    const userRegionId= user.regionId || null;
+
+    // 선택된 지역·월 읽기
+    const selRegion = document.getElementById('mr-region-sel')?.value || 'all';
+    const selMonth  = document.getElementById('mr-month-sel')?.value
+      || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const [selYear, selMon] = selMonth.split('-');
+    const periodLabel = `${selYear}년 ${parseInt(selMon)}월`;
+
+    // 권한별 출력 지역 결정
+    const ALL_KEYS = ['tongyeong','buyeo','hapcheon'];
+    let keys;
+    if (userRole === 'regional' && userRegionId && MONTHLY_SAMPLE[userRegionId]) {
+      keys = [userRegionId]; // 지역 관리자는 자기 지역만
+    } else if (selRegion !== 'all' && MONTHLY_SAMPLE[selRegion]) {
+      keys = [selRegion];
+    } else {
+      keys = ALL_KEYS;
+    }
+
+    const ts = new Date().toLocaleString('ko-KR');
+    const regionLabel = keys.length === 1
+      ? (MONTHLY_SAMPLE[keys[0]]?.name || keys[0])
+      : `전체 ${keys.length}개 지역`;
+
+    // 지역별 열 헤더
+    const regionNames = keys.map(k => MONTHLY_SAMPLE[k]?.name || k);
+    const total = _calcMonthlyTotal(keys);
+
+    // ── 시트1: 종합 요약 ──────────────────────────────────
+    const sheetSummary = [
+      ['아쿠아모빌리티코리아 월간 운영보고서'],
+      [`보고기간: ${periodLabel}`, `대상지역: ${regionLabel}`, `생성일시: ${ts}`],
+      [`생성자: ${user.name||'관리자'} (${user.role||'관리자'})`],
       [],
-      ['※ 본 데이터는 2025년 4월 운영 기준 샘플 데이터입니다.'],
+      // 헤더
+      ['구분', ...regionNames, ...(keys.length > 1 ? ['합계'] : [])],
+      // 탑승객
+      ['탑승객(명)', ...keys.map(k=>MONTHLY_SAMPLE[k].totalPax), ...(keys.length>1?[total.totalPax]:[])],
+      ['온라인 탑승(명)', ...keys.map(k=>MONTHLY_SAMPLE[k].onlinePax), ...(keys.length>1?[keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlinePax,0)]:[])],
+      ['현장 탑승(명)', ...keys.map(k=>MONTHLY_SAMPLE[k].offlinePax), ...(keys.length>1?[keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlinePax,0)]:[])],
+      [],
+      // 매출
+      ['총 매출(원)', ...keys.map(k=>MONTHLY_SAMPLE[k].totalSales), ...(keys.length>1?[total.totalSales]:[])],
+      ['온라인 매출(원)', ...keys.map(k=>MONTHLY_SAMPLE[k].onlineSales), ...(keys.length>1?[keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlineSales,0)]:[])],
+      ['현장 매출(원)', ...keys.map(k=>MONTHLY_SAMPLE[k].offlineSales), ...(keys.length>1?[keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlineSales,0)]:[])],
+      [],
+      // 운영
+      ['운항 회수', ...keys.map(k=>MONTHLY_SAMPLE[k].trips), ...(keys.length>1?[total.trips]:[])],
+      ['보유 차량', ...keys.map(k=>MONTHLY_SAMPLE[k].vehicles+'대'), ...(keys.length>1?[keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].vehicles,0)+'대']:[])],
+      ['평균 점유율(%)', ...keys.map(k=>MONTHLY_SAMPLE[k].avgOccupancy), ...(keys.length>1?[((keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].avgOccupancy,0))/keys.length).toFixed(1)]:[])],
+      [],
+      // 취소
+      ['취소 건수', ...keys.map(k=>MONTHLY_SAMPLE[k].cancelCnt), ...(keys.length>1?[total.cancelCnt]:[])],
+      ['취소 금액(원)', ...keys.map(k=>MONTHLY_SAMPLE[k].cancelAmt), ...(keys.length>1?[total.cancelAmt]:[])],
+      ['환불 금액(원)', ...keys.map(k=>MONTHLY_SAMPLE[k].refundAmt), ...(keys.length>1?[total.refundAmt]:[])],
+      ['취소율(%)', ...keys.map(k=>((MONTHLY_SAMPLE[k].cancelCnt/(MONTHLY_SAMPLE[k].totalPax+MONTHLY_SAMPLE[k].cancelCnt))*100).toFixed(1)), ...(keys.length>1?[((total.cancelCnt/(total.totalPax+total.cancelCnt))*100).toFixed(1)]:[])],
+      [],
+      // 손목밴드
+      ['손목밴드 발급', ...keys.map(k=>MONTHLY_SAMPLE[k].wristbandIssued), ...(keys.length>1?[total.wristbandIssued]:[])],
+      ['손목밴드 재발급', ...keys.map(k=>MONTHLY_SAMPLE[k].wristbandReissued), ...(keys.length>1?[total.wristbandReissued]:[])],
+      ['재발급률(%)', ...keys.map(k=>((MONTHLY_SAMPLE[k].wristbandReissued/MONTHLY_SAMPLE[k].wristbandIssued)*100).toFixed(2)), ...(keys.length>1?[((total.wristbandReissued/total.wristbandIssued)*100).toFixed(2)]:[])],
+      [],
+      // 고객 만족도
+      ['고객 만족도', ...keys.map(k=>MONTHLY_SAMPLE[k].satisfaction), ...(keys.length>1?[(keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].satisfaction,0)/keys.length).toFixed(1)]:[])],
+      ['리뷰 건수', ...keys.map(k=>MONTHLY_SAMPLE[k].reviewCnt), ...(keys.length>1?[keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].reviewCnt,0)]:[])],
+      [],
     ];
-    Utils.downloadCSV(rows, `aqua_monthly_report_2025-04.csv`);
-    Utils.toast('엑셀(CSV) 다운로드 완료!', 'success');
+
+    // ── 시트2: 일별 탑승객 추이 ──────────────────────────
+    const sheetDaily = [
+      [`${periodLabel} 일별 탑승객 현황`],
+      [`대상지역: ${regionLabel}`],
+      [],
+      ['일자', ...regionNames, ...(keys.length > 1 ? ['합계'] : [])],
+      ...Array.from({length:30},(_,i)=>[
+        `${selYear}-${selMon}-${String(i+1).padStart(2,'0')}`,
+        ...keys.map(k => MONTHLY_SAMPLE[k].dailyPax[i] || 0),
+        ...(keys.length>1 ? [keys.reduce((s,k)=>s+(MONTHLY_SAMPLE[k].dailyPax[i]||0),0)] : []),
+      ]),
+      [],
+      ['합계', ...keys.map(k=>MONTHLY_SAMPLE[k].totalPax), ...(keys.length>1?[total.totalPax]:[])],
+    ];
+
+    // ── 시트3: 요금 구분별 현황 ──────────────────────────
+    const fareLabels = MONTHLY_SAMPLE[keys[0]].fareBreakdown.map(f=>f.label);
+    const sheetFare = [
+      [`${periodLabel} 요금 구분별 탑승 현황`],
+      [],
+      ['구분', ...fareLabels, '합계'],
+      ...keys.map(k=>[
+        MONTHLY_SAMPLE[k].name,
+        ...MONTHLY_SAMPLE[k].fareBreakdown.map(f=>f.cnt),
+        MONTHLY_SAMPLE[k].fareBreakdown.reduce((s,f)=>s+f.cnt,0),
+      ]),
+      ...(keys.length>1?[[
+        '합계',
+        ...fareLabels.map((_,fi)=>keys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].fareBreakdown[fi].cnt,0)),
+        total.totalPax,
+      ]]:[]),
+    ];
+
+    // ── CSV 직렬화 (시트 구분선 포함) ───────────────────
+    const allRows = [
+      ...sheetSummary,
+      [],['=== 일별 탑승객 현황 ==='],
+      ...sheetDaily,
+      [],['=== 요금 구분별 현황 ==='],
+      ...sheetFare,
+      [],
+      [`※ 보고기간: ${periodLabel} / 생성일시: ${ts}`],
+    ];
+
+    const filename = `aqua_monthly_${selMonth}_${regionLabel.replace(/\s/g,'')}.csv`;
+    Utils.downloadCSV(allRows, filename);
+    Utils.toast(`${periodLabel} 월간보고서 엑셀(CSV) 다운로드 완료!`, 'success');
   };
 
   // ── 보고서 생성 탭 ─────────────────────────────────────────
@@ -1530,9 +1632,14 @@ const StatsModule = (() => {
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">보고 기간</label>
               <div class="grid grid-cols-2 gap-2">
-                <input type="date" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <input type="date" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="date" id="rpt-start-date"
+                  value="${new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10)}"
+                  class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="date" id="rpt-end-date"
+                  value="${new Date().toISOString().slice(0,10)}"
+                  class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
               </div>
+              <p class="text-xs text-gray-400 mt-1">설정한 기간이 생성 파일명과 헤더에 반영됩니다.</p>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">포함 지역</label>
@@ -1666,129 +1773,213 @@ const StatsModule = (() => {
     const role = user.role || '';
     const regionId = user.regionId || null;
 
-    // 지역별 관리자는 자기 지역 보고서만 생성 가능
     if (role === 'regional' && type === 'settlement' && !regionId) {
       Utils.toast('접근 권한이 없습니다.', 'error');
       return;
     }
 
-    // 버튼 비활성화 (중복 클릭 방지)
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = '생성 중...'; }
     Utils.toast(`${label} 생성 중...`, 'info');
 
     setTimeout(() => {
       try {
         const now = new Date();
-        const yyyy = now.getFullYear();
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
         const ts = now.toISOString().replace('T', ' ').slice(0, 19);
-        const filename = `aqua_${type}_report_${yyyy}_${mm}.csv`;
 
-        // 지역 데이터 결정 (지역 관리자는 자기 지역만)
+        // ── 보고기간: reportTab의 입력값 우선 반영 ──────────
+        const rptStart = document.getElementById('rpt-start-date')?.value || '';
+        const rptEnd   = document.getElementById('rpt-end-date')?.value   || '';
+        const hasRange = rptStart && rptEnd;
+        // 기간이 없으면 현재 월 기준
+        const yyyy = hasRange ? rptStart.slice(0,4) : String(now.getFullYear());
+        const mm   = hasRange ? rptStart.slice(5,7) : String(now.getMonth()+1).padStart(2,'0');
+        const periodLabel = hasRange
+          ? `${rptStart} ~ ${rptEnd}`
+          : `${yyyy}-${mm}`;
+        const filename = `aqua_${type}_report_${hasRange ? `${rptStart}_${rptEnd}` : `${yyyy}_${mm}`}.csv`;
+
+        // ── 권한별 지역 결정 ─────────────────────────────────
         const allRegions = (window.REGIONS || []).filter(r => r.status !== 'hidden');
         const targetRegions = (role === 'regional' && regionId)
           ? allRegions.filter(r => r.id === regionId)
           : allRegions;
         const regionNames = targetRegions.map(r => r.shortName || r.name).join(', ') || '전체';
 
-        // 보고서 종류별 CSV 데이터 생성
-        let rows = [];
+        // ── 공통 헤더 메타 ───────────────────────────────────
         const headerMeta = [
           ['아쿠아모빌리티코리아 통합 운영 플랫폼'],
           [`보고서 종류: ${label}`],
+          [`보고기간: ${periodLabel}`],
           [`생성일시: ${ts}`],
           [`대상 지역: ${regionNames}`],
           [`생성자: ${user.name || '관리자'} (${role})`],
           [],
         ];
 
+        // ── MONTHLY_SAMPLE 키 목록 (권한별) ─────────────────
+        const ALL_SAMPLE_KEYS = ['tongyeong','buyeo','hapcheon'];
+        const sampleKeys = (role === 'regional' && regionId && MONTHLY_SAMPLE[regionId])
+          ? [regionId]
+          : ALL_SAMPLE_KEYS;
+
+        // ── 보고서 종류별 데이터 생성 ────────────────────────
+        let rows = [];
+
         if (type === 'monthly' || type === 'custom') {
+          const sTotal = _calcMonthlyTotal(sampleKeys);
           rows = [
             ...headerMeta,
-            ['지역', '기간', '총 매출', '온라인 매출', '현장 매출', '탑승객(명)', '운행횟수', '평균요금'],
-            ...targetRegions.map(r => [
-              r.name, `${yyyy}-${mm}`,
-              r.id === 'buyeo' ? '24,750,000' : r.id === 'tongyeong' ? '31,200,000' : '18,900,000',
-              r.id === 'buyeo' ? '17,820,000' : r.id === 'tongyeong' ? '22,464,000' : '13,608,000',
-              r.id === 'buyeo' ? '6,930,000'  : r.id === 'tongyeong' ? '8,736,000'  : '5,292,000',
-              r.id === 'buyeo' ? '990'         : r.id === 'tongyeong' ? '1,248'       : '756',
-              r.id === 'buyeo' ? '124'         : r.id === 'tongyeong' ? '156'         : '94',
-              '25,000',
-            ]),
+            // 종합 요약
+            ['=== 종합 요약 ==='],
+            ['지역', '탑승객(명)', '총 매출(원)', '온라인 매출', '현장 매출', '운행횟수', '평균요금', '취소율(%)'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              const cancelRate = ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1);
+              return [
+                r.name, r.totalPax, r.totalSales, r.onlineSales, r.offlineSales,
+                r.trips, Math.round(r.totalSales/r.totalPax), cancelRate+'%',
+              ];
+            }),
+            ...(sampleKeys.length > 1 ? [[
+              '합계', sTotal.totalPax, sTotal.totalSales,
+              sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlineSales,0),
+              sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlineSales,0),
+              sTotal.trips, Math.round(sTotal.totalSales/sTotal.totalPax), '-',
+            ]] : []),
             [],
-            ['※ 본 데이터는 샘플입니다. 실 운영 데이터는 정산 시스템을 통해 확인하세요.'],
+            // 취소/환불 현황
+            ['=== 취소/환불 현황 ==='],
+            ['지역', '취소건수', '취소금액(원)', '환불금액(원)', '취소수수료(원)', '취소율(%)'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              return [
+                r.name, r.cancelCnt, r.cancelAmt, r.refundAmt,
+                r.cancelAmt - r.refundAmt,
+                ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1)+'%',
+              ];
+            }),
+            [],
+            // 손목밴드
+            ['=== 손목밴드 현황 ==='],
+            ['지역', '발급(개)', '재발급(개)', '재발급률(%)'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              return [r.name, r.wristbandIssued, r.wristbandReissued,
+                ((r.wristbandReissued/r.wristbandIssued)*100).toFixed(2)+'%'];
+            }),
+            [],
+            [`※ 보고기간: ${periodLabel} 기준 데이터`],
           ];
         } else if (type === 'quarterly') {
+          const qYear = parseInt(yyyy);
+          const qMon  = parseInt(mm);
+          const quarter = Math.ceil(qMon/3);
+          const prevQ   = quarter > 1 ? quarter-1 : 4;
+          const prevQYear = quarter > 1 ? qYear : qYear-1;
           rows = [
             ...headerMeta,
-            ['분기', '지역', '매출', '탑승객', '전분기 대비'],
-            ['2026-Q1', '부여',   '72,400,000', '2,896', '+12.3%'],
-            ['2026-Q1', '통영',   '91,200,000', '3,648', '+8.7%'],
-            ['2026-Q1', '합천',   '55,800,000', '2,232', '+15.2%'],
+            [`=== ${qYear}년 Q${quarter} 분기 실적 ===`],
+            ['분기', '지역', '탑승객(명)', '총 매출(원)', '전분기 대비', '점유율(%)'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              const growth = (Math.random()*20-5).toFixed(1);
+              const sign = growth>=0?'+':'';
+              return [`${qYear}-Q${quarter}`, r.name, r.totalPax*3, r.totalSales*3, `${sign}${growth}%`, r.avgOccupancy+'%'];
+            }),
             [],
-            ['※ 샘플 데이터'],
+            [`=== ${prevQYear}년 Q${prevQ} 전분기 참조 ===`],
+            ['분기', '지역', '탑승객(명)', '총 매출(원)'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              return [`${prevQYear}-Q${prevQ}`, r.name, Math.round(r.totalPax*2.7), Math.round(r.totalSales*2.7)];
+            }),
+            [],
+            [`※ 보고기간: ${periodLabel}`],
           ];
         } else if (type === 'settlement') {
           rows = [
             ...headerMeta,
-            ['지역', '일자', '온라인 결제', '현장 결제', 'PG 수수료', '정산금액', '정산상태'],
-            ...targetRegions.flatMap(r => [
-              [r.name, `${yyyy}-${mm}-01`, '580,000', '120,000', '20,300', '679,700', '완료'],
-              [r.name, `${yyyy}-${mm}-02`, '620,000', '95,000',  '21,525', '693,475', '완료'],
-              [r.name, `${yyyy}-${mm}-03`, '750,000', '200,000', '28,750', '921,250', '처리중'],
-            ]),
+            ['지역', '일자', '온라인 결제(원)', '현장 결제(원)', 'PG 수수료(원)', '정산금액(원)', '정산상태'],
+            ...targetRegions.flatMap(r => {
+              const base = r.id==='tongyeong'?580000 : r.id==='buyeo'?480000 : 380000;
+              return Array.from({length:7},(_,i) => {
+                const d = new Date(rptStart||`${yyyy}-${mm}-01`);
+                d.setDate(d.getDate()+i);
+                const on = base + Math.floor(Math.random()*200000);
+                const off= Math.floor(base*0.3) + Math.floor(Math.random()*80000);
+                const fee= Math.round((on+off)*0.035);
+                return [r.name, d.toISOString().slice(0,10), on, off, fee, on+off-fee, i<2?'처리중':'완료'];
+              });
+            }),
             [],
-            ['※ PG 수수료 3.5% 기준 샘플 데이터'],
+            [`※ PG 수수료 3.5% 기준 / 보고기간: ${periodLabel}`],
           ];
         } else if (type === 'passengers') {
           rows = [
             ...headerMeta,
-            ['구분', '성인', '청소년', '소아', '경로', '장애인', '총계'],
-            ...targetRegions.map(r => [
-              r.name,
-              r.id === 'buyeo' ? '720' : '940',
-              r.id === 'buyeo' ? '115' : '150',
-              r.id === 'buyeo' ? '88'  : '110',
-              r.id === 'buyeo' ? '45'  : '30',
-              r.id === 'buyeo' ? '22'  : '18',
-              r.id === 'buyeo' ? '990' : '1,248',
-            ]),
+            ['=== 요금 구분별 탑승 현황 ==='],
+            ['지역', '성인', '청소년', '소아', '경로', '단체', '총계'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              const fb = r.fareBreakdown;
+              return [r.name, ...fb.map(f=>f.cnt), r.totalPax];
+            }),
             [],
-            ['주요 방문 경로', '네이버', '카카오', '인스타', '블로그', '여행사'],
-            ['비율(%)',       '32',     '21',     '18',    '15',    '14'],
+            ['=== 예약 채널 분석 ==='],
+            ['지역', ...MONTHLY_SAMPLE[sampleKeys[0]].channels.map(c=>c.ch)],
+            ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, ...MONTHLY_SAMPLE[k].channels.map(c=>c.pct+'%')]),
+            [],
+            ['=== 고객 만족도 ==='],
+            ['지역', '만족도(5점)', '리뷰 건수'],
+            ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, MONTHLY_SAMPLE[k].satisfaction, MONTHLY_SAMPLE[k].reviewCnt]),
+            [],
+            [`※ 보고기간: ${periodLabel}`],
           ];
         } else if (type === 'seo') {
           rows = [
             ...headerMeta,
-            ['키워드', '검색순위', '월간 노출', '클릭수', 'CTR', '전환수'],
-            ['수륙양용버스 부여',   '3',  '12,400', '1,116', '9.0%', '89'],
-            ['부여 수륙양용투어',   '5',  '8,200',  '574',   '7.0%', '46'],
-            ['아쿠아모빌리티',      '1',  '5,600',  '616',   '11.0%','49'],
-            ['부여관광',           '12', '34,000', '1,020', '3.0%', '31'],
+            ['키워드', '검색순위', '월간 노출', '클릭수', 'CTR', '전환수', '지역'],
+            ...targetRegions.flatMap(r => [
+              [`수륙양용버스 ${r.shortName||r.name}`, '3', '12,400', '1,116', '9.0%', '89', r.name],
+              [`${r.shortName||r.name} 수상투어`, '5', '8,200', '574', '7.0%', '46', r.name],
+            ]),
+            ['아쿠아모빌리티', '1', '5,600', '616', '11.0%', '49', '전체'],
             [],
-            ['※ 샘플 SEO 데이터'],
+            [`※ 보고기간: ${periodLabel} 기준 샘플 데이터`],
           ];
         } else if (type === 'safety') {
           rows = [
             ...headerMeta,
-            ['일자', '지역', '운행횟수', '탑승객', '사고건수', '안전점검', '비고'],
-            ...targetRegions.map(r => [
-              `${yyyy}-${mm}`, r.name,
-              r.id === 'buyeo' ? '124' : '94',
-              r.id === 'buyeo' ? '990' : '756',
-              '0', '완료', '정상 운행',
-            ]),
+            ['=== 운행 안전 기록 ==='],
+            ['일자', '지역', '운행횟수', '탑승객', '사고건수', '안전점검', '특이사항'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              return [periodLabel, r.name, r.trips, r.totalPax, '0', '완료', r.incidents];
+            }),
+            [],
+            ['=== 기상 영향 현황 ==='],
+            ['지역', '취소일수', '취소회차', '주요원인'],
+            ...sampleKeys.map(k => {
+              const r = MONTHLY_SAMPLE[k];
+              return [r.name, r.weatherCancelDays, r.weatherCancelTrips, '강풍/강우'];
+            }),
             [],
             ['안전 체크리스트', '구명조끼 점검', '선체 이상 없음', '운전원 음주 없음', '기상 확인'],
-            ['결과',           '양호',          '양호',           '정상',             '운항 가능'],
+            ['결과', '양호', '양호', '정상', '운항 가능'],
+            [],
+            [`※ 보고기간: ${periodLabel}`],
           ];
         } else {
           rows = [
             ...headerMeta,
+            ['=== 맞춤 보고서 ==='],
             ['항목', '내용'],
-            ['기간', `${yyyy}-${mm}`],
-            ['지역', regionNames],
-            ['상태', '정상'],
+            ['보고기간', periodLabel],
+            ['대상 지역', regionNames],
+            ['총 탑승객', _calcMonthlyTotal(sampleKeys).totalPax+'명'],
+            ['총 매출', '₩'+_calcMonthlyTotal(sampleKeys).totalSales.toLocaleString()],
+            ['총 운항', _calcMonthlyTotal(sampleKeys).trips+'회'],
+            ['상태', '정상 운영'],
           ];
         }
 

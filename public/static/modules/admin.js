@@ -190,12 +190,14 @@ const AdminModule = (() => {
             </div>
             <div class="flex items-center gap-2 lg:gap-4 flex-shrink-0">
               <span class="hidden md:block text-xs text-gray-500">${new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'})}</span>
-              <a href="/" target="_blank" class="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                <i class="fas fa-external-link-alt"></i>
-                <span class="hidden sm:inline">고객사이트</span>
+              <a href="/" target="_blank"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium hover:bg-blue-100 hover:border-blue-300 transition-colors">
+                <i class="fas fa-external-link-alt text-xs"></i>
+                <span>고객사이트</span>
               </a>
-              <a href="/field" target="_blank" class="text-xs text-green-600 hover:underline flex items-center gap-1">
-                <i class="fas fa-tablet-alt"></i>
+              <a href="/field" target="_blank"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs font-medium hover:bg-green-100 hover:border-green-300 transition-colors">
+                <i class="fas fa-tablet-alt text-xs"></i>
                 <span class="hidden sm:inline">현장매표소</span>
               </a>
             </div>
@@ -1338,25 +1340,13 @@ const AdminModule = (() => {
   };
 
   // ── 예약 관리 ──────────────────────────────────────────────
-  const reservationsPage = async () => {
-    _adminState.currentSection = 'reservations';
-    const allRes = _generateDemoReservations();
-    const user = _adminState.user || { role: 'super', regionId: null };
-    // 지역관리자는 자기 지역만
-    const reservations = user.role === 'regional' && user.regionId
-      ? allRes.filter(r => r.regionId === user.regionId)
-      : allRes;
-
+  // 필터링된 예약 목록을 테이블 행으로 변환
+  const _renderReservationRows = (list) => {
     const statusColors = { confirmed:'bg-green-100 text-green-700', cancelled:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', checkedin:'bg-blue-100 text-blue-700' };
     const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
-
-    // 통계 카드용 집계
-    const totalRevenue = reservations.filter(r=>r.status!=='cancelled').reduce((s,r)=>s+r.totalAmount,0);
-    const todayRes = reservations.filter(r=>r.date===new Date().toISOString().slice(0,10));
-    const cancelCount = reservations.filter(r=>r.status==='cancelled').length;
-
-    const rows = reservations.slice(0, 30).map(r => `
-      <tr class="hover:bg-gray-50">
+    if (!list.length) return '<tr><td colspan="10" class="text-center py-8 text-gray-400"><i class="fas fa-search mr-2"></i>검색 결과가 없습니다.</td></tr>';
+    return list.slice(0, 50).map(r => `
+      <tr class="hover:bg-gray-50" id="res-row-${r.id}">
         <td class="px-3 py-2 text-xs font-mono text-blue-600 whitespace-nowrap">${r.id}</td>
         <td class="px-3 py-2 text-sm font-medium">${r.name}</td>
         <td class="px-3 py-2 text-sm text-center">${r.regionName}</td>
@@ -1372,10 +1362,67 @@ const AdminModule = (() => {
         </td>
         <td class="px-3 py-2 text-center whitespace-nowrap">
           <button onclick="AdminModule.viewReservation('${r.id}')" class="text-blue-600 hover:underline text-xs mr-1">상세</button>
-          ${r.status !== 'cancelled' ? `<button onclick="AdminModule.cancelReservation('${r.id}')" class="text-red-500 hover:underline text-xs">취소</button>` : `<span class="text-xs text-gray-400">${r.isRefunded?'환불완료':'환불전'}</span>`}
+          ${r.status !== 'cancelled'
+            ? `<button onclick="AdminModule.cancelReservation('${r.id}')" class="text-red-500 hover:underline text-xs">취소</button>`
+            : `<span class="text-xs text-gray-400">${r.isRefunded?'환불완료':'환불전'}</span>`}
         </td>
       </tr>
-    `).join('') || '<tr><td colspan="10" class="text-center py-4 text-gray-500">예약이 없습니다.</td></tr>';
+    `).join('');
+  };
+
+  // 실제 필터링 실행 함수 (검색 버튼 onclick)
+  const filterReservations = () => {
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const allRes = _generateDemoReservations();
+    // 권한별 기본 필터
+    let pool = (user.role === 'regional' && user.regionId)
+      ? allRes.filter(r => r.regionId === user.regionId)
+      : allRes;
+
+    // 필터 값 읽기
+    const fRegion = document.getElementById('res-filter-region')?.value || '';
+    const fDate   = document.getElementById('res-filter-date')?.value || '';
+    const fStatus = document.getElementById('res-filter-status')?.value || '';
+    const fKeyword= (document.getElementById('res-filter-keyword')?.value || '').trim().toLowerCase();
+
+    if (fRegion)  pool = pool.filter(r => r.regionId === fRegion);
+    if (fDate)    pool = pool.filter(r => r.date === fDate);
+    if (fStatus)  pool = pool.filter(r => r.status === fStatus);
+    if (fKeyword) pool = pool.filter(r =>
+      r.id.toLowerCase().includes(fKeyword) ||
+      r.name.toLowerCase().includes(fKeyword)
+    );
+
+    // 결과 카운트 업데이트
+    const countEl = document.getElementById('res-result-count');
+    if (countEl) countEl.textContent = `검색 결과 ${pool.length}건 (최대 50건 표시)`;
+
+    // 테이블 본문 교체
+    const tbody = document.getElementById('res-tbody');
+    if (tbody) tbody.innerHTML = _renderReservationRows(pool);
+  };
+
+  const reservationsPage = async () => {
+    _adminState.currentSection = 'reservations';
+    const allRes = _generateDemoReservations();
+    const user = _adminState.user || { role: 'super', regionId: null };
+    // 권한별 초기 데이터
+    const reservations = (user.role === 'regional' && user.regionId)
+      ? allRes.filter(r => r.regionId === user.regionId)
+      : allRes;
+
+    // 통계 카드용 집계
+    const totalRevenue  = reservations.filter(r=>r.status!=='cancelled').reduce((s,r)=>s+r.totalAmount,0);
+    const todayRes      = reservations.filter(r=>r.date===new Date().toISOString().slice(0,10));
+    const cancelCount   = reservations.filter(r=>r.status==='cancelled').length;
+
+    // 지역 옵션: super는 전체, regional은 자기 지역만
+    const regionOpts = user.role === 'regional' && user.regionId
+      ? `<option value="${user.regionId}" selected>${({tongyeong:'통영',buyeo:'부여',hapcheon:'합천'}[user.regionId]||user.regionId)}</option>`
+      : `<option value="">전체 지역</option>
+         <option value="tongyeong">통영</option>
+         <option value="buyeo">부여</option>
+         <option value="hapcheon">합천</option>`;
 
     const content = `
       <div class="space-y-4">
@@ -1384,32 +1431,57 @@ const AdminModule = (() => {
           ${statCard('fas fa-ticket-alt', '전체 예약', `${reservations.length.toLocaleString()}건`, '최근 30일', 'blue')}
           ${statCard('fas fa-won-sign', '총 매출', '₩'+totalRevenue.toLocaleString(), '취소 제외', 'green')}
           ${statCard('fas fa-calendar-day', '오늘 예약', `${todayRes.length}건`, new Date().toLocaleDateString('ko-KR'), 'purple')}
-          ${statCard('fas fa-times-circle', '취소 건수', `${cancelCount}건`, `환불률 ${Math.round(cancelCount/reservations.length*100)}%`, 'red')}
+          ${statCard('fas fa-times-circle', '취소 건수', `${cancelCount}건`, `취소율 ${Math.round(cancelCount/reservations.length*100)}%`, 'red')}
         </div>
 
         <!-- 필터 -->
         <div class="bg-white rounded-xl shadow-sm p-4">
-          <div class="flex flex-wrap gap-2">
-            <select class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option>전체 지역</option>
-              <option>통영</option><option>부여</option><option>합천</option>
-            </select>
-            <input type="date" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            <select class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option>전체 상태</option>
-              <option>확정</option><option>대기</option><option>취소</option><option>탑승완료</option>
-            </select>
-            <input type="text" placeholder="예약번호/예약자명 검색" class="border rounded-lg px-3 py-2 text-sm flex-1 min-w-36 focus:ring-2 focus:ring-blue-500 outline-none">
-            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">검색</button>
-            <button onclick="AdminModule.exportReservations()" class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2">
-              <i class="fas fa-download"></i> 엑셀
+          <div class="flex flex-wrap gap-2 items-end">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-gray-500 font-medium">지역</label>
+              <select id="res-filter-region" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[100px]">
+                ${regionOpts}
+              </select>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-gray-500 font-medium">날짜</label>
+              <input type="date" id="res-filter-date" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-gray-500 font-medium">상태</label>
+              <select id="res-filter-status" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[100px]">
+                <option value="">전체 상태</option>
+                <option value="confirmed">확정</option>
+                <option value="pending">대기</option>
+                <option value="checkedin">탑승완료</option>
+                <option value="cancelled">취소</option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
+              <label class="text-xs text-gray-500 font-medium">예약번호 / 예약자명</label>
+              <input type="text" id="res-filter-keyword" placeholder="검색어 입력..."
+                class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                onkeydown="if(event.key==='Enter') AdminModule.filterReservations()">
+            </div>
+            <button onclick="AdminModule.filterReservations()"
+              class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2 self-end">
+              <i class="fas fa-search"></i> 검색
+            </button>
+            <button onclick="AdminModule.resetReservationFilter()"
+              class="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 self-end">
+              초기화
+            </button>
+            <button onclick="AdminModule.exportReservations()"
+              class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2 self-end">
+              <i class="fas fa-download"></i> CSV
             </button>
           </div>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm overflow-hidden">
           <div class="px-4 py-3 border-b flex items-center justify-between">
-            <span class="text-sm font-medium text-gray-700">총 ${reservations.length}건 (최근 30건 표시)</span>
+            <span id="res-result-count" class="text-sm font-medium text-gray-700">총 ${reservations.length}건 (최대 50건 표시)</span>
+            <span class="text-xs text-gray-400">${user.role === 'regional' ? `${({tongyeong:'통영',buyeo:'부여',hapcheon:'합천'}[user.regionId]||'')} 지역 데이터` : '전체 지역 데이터'}</span>
           </div>
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
@@ -1418,7 +1490,7 @@ const AdminModule = (() => {
                   ${['예약번호','예약자','지역','날짜','회차','인원','금액','결제','상태','관리'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100">${rows}</tbody>
+              <tbody id="res-tbody" class="divide-y divide-gray-100">${_renderReservationRows(reservations)}</tbody>
             </table>
           </div>
         </div>
@@ -1427,9 +1499,63 @@ const AdminModule = (() => {
     return renderAdminLayout('reservations', content, '예약 관리');
   };
 
-  const viewReservation = (id) => { Utils.toast(`예약 ${id} 상세 조회 (구현 중)`, 'info'); };
-  const cancelReservation = (id) => { Utils.confirm(`예약 ${id}를 취소하시겠습니까?`, () => Utils.toast('예약이 취소되었습니다.', 'success')); };
-  const exportReservations = () => { Utils.toast('엑셀 파일 다운로드가 시작됩니다.', 'info'); };
+  const resetReservationFilter = () => {
+    ['res-filter-region','res-filter-date','res-filter-status','res-filter-keyword'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    filterReservations();
+  };
+
+  const viewReservation = (id) => {
+    const allRes = _generateDemoReservations();
+    const r = allRes.find(x => x.id === id);
+    if (!r) { Utils.toast('예약 정보를 찾을 수 없습니다.', 'error'); return; }
+    const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
+    Utils.confirm(
+      `<div class="text-left space-y-1.5 text-sm">
+        <div class="font-bold text-base mb-2">${r.id}</div>
+        <div class="flex justify-between"><span class="text-gray-500">예약자</span><span class="font-medium">${r.name}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">지역</span><span>${r.regionName}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">날짜·회차</span><span>${r.date} ${r.schedule}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">인원</span><span>성인 ${r.adultCnt}명 / 소아 ${r.childCnt}명</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">결제금액</span><span class="font-bold">₩${r.totalAmount.toLocaleString()}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">결제수단</span><span>${r.payMethod}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">유입경로</span><span>${r.source}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">상태</span><span>${statusLabels[r.status]||r.status}</span></div>
+      </div>`,
+      () => {},
+      { confirmText: '닫기', cancelText: null, title: '예약 상세 정보' }
+    );
+  };
+
+  const cancelReservation = (id) => {
+    Utils.confirm(`예약 ${id}를 취소하시겠습니까?\n취소 후에는 환불 정책에 따라 처리됩니다.`, () => {
+      // 실제로는 API 호출; 데모에서는 행 UI만 업데이트
+      const row = document.getElementById(`res-row-${id}`);
+      if (row) {
+        const statusCell = row.querySelector('td:nth-child(9)');
+        if (statusCell) statusCell.innerHTML = '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">취소</span>';
+        const actCell = row.querySelector('td:nth-child(10)');
+        if (actCell) actCell.innerHTML = '<span class="text-xs text-gray-400">환불전</span>';
+      }
+      Utils.toast(`예약 ${id}가 취소되었습니다.`, 'success');
+    });
+  };
+
+  const exportReservations = () => {
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const allRes = _generateDemoReservations();
+    const pool = (user.role === 'regional' && user.regionId)
+      ? allRes.filter(r => r.regionId === user.regionId)
+      : allRes;
+    const rows = [
+      ['예약번호','예약자','지역','날짜','회차','성인','소아','총인원','금액','결제수단','상태','유입경로'],
+      ...pool.map(r=>[r.id,r.name,r.regionName,r.date,r.schedule,r.adultCnt,r.childCnt,r.totalPassengers,r.totalAmount,r.payMethod,r.status,r.source]),
+    ];
+    Utils.downloadCSV(rows, `reservations_${new Date().toISOString().slice(0,10)}.csv`);
+    Utils.toast('예약 목록 CSV가 다운로드됩니다.', 'success');
+  };
 
   // ── 손목밴드 데모 데이터 생성 ──────────────────────────────
   const _generateDemoWristbands = () => {
@@ -2019,10 +2145,70 @@ const AdminModule = (() => {
   // ── 정산 관리 ──────────────────────────────────────────────
   const settlementPage = async () => {
     _adminState.currentSection = 'settlement';
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active');
+    const user = _adminState.user || { role: 'super', regionId: null };
+
+    // 권한별 접근 가능 지역 필터 (hidden 제외, active→open/preparing 통일)
+    const allRegions = (window.REGIONS||[]).filter(r => r.status !== 'hidden');
+    const visibleRegions = (user.role === 'regional' && user.regionId)
+      ? allRegions.filter(r => r.id === user.regionId)
+      : allRegions;
+
+    // 지역명 매핑 (regionId → 한글명)
+    const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+
+    // 지역 드롭다운 옵션
+    const regionOpts = (user.role === 'regional' && user.regionId)
+      ? `<option value="${user.regionId}">${REGION_NAMES[user.regionId]||user.regionId}</option>`
+      : [
+          '<option value="">전체 지역</option>',
+          ...allRegions.map(r=>`<option value="${r.id}">${r.name||REGION_NAMES[r.id]||r.id}</option>`)
+        ].join('');
+
+    // 일일 정산 행 생성 (권한에 따른 지역명 동적 반영)
+    const settlementRows = [...Array(7)].map((_, i) => {
+      const date = new Date(); date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().slice(0,10);
+      const online  = Math.floor(Math.random()*5000000)+2000000;
+      const offline = Math.floor(Math.random()*2000000)+500000;
+      const total   = online + offline;
+      const cash    = Math.floor(offline*0.3);
+      const card    = total - cash;
+      const isClosed = i > 0;
+
+      // 지역: regional은 자기 지역명, super는 첫 번째 visible 지역명 순환
+      const rowRegion = (user.role === 'regional' && user.regionId)
+        ? (REGION_NAMES[user.regionId] || user.regionId)
+        : (REGION_NAMES[visibleRegions[i % Math.max(visibleRegions.length,1)]?.id] || '전체');
+
+      return `
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 text-sm text-gray-600">${dateStr}</td>
+          <td class="px-3 py-2 text-sm text-center font-medium text-gray-700">${rowRegion}</td>
+          <td class="px-3 py-2 text-sm text-right">₩${online.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right">₩${offline.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right font-semibold text-gray-800">₩${total.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right text-gray-600">₩${cash.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right text-gray-600">₩${card.toLocaleString()}</td>
+          <td class="px-3 py-2 text-center">
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium
+              ${isClosed ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}">
+              ${isClosed ? '마감완료' : '마감전'}
+            </span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            ${!isClosed
+              ? `<button onclick="AdminModule.closeDay('${dateStr}')"
+                   class="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">마감</button>`
+              : `<button onclick="AdminModule.viewSettlement('${dateStr}')"
+                   class="text-blue-600 hover:underline text-xs">상세</button>`}
+          </td>
+        </tr>
+      `;
+    }).join('');
 
     const content = `
       <div class="space-y-6">
+        <!-- 요약 카드 -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           ${statCard('fas fa-calendar-day', '오늘 정산 대기', '3건', '마감 전', 'orange')}
           ${statCard('fas fa-check-circle', '이번달 완료', '28건', '₩127,450,000', 'green')}
@@ -2030,49 +2216,40 @@ const AdminModule = (() => {
           ${statCard('fas fa-calculator', '총 누적 정산', '152건', '₩634,200,000', 'blue')}
         </div>
 
+        ${user.role === 'regional' ? `
+        <div class="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
+          <i class="fas fa-info-circle flex-shrink-0"></i>
+          <span><strong>${REGION_NAMES[user.regionId]||user.regionId}</strong> 지역 정산 데이터만 표시됩니다.</span>
+        </div>` : ''}
+
         <div class="bg-white rounded-xl shadow-sm p-6">
-          <div class="flex justify-between items-center mb-4">
+          <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
             <h2 class="font-semibold text-gray-800">일일 정산 내역</h2>
-            <div class="flex gap-2">
-              <select class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                ${regions.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+            <div class="flex gap-2 flex-wrap">
+              <select id="stl-filter-region"
+                class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                ${user.role === 'regional' ? 'disabled' : ''}>
+                ${regionOpts}
               </select>
-              <input type="month" value="${new Date().toISOString().slice(0,7)}" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <input type="month" id="stl-filter-month"
+                value="${new Date().toISOString().slice(0,7)}"
+                class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <button onclick="AdminModule.exportSettlement()"
+                class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2">
+                <i class="fas fa-download"></i> CSV
+              </button>
             </div>
           </div>
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
               <thead>
                 <tr class="bg-gray-50">
-                  ${['날짜','지역','온라인 매출','현장 매출','총 매출','현금','카드','상태','관리'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+                  ${['날짜','지역','온라인 매출','현장 매출','총 매출','현금','카드','상태','관리'].map(h=>
+                    `<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`
+                  ).join('')}
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100">
-                ${[...Array(5)].map((_, i) => {
-                  const date = new Date(); date.setDate(date.getDate() - i);
-                  const online = Math.floor(Math.random()*5000000)+2000000;
-                  const offline = Math.floor(Math.random()*2000000)+500000;
-                  const total = online + offline;
-                  const isClosed = i > 0;
-                  return `
-                    <tr class="hover:bg-gray-50">
-                      <td class="px-3 py-2 text-sm">${date.toISOString().slice(0,10)}</td>
-                      <td class="px-3 py-2 text-sm text-center">통영</td>
-                      <td class="px-3 py-2 text-sm text-right">₩${online.toLocaleString()}</td>
-                      <td class="px-3 py-2 text-sm text-right">₩${offline.toLocaleString()}</td>
-                      <td class="px-3 py-2 text-sm text-right font-medium">₩${total.toLocaleString()}</td>
-                      <td class="px-3 py-2 text-sm text-right">₩${Math.floor(offline*0.3).toLocaleString()}</td>
-                      <td class="px-3 py-2 text-sm text-right">₩${(total - Math.floor(offline*0.3)).toLocaleString()}</td>
-                      <td class="px-3 py-2 text-center">
-                        <span class="px-2 py-0.5 rounded-full text-xs ${isClosed?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'}">${isClosed?'마감완료':'마감전'}</span>
-                      </td>
-                      <td class="px-3 py-2 text-center">
-                        ${!isClosed ? `<button onclick="AdminModule.closeDay('${date.toISOString().slice(0,10)}')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">마감</button>` : `<button onclick="AdminModule.viewSettlement('${date.toISOString().slice(0,10)}')" class="text-blue-600 hover:underline text-xs">상세</button>`}
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
+              <tbody class="divide-y divide-gray-100">${settlementRows}</tbody>
             </table>
           </div>
         </div>
@@ -2080,8 +2257,39 @@ const AdminModule = (() => {
     `;
     return renderAdminLayout('settlement', content, '정산 관리');
   };
-  const closeDay = (date) => { Utils.confirm(`${date} 정산을 마감하시겠습니까? 마감 후 수정은 HQ 승인이 필요합니다.`, () => Utils.toast('일일 정산이 마감되었습니다.', 'success')); };
-  const viewSettlement = (date) => { Utils.toast(`${date} 정산 상세 조회`, 'info'); };
+
+  const closeDay = (date) => {
+    Utils.confirm(
+      `${date} 정산을 마감하시겠습니까?\n마감 후 수정은 HQ 승인이 필요합니다.`,
+      () => Utils.toast('일일 정산이 마감되었습니다.', 'success')
+    );
+  };
+  const viewSettlement = (date) => {
+    Utils.toast(`${date} 정산 상세 조회 (구현 중)`, 'info');
+  };
+  const exportSettlement = () => {
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+    const regionLabel = (user.role === 'regional' && user.regionId)
+      ? (REGION_NAMES[user.regionId] || user.regionId)
+      : '전체';
+    const month = document.getElementById('stl-filter-month')?.value || new Date().toISOString().slice(0,7);
+    const rows = [
+      ['아쿠아모빌리티코리아 정산 내역'],
+      [`기간: ${month}`, `지역: ${regionLabel}`, `생성: ${new Date().toLocaleString('ko-KR')}`],
+      [],
+      ['날짜','지역','온라인 매출','현장 매출','총 매출','현금','카드','상태'],
+      ...[...Array(7)].map((_,i)=>{
+        const d = new Date(); d.setDate(d.getDate()-i);
+        const on = Math.floor(Math.random()*5000000)+2000000;
+        const off= Math.floor(Math.random()*2000000)+500000;
+        const tot= on+off;
+        return [d.toISOString().slice(0,10), regionLabel, on, off, tot, Math.floor(off*0.3), tot-Math.floor(off*0.3), i>0?'마감완료':'마감전'];
+      }),
+    ];
+    Utils.downloadCSV(rows, `settlement_${month.replace('-','_')}_${new Date().toISOString().slice(0,10)}.csv`);
+    Utils.toast('정산 내역 CSV가 다운로드됩니다.', 'success');
+  };
 
   // ── 관리자 계정 관리 ───────────────────────────────────────
   const adminsPage = async () => {
@@ -2272,13 +2480,13 @@ const AdminModule = (() => {
     deleteSchedule, showRecurringModal, addRecTime, generateRecurring, updateSeatPreview,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     updateSeatRatio, saveSeatRatio,
-    viewReservation, cancelReservation, exportReservations,
+    viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter,
     saveWristbandText,
     addPopup, editPopup, savePopup, deletePopup, addNotice, editNotice, deleteNotice,
     showTermsTab, saveTerms, previewTerms,
     selectSeoRegion, saveSeoSettings,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, saveNewRegion,
-    closeDay, viewSettlement,
+    closeDay, viewSettlement, exportSettlement,
     addAdmin, resetPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,
   };
