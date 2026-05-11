@@ -269,7 +269,7 @@ const FieldModule = {
               <div class="wristband-time" id="wb-preview-time">09:30</div>
               <div class="wristband-info" id="wb-preview-info">${today} | 1회차 | 성인</div>
               <div class="wristband-info font-mono text-xs">${reservationId || 'RES-XXXXXXX'}</div>
-              ${wb.warning ? `<div class="text-red-500 text-xs font-bold">${wb.warning}</div>` : ''}
+
             </div>
             <div class="wristband-qr bg-gray-200 rounded-lg flex items-center justify-center text-2xl">QR</div>
           </div>

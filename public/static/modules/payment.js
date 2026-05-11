@@ -403,7 +403,7 @@ ${Footer.render()}`;
         <div class="wristband-time">${data.time}</div>
         <div class="wristband-info">${data.date} | ${data.round} | ${data.type}</div>
         <div class="wristband-info font-mono text-xs mt-1">${data.reservationId}</div>
-        ${wb.warning ? `<div class="text-red-500 text-xs mt-1 font-bold">${wb.warning}</div>` : ''}
+
       </div>
       <canvas id="qr-wristband-preview" class="wristband-qr"></canvas>
     </div>`;

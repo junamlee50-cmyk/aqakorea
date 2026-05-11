@@ -339,7 +339,7 @@ const Settings = {
     wristbandText: {
       brand: 'Aqua Mobility Korea',
       footer: '안전하고 즐거운 투어 되세요!',
-      warning: '탑승 전 구명조끼 착용 필수',
+      warning: '',
     },
     // 서치콘솔 소유확인
     googleVerification: '',
