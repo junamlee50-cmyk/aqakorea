@@ -326,14 +326,16 @@ ${Footer.render()}
 
     // ★ 스케줄 객체를 고객화면 형식으로 변환
     const schedules = rawSchedules.map((s, i) => {
-      const onl = s.onlineSeats || Math.round((s.capacity||45)*0.7);
-      const off = s.offlineSeats || Math.round((s.capacity||45)*0.3);
+      // 항목2: 38명 기준 (40석-운전자1-가이드1=38)
+      const cap38 = s.capacity || 38;
+      const onl = s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil(cap38 * 0.7);  // 70% 올림 → 27석
+      const off = s.offlineSeats !== undefined ? s.offlineSeats : cap38 - Math.ceil(cap38 * 0.7); // 38-27=11석
       const booked = Math.floor(Math.random() * Math.floor(onl * 0.6)); // 시뮬레이션
       return {
         id: s.id || `${regionId}-${(s.time||'').replace(':','')}`,
         time: s.time || '-',
         endTime: s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-',
-        capacity: s.capacity || 45,
+        capacity: s.capacity || 38,  // 항목2: 38명 기준
         online: onl,
         offline: off,
         onlineBooked: booked,

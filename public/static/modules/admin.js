@@ -1155,8 +1155,11 @@ const AdminModule = (() => {
         <td class="px-4 py-3 text-sm text-center text-gray-500">${endTime}</td>
         <td class="px-4 py-3 text-sm text-center">${s.duration || 70}분</td>
         <td class="px-4 py-3 text-sm text-center">${s.vehicle || (vehicles[i%vehicles.length]?.name) || '-'}</td>
-        <td class="px-4 py-3 text-sm text-center">${s.capacity || 45}석</td>
-        <td class="px-4 py-3 text-sm text-center">${s.onlineSeats || Math.round((s.capacity||45)*0.7)}석 / ${s.offlineSeats || Math.round((s.capacity||45)*0.3)}석</td>
+        <td class="px-4 py-3 text-sm text-center">
+          <span class="text-xs">${s.capacity || 38}명</span>
+          <span class="text-xs text-gray-400 ml-1">(총 ${s.totalSeats||40}석)</span>
+        </td>
+        <td class="px-4 py-3 text-sm text-center">${s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil((s.capacity||38)*0.7)}석 / ${s.offlineSeats !== undefined ? s.offlineSeats : (s.capacity||38) - Math.ceil((s.capacity||38)*0.7)}석</td>
         <td class="px-4 py-3 text-sm text-center text-xs">${(s.operatingDays||['월','화','수','목','금','토','일']).join('')}</td>
         <td class="px-4 py-3 text-center">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${statusLabel}</span>
@@ -1261,8 +1264,8 @@ const AdminModule = (() => {
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">총 정원</label>
-                <input id="s-capacity" type="number" value="45" min="1" max="200"
+                <label class="block text-xs font-medium text-gray-700 mb-1">고객 정원 (총40석-2석)</label>
+                <input id="s-capacity" type="number" value="38" min="1" max="200"
                   class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   oninput="AdminModule.updateSeatPreview()">
               </div>
@@ -1305,20 +1308,41 @@ const AdminModule = (() => {
         </div>
       </div>
 
-      <!-- 자동 스케줄 생성 모달 -->
+      <!-- 자동 스케줄 생성 모달 (세션7: 배차 로직 개선) -->
       <div id="auto-schedule-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-screen overflow-y-auto" onclick="event.stopPropagation()">
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-semibold text-gray-800 text-lg"><i class="fas fa-magic text-green-500 mr-2"></i>자동 스케줄 생성</h3>
             <button onclick="document.getElementById('auto-schedule-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
           </div>
-          <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 mb-4">
-            <i class="fas fa-info-circle mr-1"></i>
-            첫차·막차·배차간격을 입력하면 전체 회차가 자동으로 계산됩니다. 차량이 2대 이상이면 교대 배정됩니다.
+
+          <!-- 배차 방식 선택 탭 -->
+          <div class="flex gap-2 mb-4 border-b">
+            <button id="dispatch-tab-manual" onclick="AdminModule.switchDispatchMode('manual')"
+              class="px-4 py-2 text-sm font-medium border-b-2 border-green-500 text-green-700 -mb-px">
+              ① 수동 배차간격 지정
+            </button>
+            <button id="dispatch-tab-auto" onclick="AdminModule.switchDispatchMode('auto')"
+              class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 -mb-px">
+              ② 차량 수 기준 자동 최적 배차
+            </button>
           </div>
+
+          <!-- ① 수동 모드 -->
+          <div id="dispatch-manual-section" class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 mb-4">
+            <i class="fas fa-hand-pointer mr-1"></i>
+            <strong>수동 배차간격 지정:</strong> 5분 단위로 배차간격을 직접 선택합니다. 차량 충돌 여부는 미리보기에서 자동 확인됩니다.
+          </div>
+          <!-- ② 자동 최적 모드 -->
+          <div id="dispatch-auto-section" class="hidden bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 mb-4">
+            <i class="fas fa-calculator mr-1"></i>
+            <strong>자동 최적 배차:</strong> 운행소요시간 + 재정비시간 ÷ 차량 수 → 5분 단위 올림 배차간격 자동 계산
+            <div id="auto-optimal-result" class="mt-2 font-bold text-green-700 hidden"></div>
+          </div>
+
           <div class="space-y-4">
-            <!-- 기본 설정 -->
-            <div class="grid grid-cols-3 gap-3">
+            <!-- 기본 설정: 첫차/막차 -->
+            <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">첫차 시간</label>
                 <select id="auto-first" class="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" onchange="AdminModule.previewAutoSchedule()">
@@ -1331,36 +1355,75 @@ const AdminModule = (() => {
                   ${timeOptions}
                 </select>
               </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">배차 간격 (분)</label>
-                <select id="auto-interval" class="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" onchange="AdminModule.previewAutoSchedule()">
-                  <option value="30">30분</option>
-                  <option value="60" selected>60분</option>
-                  <option value="90">90분</option>
-                  <option value="120">120분</option>
-                </select>
-              </div>
             </div>
+
+            <!-- 운행 파라미터 -->
             <div class="grid grid-cols-3 gap-3">
               <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">소요 시간 (분)</label>
-                <input id="auto-duration" type="number" value="70" min="10" max="300"
+                <label class="block text-xs font-medium text-gray-700 mb-1">운행 소요시간 (분)</label>
+                <input id="auto-duration" type="number" value="45" min="10" max="300"
                   class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                   oninput="AdminModule.previewAutoSchedule()">
               </div>
               <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">총 정원</label>
-                <input id="auto-capacity" type="number" value="45" min="1" max="200"
+                <label class="block text-xs font-medium text-gray-700 mb-1">재정비시간 (분)</label>
+                <input id="auto-maintenance" type="number" value="10" min="0" max="120"
                   class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                   oninput="AdminModule.previewAutoSchedule()">
               </div>
               <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">온라인 비율 (%)</label>
-                <input id="auto-online-ratio" type="number" value="70" min="0" max="100"
+                <label class="block text-xs font-medium text-gray-700 mb-1">운행 차량 수</label>
+                <input id="auto-vehicle-count" type="number" value="2" min="1" max="20"
                   class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                   oninput="AdminModule.previewAutoSchedule()">
               </div>
             </div>
+
+            <!-- 배차간격: 수동/자동 분기 -->
+            <div id="dispatch-interval-manual" class="">
+              <label class="block text-xs font-medium text-gray-700 mb-1">배차 간격 (5분 단위)</label>
+              <select id="auto-interval" class="w-full border rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none" onchange="AdminModule.previewAutoSchedule()">
+                ${[5,10,15,20,25,30,35,40,45,50,55,60].map(v=>`<option value="${v}"${v===30?' selected':''}>${v}분</option>`).join('')}
+              </select>
+            </div>
+            <div id="dispatch-interval-auto" class="hidden">
+              <label class="block text-xs font-medium text-gray-700 mb-1">배차 간격 (자동 계산됨)</label>
+              <div id="auto-interval-display" class="w-full border border-green-300 bg-green-50 rounded-lg px-3 py-2 text-sm text-green-800 font-bold">
+                — 위 값 입력 후 자동 계산
+              </div>
+              <input id="auto-interval" type="hidden" value="30">
+            </div>
+
+            <!-- 정원 설정 -->
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">총 좌석</label>
+                <input id="auto-total-seats" type="number" value="40" min="1" max="200" readonly
+                  class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">제외 (운전자+가이드)</label>
+                <input id="auto-exclude-seats" type="number" value="2" min="0" max="10" readonly
+                  class="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">고객 가능 정원</label>
+                <input id="auto-capacity" type="number" value="38" min="1" max="200" readonly
+                  class="w-full border border-green-300 bg-green-50 rounded-lg px-3 py-2 text-sm font-bold text-green-800">
+              </div>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+              <i class="fas fa-info-circle mr-1"></i>
+              총 40석 / 제외 2석(운전자+가이드) / 고객 예약 가능 <strong>38명</strong> |
+              온라인 70%: <strong>27석</strong> / 현장: <strong>11석</strong>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">온라인 비율 (%)</label>
+              <input id="auto-online-ratio" type="number" value="70" min="0" max="100"
+                class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                oninput="AdminModule.previewAutoSchedule()">
+            </div>
+
             <div>
               <label class="block text-xs font-medium text-gray-700 mb-1">운영 요일</label>
               <div class="flex flex-wrap gap-2">
@@ -1382,6 +1445,7 @@ const AdminModule = (() => {
                 <input id="auto-end-date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none">
               </div>
             </div>
+
             <!-- 미리보기 -->
             <div id="auto-preview-wrap" class="hidden">
               <div class="flex items-center justify-between mb-2">
@@ -1396,7 +1460,7 @@ const AdminModule = (() => {
                 <table class="w-full text-xs">
                   <thead class="bg-gray-50 sticky top-0">
                     <tr>
-                      ${['회차','출발','종료예상','배정차량','온라인석','현장석','상태'].map(h=>`<th class="px-3 py-2 text-gray-600 text-center font-semibold">${h}</th>`).join('')}
+                      ${['회차','출발','운행종료','재정비종료','배정차량','온라인석','현장석','상태'].map(h=>`<th class="px-3 py-2 text-gray-600 text-center font-semibold">${h}</th>`).join('')}
                     </tr>
                   </thead>
                   <tbody id="auto-preview-body" class="divide-y divide-gray-100"></tbody>
@@ -1491,7 +1555,7 @@ const AdminModule = (() => {
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">총 정원</label>
-                <input id="rec-capacity" type="number" value="45" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none">
+                <input id="rec-capacity" type="number" value="38" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none">
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">온라인 비율 (%)</label>
@@ -1563,7 +1627,7 @@ const AdminModule = (() => {
 
   const selectScheduleRegion = (regionId) => { _adminState.selectedRegion = regionId; schedulesPage().then(html => { document.getElementById('app').innerHTML = html; }); };
   const updateSeatPreview = () => {
-    const cap = parseInt(document.getElementById('s-capacity')?.value)||45;
+    const cap = parseInt(document.getElementById('s-capacity')?.value)||38;
     const ratio = parseInt(document.getElementById('s-online-ratio')?.value)||70;
     const onl = Math.round(cap * ratio / 100);
     const off = cap - onl;
@@ -1596,7 +1660,7 @@ const AdminModule = (() => {
     set('s-time', s.time||'');
     set('s-time-select', s.time||'');
     set('s-duration', s.duration||70);
-    set('s-capacity', s.capacity||45);
+    set('s-capacity', s.capacity||38);
     set('s-online-ratio', s.onlineRatio||70);
     set('s-vehicle', s.vehicle||'');
     set('s-start-date', s.startDate||'');
@@ -1613,7 +1677,7 @@ const AdminModule = (() => {
     const timeVal = get('s-time').trim();
     if (!timeVal || !_isValidTime(timeVal)) { Utils.toast('출발 시간을 올바른 형식(HH:mm)으로 입력하세요', 'error'); return; }
     const days = [...document.querySelectorAll('input[name="s-days"]:checked')].map(c=>c.value);
-    const cap = parseInt(get('s-capacity'))||45;
+    const cap = parseInt(get('s-capacity'))||38;
     const ratio = parseInt(get('s-online-ratio'))||70;
     if (ratio < 0 || ratio > 100) { Utils.toast('온라인 비율은 0~100 사이여야 합니다', 'error'); return; }
     const regionId = _editingScheduleRegion;
@@ -1686,78 +1750,173 @@ const AdminModule = (() => {
 
   // ── 자동 스케줄 생성 ────────────────────────────────────────
   let _autoScheduleRegion = null;
+  let _dispatchMode = 'manual'; // 'manual' | 'auto'
+
+  // 배차 방식 탭 전환
+  const switchDispatchMode = (mode) => {
+    _dispatchMode = mode;
+    const manualTab = document.getElementById('dispatch-tab-manual');
+    const autoTab   = document.getElementById('dispatch-tab-auto');
+    const manualInfo = document.getElementById('dispatch-manual-section');
+    const autoInfo   = document.getElementById('dispatch-auto-section');
+    const intervalManual = document.getElementById('dispatch-interval-manual');
+    const intervalAuto   = document.getElementById('dispatch-interval-auto');
+    if (mode === 'manual') {
+      manualTab?.classList.add('border-green-500','text-green-700');
+      manualTab?.classList.remove('border-transparent','text-gray-500');
+      autoTab?.classList.remove('border-green-500','text-green-700');
+      autoTab?.classList.add('border-transparent','text-gray-500');
+      manualInfo?.classList.remove('hidden');
+      autoInfo?.classList.add('hidden');
+      intervalManual?.classList.remove('hidden');
+      intervalAuto?.classList.add('hidden');
+    } else {
+      autoTab?.classList.add('border-green-500','text-green-700');
+      autoTab?.classList.remove('border-transparent','text-gray-500');
+      manualTab?.classList.remove('border-green-500','text-green-700');
+      manualTab?.classList.add('border-transparent','text-gray-500');
+      autoInfo?.classList.remove('hidden');
+      manualInfo?.classList.add('hidden');
+      intervalAuto?.classList.remove('hidden');
+      intervalManual?.classList.add('hidden');
+    }
+    previewAutoSchedule();
+  };
+
+  // 최소 가능 배차간격 계산: ceil(ceil((duration+maintenance)/vehicles)/5)*5
+  const _calcMinInterval = (duration, maintenance, vehicles) => {
+    const rotation = duration + maintenance;           // 1대 회전시간
+    const raw      = rotation / Math.max(vehicles, 1); // 대수로 나눔
+    return Math.ceil(Math.ceil(raw) / 5) * 5;          // 5분 단위 올림
+  };
+
   const showAutoScheduleModal = (regionId) => {
     _autoScheduleRegion = regionId;
-    // 기본값 세팅
+    _dispatchMode = 'manual';
     setTimeout(() => {
       const fEl = document.getElementById('auto-first');
       const lEl = document.getElementById('auto-last');
       if (fEl) fEl.value = '09:00';
-      if (lEl) lEl.value = '16:00';
+      if (lEl) lEl.value = '21:00';
+      // 모드 초기화
+      switchDispatchMode('manual');
       document.getElementById('auto-preview-wrap')?.classList.add('hidden');
+      // 차량 수 기본값: 등록 차량 수
+      const vCount = Math.max(_getVehicles(regionId).length, 2);
+      const vcEl = document.getElementById('auto-vehicle-count');
+      if (vcEl) vcEl.value = vCount;
     }, 50);
     document.getElementById('auto-schedule-modal').classList.remove('hidden');
   };
 
   const previewAutoSchedule = () => {
-    const first    = document.getElementById('auto-first')?.value;
-    const last     = document.getElementById('auto-last')?.value;
-    const interval = parseInt(document.getElementById('auto-interval')?.value) || 60;
-    const duration = parseInt(document.getElementById('auto-duration')?.value) || 70;
-    const cap      = parseInt(document.getElementById('auto-capacity')?.value) || 45;
-    const ratio    = parseInt(document.getElementById('auto-online-ratio')?.value) || 70;
-    if (!first || !last) { Utils.toast('첫차와 막차 시간을 선택하세요', 'warning'); return; }
+    const first       = document.getElementById('auto-first')?.value;
+    const last        = document.getElementById('auto-last')?.value;
+    const duration    = parseInt(document.getElementById('auto-duration')?.value) || 45;
+    const maintenance = parseInt(document.getElementById('auto-maintenance')?.value) || 10;
+    const vCountInput = parseInt(document.getElementById('auto-vehicle-count')?.value) || 2;
+    const cap         = 38; // 항목2: 고정 38명
+    const ratio       = parseInt(document.getElementById('auto-online-ratio')?.value) || 70;
 
+    if (!first || !last) { Utils.toast('첫차와 막차 시간을 선택하세요', 'warning'); return; }
     const firstM = _toMinutes(first);
     const lastM  = _toMinutes(last);
     if (firstM >= lastM) { Utils.toast('첫차가 막차보다 이른 시간이어야 합니다.', 'error'); return; }
 
-    const vehicles = _getVehicles(_autoScheduleRegion);
-    const vCount   = Math.max(vehicles.length, 1);
-    const onl  = Math.round(cap * ratio / 100);
-    const off  = cap - onl;
+    // 배차간격 결정
+    let interval;
+    const minInterval = _calcMinInterval(duration, maintenance, vCountInput);
 
-    // 회차 목록 생성
+    if (_dispatchMode === 'auto') {
+      // 자동 최적: minInterval 자동 사용
+      interval = minInterval;
+      const hiddenEl = document.getElementById('auto-interval');
+      if (hiddenEl) hiddenEl.value = interval;
+      const displayEl = document.getElementById('auto-interval-display');
+      const resultEl  = document.getElementById('auto-optimal-result');
+      if (displayEl) displayEl.textContent = `${interval}분 (자동 계산: (${duration}+${maintenance})÷${vCountInput} → ${Math.ceil((duration+maintenance)/vCountInput)}분 → 5분 올림 → ${interval}분)`;
+      if (resultEl) { resultEl.textContent = `✅ 최소 가능 배차간격: ${interval}분 (회전시간 ${duration+maintenance}분 ÷ ${vCountInput}대)`; resultEl.classList.remove('hidden'); }
+    } else {
+      // 수동: 선택 값 사용, 불가능하면 경고
+      interval = parseInt(document.getElementById('auto-interval')?.value) || 30;
+      if (interval < minInterval) {
+        const warnEl  = document.getElementById('auto-conflict-warn');
+        const warnMsg = document.getElementById('auto-conflict-msg');
+        if (warnEl && warnMsg) {
+          warnMsg.textContent = `선택한 차량 수(${vCountInput}대), 운행 소요시간(${duration}분), 재정비시간(${maintenance}분) 기준으로 해당 배차간격(${interval}분)은 운영할 수 없습니다. 최소 가능 배차간격은 ${minInterval}분입니다.`;
+          warnEl.classList.remove('hidden');
+        }
+        document.getElementById('auto-preview-wrap')?.classList.add('hidden');
+        return;
+      }
+    }
+
+    const vehicles = _getVehicles(_autoScheduleRegion);
+    const vCount   = Math.max(vehicles.length, vCountInput);
+    // 온라인 27석(70%), 현장 11석 (38명 기준)
+    const onl = Math.ceil(cap * ratio / 100);
+    const off = cap - onl;
+
+    // 차량별 재정비 종료시간 추적 (충돌 검증)
+    const vehicleReadyAt = {}; // vName → 분 단위 가용 시간
     const rows = [];
     let conflicts = [];
     const existSchedules = (Settings.get('schedules') || {})[_autoScheduleRegion] || [];
     const existTimes = new Set(existSchedules.map(s => s.time));
 
     for (let m = firstM, seq = 0; m <= lastM; m += interval, seq++) {
-      const h = Math.floor(m/60), min = m%60;
-      const depTime = `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
-      const endTime = _addMinutes(depTime, duration);
-      const vIdx = seq % vCount;
-      const vName = vehicles[vIdx]?.name || `${vIdx+1}호차`;
+      const hh = Math.floor(m/60), mm = m%60;
+      const depTime  = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+      const endTime  = _addMinutes(depTime, duration);             // 운행 종료
+      const readyTime= _addMinutes(depTime, duration + maintenance); // 재정비 완료
 
-      // 차량 충돌 검증: 이전 회차 종료 전에 같은 차량이 다시 배정되는지
-      const prevSameVehicle = rows.filter(r => r.vName === vName).slice(-1)[0];
-      let conflictFlag = false;
-      if (prevSameVehicle) {
-        const prevEndM = _toMinutes(prevSameVehicle.endTime);
-        if (m < prevEndM) { conflictFlag = true; conflicts.push(`${depTime}: ${vName} 소요시간 충돌`); }
+      // 차량 배정: 가용 차량 중 가장 일찍 준비되는 차량 우선
+      let assignedV = null;
+      let minReady  = Infinity;
+      const vNames  = vehicles.length > 0
+        ? vehicles.map(v => v.name || `${vehicles.indexOf(v)+1}호차`)
+        : Array.from({length: vCountInput}, (_, i) => `${i+1}호차`);
+
+      for (const vn of vNames) {
+        const ready = vehicleReadyAt[vn] ?? 0;
+        if (ready <= m && ready < minReady) { minReady = ready; assignedV = vn; }
       }
-      // 기존 일정 중복 검증
-      const isDup = existTimes.has(depTime);
+      // 가용 차량 없으면 가장 일찍 가용되는 차량 배정 (충돌 표시)
+      let conflictFlag = false;
+      if (!assignedV) {
+        let earliest = Infinity, earliestV = vNames[seq % vNames.length];
+        for (const vn of vNames) { const r = vehicleReadyAt[vn] ?? 0; if (r < earliest) { earliest = r; earliestV = vn; } }
+        assignedV = earliestV;
+        conflictFlag = true;
+        conflicts.push(`${depTime}: 가용 차량 없음 (최소 대기 ${earliestV})`);
+      }
+      // 배정 후 해당 차량 가용시간 업데이트
+      vehicleReadyAt[assignedV] = _toMinutes(readyTime);
 
-      rows.push({ seq: seq+1, depTime, endTime, vName, onl, off, conflictFlag, isDup });
+      const isDup = existTimes.has(depTime);
+      rows.push({ seq: seq+1, depTime, endTime, readyTime, vName: assignedV, onl, off, conflictFlag, isDup });
     }
 
     // 미리보기 테이블 렌더
-    const wrap  = document.getElementById('auto-preview-wrap');
-    const tbody = document.getElementById('auto-preview-body');
-    const cntEl = document.getElementById('auto-preview-count');
+    const wrap    = document.getElementById('auto-preview-wrap');
+    const tbody   = document.getElementById('auto-preview-body');
+    const cntEl   = document.getElementById('auto-preview-count');
     const warnEl  = document.getElementById('auto-conflict-warn');
     const warnMsg = document.getElementById('auto-conflict-msg');
     if (!wrap || !tbody) return;
 
     tbody.innerHTML = rows.map(r => {
-      const rowClass = r.conflictFlag ? 'bg-red-50' : r.isDup ? 'bg-yellow-50' : '';
-      const statusTxt = r.conflictFlag ? '<span class="text-red-600 font-bold">⚠ 충돌</span>' : r.isDup ? '<span class="text-yellow-600">중복</span>' : '<span class="text-green-600">정상</span>';
+      const rowClass  = r.conflictFlag ? 'bg-red-50' : r.isDup ? 'bg-yellow-50' : '';
+      const statusTxt = r.conflictFlag
+        ? '<span class="text-red-600 font-bold">⚠ 충돌</span>'
+        : r.isDup
+          ? '<span class="text-yellow-600">중복</span>'
+          : '<span class="text-green-600">정상</span>';
       return `<tr class="${rowClass}">
         <td class="px-3 py-1.5 text-center font-medium">${r.seq}회차</td>
         <td class="px-3 py-1.5 text-center font-mono font-bold">${r.depTime}</td>
         <td class="px-3 py-1.5 text-center font-mono text-gray-500">${r.endTime}</td>
+        <td class="px-3 py-1.5 text-center font-mono text-blue-500">${r.readyTime}</td>
         <td class="px-3 py-1.5 text-center">${r.vName}</td>
         <td class="px-3 py-1.5 text-center">${r.onl}석</td>
         <td class="px-3 py-1.5 text-center">${r.off}석</td>
@@ -1774,7 +1933,6 @@ const AdminModule = (() => {
     } else {
       warnEl.classList.add('hidden');
     }
-    // 행 데이터 저장
     wrap.dataset.rows = JSON.stringify(rows);
   };
 
@@ -1788,13 +1946,14 @@ const AdminModule = (() => {
     const conflictRows = rows.filter(r => r.conflictFlag);
     if (conflictRows.length > 0 && !confirm(`차량 충돌이 ${conflictRows.length}건 있습니다. 그래도 생성하시겠습니까?`)) return;
 
-    const duration  = parseInt(document.getElementById('auto-duration')?.value) || 70;
-    const cap       = parseInt(document.getElementById('auto-capacity')?.value) || 45;
-    const ratio     = parseInt(document.getElementById('auto-online-ratio')?.value) || 70;
-    const startDate = document.getElementById('auto-start-date')?.value || '';
-    const endDate   = document.getElementById('auto-end-date')?.value || '';
-    const days      = [...document.querySelectorAll('input[name="auto-days"]:checked')].map(c => c.value);
-    const regionId  = _autoScheduleRegion;
+    const duration    = parseInt(document.getElementById('auto-duration')?.value) || 45;
+    const maintenance = parseInt(document.getElementById('auto-maintenance')?.value) || 10;
+    const cap         = 38; // 항목2: 고정 38명 (40석-운전자1-가이드1)
+    const ratio       = parseInt(document.getElementById('auto-online-ratio')?.value) || 70;
+    const startDate   = document.getElementById('auto-start-date')?.value || '';
+    const endDate     = document.getElementById('auto-end-date')?.value || '';
+    const days        = [...document.querySelectorAll('input[name="auto-days"]:checked')].map(c => c.value);
+    const regionId    = _autoScheduleRegion;
 
     let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
     if (!allSchedules[regionId]) allSchedules[regionId] = [];
@@ -1807,8 +1966,11 @@ const AdminModule = (() => {
         id: _makeScheduleId(regionId, r.depTime),
         time: r.depTime,
         duration,
+        maintenance,
         vehicle: r.vName,
-        capacity: cap,
+        capacity: cap,        // 38명 고정
+        totalSeats: 40,       // 차량 총 좌석
+        excludeSeats: 2,      // 운전자+가이드
         onlineRatio: ratio,
         onlineSeats: r.onl,
         offlineSeats: r.off,
@@ -1851,7 +2013,7 @@ const AdminModule = (() => {
     if (!start || !end) { Utils.toast('시작일과 종료일을 입력하세요', 'error'); return; }
     if (new Date(start) > new Date(end)) { Utils.toast('시작일이 종료일보다 늦을 수 없습니다', 'error'); return; }
 
-    const cap   = parseInt(document.getElementById('rec-capacity')?.value) || 45;
+    const cap   = parseInt(document.getElementById('rec-capacity')?.value) || 38;
     const ratio = parseInt(document.getElementById('rec-ratio')?.value) || 70;
     const days  = [...document.querySelectorAll('input[name="rec-days"]:checked')].map(c=>c.value);
 
@@ -2344,7 +2506,7 @@ const AdminModule = (() => {
       <div class="bg-white rounded-xl shadow-sm p-5">
         <div class="flex justify-between items-center mb-4">
           <h3 class="font-semibold text-gray-800">${r.name}</h3>
-          <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">기본 정원 45석</span>
+          <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">총 40석 / 제외 2석 / 가능 38명</span>
         </div>
         <div class="space-y-3">
           <div>
@@ -2359,11 +2521,11 @@ const AdminModule = (() => {
           </div>
           <div class="flex gap-2 text-sm">
             <div class="flex-1 bg-blue-50 rounded-lg p-3 text-center">
-              <div class="font-bold text-blue-600" id="${r.id}-online-seats">${Math.round(45*r.onlineRatio/100)}</div>
+              <div class="font-bold text-blue-600" id="${r.id}-online-seats">${Math.ceil(38*r.onlineRatio/100)}</div>
               <div class="text-xs text-gray-500">온라인</div>
             </div>
             <div class="flex-1 bg-green-50 rounded-lg p-3 text-center">
-              <div class="font-bold text-green-600" id="${r.id}-offline-seats">${45 - Math.round(45*r.onlineRatio/100)}</div>
+              <div class="font-bold text-green-600" id="${r.id}-offline-seats">${38 - Math.ceil(38*r.onlineRatio/100)}</div>
               <div class="text-xs text-gray-500">현장</div>
             </div>
           </div>
@@ -2413,13 +2575,13 @@ const AdminModule = (() => {
 
   const updateSeatRatio = (regionId, value) => {
     const ratio = parseInt(value);
-    const cap = 45;
+    const cap = 38; // 항목2: 40석 - 운전자1 - 가이드1 = 38명
     const onlEl = document.getElementById(`${regionId}-online-val`);
     const onlSeats = document.getElementById(`${regionId}-online-seats`);
     const offSeats = document.getElementById(`${regionId}-offline-seats`);
     if (onlEl) onlEl.textContent = `${ratio}%`;
-    if (onlSeats) onlSeats.textContent = Math.round(cap*ratio/100);
-    if (offSeats) offSeats.textContent = cap - Math.round(cap*ratio/100);
+    if (onlSeats) onlSeats.textContent = Math.ceil(cap*ratio/100);
+    if (offSeats) offSeats.textContent = cap - Math.ceil(cap*ratio/100);
   };
   const saveSeatRatio = (regionId) => {
     const slider = document.getElementById(`${regionId}-slider`);
@@ -2861,20 +3023,31 @@ const AdminModule = (() => {
     const popups = Settings.get('popups') || window.POPUPS || [];
     const notices = Settings.get('notices') || window.NOTICES || [];
 
-    const popupRows = popups.map((p, i) => `
+    // 노출수/클릭수 통계 로드
+    const popupStats = (() => { try { return JSON.parse(localStorage.getItem('amk_popup_stats')||'{}'); } catch(e) { return {}; } })();
+
+    const popupRows = popups.map((p, i) => {
+      const pid = p.id || (p.title + (p.startDate||''));
+      const stat = popupStats[pid] || { impressions: 0, clicks: 0 };
+      const regionLabel = p.region ? (p.region === 'buyeo' ? '부여' : p.region === 'tongyeong' ? '통영' : p.region === 'hapcheon' ? '합천' : p.region) : '전체';
+      return `
       <tr class="hover:bg-gray-50">
         <td class="px-4 py-3 text-sm font-medium">${p.title}</td>
-        <td class="px-4 py-3 text-sm text-center">${p.region || '전체'}</td>
+        <td class="px-4 py-3 text-sm text-center">${regionLabel}</td>
         <td class="px-4 py-3 text-sm text-center text-gray-500">${p.startDate||'-'} ~ ${p.endDate||'-'}</td>
         <td class="px-4 py-3 text-center">
           <span class="px-2 py-0.5 rounded-full text-xs ${p.isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${p.isActive?'노출중':'비노출'}</span>
+        </td>
+        <td class="px-4 py-3 text-center text-xs">
+          <span class="text-blue-600 font-medium">${stat.impressions}</span>회 /
+          <span class="text-green-600 font-medium">${stat.clicks}</span>클릭
         </td>
         <td class="px-4 py-3 text-center">
           <button onclick="AdminModule.editPopup(${i})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
           <button onclick="AdminModule.deletePopup(${i})" class="text-red-500 hover:underline text-xs">삭제</button>
         </td>
-      </tr>
-    `).join('') || '<tr><td colspan="5" class="text-center py-4 text-gray-500">팝업이 없습니다.</td></tr>';
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" class="text-center py-4 text-gray-500">팝업이 없습니다.</td></tr>';
 
     const noticeRows = notices.slice(0, 5).map((n, i) => `
       <tr class="hover:bg-gray-50">
@@ -2901,7 +3074,7 @@ const AdminModule = (() => {
             </button>
           </div>
           <table class="admin-table w-full">
-            <thead><tr class="bg-gray-50">${['제목','대상지역','노출기간','상태','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}</tr></thead>
+            <thead><tr class="bg-gray-50">${['제목','대상지역','노출기간','상태','노출/클릭','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}</tr></thead>
             <tbody class="divide-y divide-gray-100">${popupRows}</tbody>
           </table>
         </div>
@@ -2963,7 +3136,20 @@ const AdminModule = (() => {
   const savePopup = () => {
     const title = document.getElementById('pop-title')?.value; if(!title){Utils.toast('제목을 입력하세요','error');return;}
     let popups = JSON.parse(JSON.stringify(Settings.get('popups')||window.POPUPS||[]));
-    const pData = { title, content: document.getElementById('pop-content')?.value||'', region: document.getElementById('pop-region')?.value||'', type: document.getElementById('pop-type')?.value||'normal', startDate: document.getElementById('pop-start')?.value||'', endDate: document.getElementById('pop-end')?.value||'', isActive: document.getElementById('pop-active')?.checked||false };
+    const startDate = document.getElementById('pop-start')?.value||'';
+    // id: 수정 시 기존 id 유지, 신규 시 고유 id 생성
+    const existingId = (_editingPopupIdx !== null && popups[_editingPopupIdx]?.id) ? popups[_editingPopupIdx].id : null;
+    const pData = {
+      id: existingId || `popup-${Date.now()}`,
+      title,
+      content: document.getElementById('pop-content')?.value||'',
+      region: document.getElementById('pop-region')?.value||'',
+      type: document.getElementById('pop-type')?.value||'normal',
+      startDate,
+      endDate: document.getElementById('pop-end')?.value||'',
+      isActive: document.getElementById('pop-active')?.checked !== false,
+      allowHideToday: true,
+    };
     if(_editingPopupIdx!==null) popups[_editingPopupIdx]=pData; else popups.push(pData);
     Settings.set('popups', popups);
     document.getElementById('popup-modal').classList.add('hidden');
@@ -3978,6 +4164,7 @@ const AdminModule = (() => {
       'backup': () => backupPage(),
       'stats-admin': () => statsAdminPage(),
       'tourism': () => tourismManagePage(),
+      'reports': () => statsAdminPage(), // /admin/reports → statsAdminPage
     };
     return pageMap[section] ? pageMap[section]() : hqDashboard();
   };
@@ -3994,7 +4181,7 @@ const AdminModule = (() => {
     addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal,
     selectScheduleRegion, addSchedule, editSchedule, saveSchedule, toggleScheduleStatus,
     deleteSchedule, showRecurringModal, addRecTime, generateRecurring, updateSeatPreview,
-    showAutoScheduleModal, previewAutoSchedule, confirmAutoSchedule,
+    showAutoScheduleModal, previewAutoSchedule, confirmAutoSchedule, switchDispatchMode,
     switchRecMode, calcRecAutoTimes,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare,

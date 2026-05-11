@@ -294,6 +294,18 @@ app.get('/', (c) => {
   return c.html(buildPage(meta, { page: 'home' }))
 })
 
+// 예약 상세 페이지 (SPA 라우팅용 서버 라우트)
+app.get('/reservation/detail/:reservationNo', (c) => {
+  const reservationNo = c.req.param('reservationNo')
+  const meta = buildMeta({
+    title: `예약 상세 ${reservationNo} | 아쿠아모빌리티코리아`,
+    description: '예약 상세 내역을 확인하세요.',
+    noindex: true,
+    canonicalUrl: `${SEO_CONFIG.siteUrl}/reservation/detail/${reservationNo}`,
+  })
+  return c.html(buildPage(meta, { page: 'booking-check' }))
+})
+
 // 예약 확인/취소 페이지
 app.get('/reservation/check', (c) => {
   const meta = buildMeta({

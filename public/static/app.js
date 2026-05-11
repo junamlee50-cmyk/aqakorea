@@ -118,6 +118,12 @@
     Router.add('/admin/backup',       _adminGuard(AdminModule.backupPage));
     Router.add('/admin/stats-admin',  _adminGuard(AdminModule.statsAdminPage));
     Router.add('/admin/tourism',      _adminGuard(AdminModule.tourismManagePage));
+    Router.add('/admin/reports',      _adminGuard(AdminModule.statsAdminPage));  // 보고서 → statsAdminPage
+
+    // ── 예약 상세 (고객) ──────────────────────────────────
+    Router.add('/reservation/detail/:reservationNo', async (params) => {
+      return CustomerPages.bookingCheck ? CustomerPages.bookingCheck(params) : CustomerPages._404();
+    });
 
     // ── 404 ───────────────────────────────────────────────
     Router.add('*', CustomerPages._404);
