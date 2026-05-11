@@ -315,10 +315,12 @@ ${Footer.render()}
     })();
     let rawSchedules = savedSchedules || schRes.data || [];
 
-    // ★ 오늘 날짜 기준 운영/예약가능 상태 필터링 (고객화면: active만 표시)
+    // ★ 오늘 날짜 기준 운영/예약가능 상태 필터링
+    // status: 'active'(관리자 저장값) 또는 'available'(API 기본값) 모두 허용
     const today = new Date().toISOString().slice(0,10);
     rawSchedules = rawSchedules.filter(s => {
-      if (s.status !== 'active') return false;
+      const st = s.status || 'active';
+      if (st !== 'active' && st !== 'available') return false;
       if (s.startDate && s.startDate > today) return false;
       if (s.endDate && s.endDate < today) return false;
       return true;
@@ -328,29 +330,43 @@ ${Footer.render()}
     const schedules = rawSchedules.map((s, i) => {
       // 항목2: 38명 기준 (40석-운전자1-가이드1=38)
       const cap38 = s.capacity || 38;
-      const onl = s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil(cap38 * 0.7);  // 70% 올림 → 27석
-      const off = s.offlineSeats !== undefined ? s.offlineSeats : cap38 - Math.ceil(cap38 * 0.7); // 38-27=11석
-      const booked = Math.floor(Math.random() * Math.floor(onl * 0.6)); // 시뮬레이션
+      // API 응답에 online/offline 필드가 있으면 그대로 사용, 없으면 70/30 비율 계산
+      const onl = s.online !== undefined ? s.online : (s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil(cap38 * 0.7));
+      const off = s.offline !== undefined ? s.offline : (s.offlineSeats !== undefined ? s.offlineSeats : cap38 - Math.ceil(cap38 * 0.7));
+      // API 응답에 onlineBooked 필드가 있으면 그대로 사용, 없으면 시뮬레이션
+      const booked = s.onlineBooked !== undefined ? s.onlineBooked : Math.floor(Math.random() * Math.floor(onl * 0.6));
+      const isSoldout = s.status === 'soldout' || booked >= onl;
       return {
         id: s.id || `${regionId}-${(s.time||'').replace(':','')}`,
         time: s.time || '-',
-        endTime: s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-',
-        capacity: s.capacity || 38,  // 항목2: 38명 기준
+        endTime: s.endTime || (s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-'),
+        capacity: cap38,
         online: onl,
         offline: off,
         onlineBooked: booked,
-        status: booked >= onl ? 'soldout' : 'active',
+        status: isSoldout ? 'soldout' : 'active',
         course: s.course || `${region.name} 수륙양용 코스`,
         vehicle: s.vehicle || '',
         operatingDays: s.operatingDays || ['월','화','수','목','금','토','일'],
       };
     });
 
-    // ★ localStorage 저장 요금 우선 참조 (승인완료·active 상태만 고객화면 표시)
+    // ★ localStorage 저장 요금 우선 참조
+    // 우선순위: amk_settings.fares → amk_fares → region.fares (API 기본값)
     const savedFares = (() => {
       try {
-        const f = JSON.parse(localStorage.getItem('amk_fares') || '{}');
-        if (f[regionId] && f[regionId].length > 0) return f[regionId].filter(f => f.status === 'active');
+        // 1순위: amk_settings 내 fares 키 (관리자 설정 통합 저장소)
+        const settings = JSON.parse(localStorage.getItem('amk_settings') || '{}');
+        const fromSettings = (settings.fares || {})[regionId];
+        if (fromSettings && fromSettings.length > 0) {
+          const active = fromSettings.filter(f => f.status === 'active' || !f.status);
+          if (active.length > 0) return active;
+        }
+        // 2순위: amk_fares 별도 키 (구 버전 호환)
+        const fareStore = JSON.parse(localStorage.getItem('amk_fares') || '{}');
+        if (fareStore[regionId] && fareStore[regionId].length > 0) {
+          return fareStore[regionId].filter(f => f.status === 'active' || !f.status);
+        }
       } catch(e) {}
       return null;
     })();
@@ -378,12 +394,12 @@ ${Navbar.render('reservation')}
 </section>
 
 <!-- 예약 메인 -->
-<div class="max-w-6xl mx-auto px-4 py-8">
-  <div class="grid md:grid-cols-3 gap-8">
+<div class="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+  <div class="grid md:grid-cols-3 gap-4 sm:gap-8">
     <!-- 왼쪽: 예약 폼 -->
-    <div class="md:col-span-2 space-y-6">
+    <div class="md:col-span-2 space-y-4 sm:space-y-6 min-w-0">
       <!-- 날짜 선택 -->
-      <div class="bg-white rounded-2xl p-6 shadow-sm">
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm">
         <h2 class="font-bold text-navy-800 text-lg mb-4">📅 날짜 선택</h2>
         <div class="flex items-center gap-3 mb-4">
           <button onclick="CustomerPages.prevMonth()" class="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"><i class="fas fa-chevron-left text-sm"></i></button>
@@ -397,9 +413,9 @@ ${Navbar.render('reservation')}
       </div>
 
       <!-- 회차 선택 -->
-      <div class="bg-white rounded-2xl p-6 shadow-sm" id="schedule-section">
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="schedule-section">
         <h2 class="font-bold text-navy-800 text-lg mb-4">🕐 회차 선택</h2>
-        <div id="schedule-list" class="grid grid-cols-2 gap-3">
+        <div id="schedule-list" class="grid grid-cols-2 gap-2 sm:gap-3">
           ${schedules.map(s => `
           <div class="schedule-card ${s.status==='soldout'?'soldout':''}" data-schedule-id="${s.id}" onclick="CustomerPages.selectSchedule('${s.id}', this)">
             <div class="flex justify-between items-start mb-2">
@@ -416,7 +432,7 @@ ${Navbar.render('reservation')}
       </div>
 
       <!-- 인원/요금 선택 -->
-      <div class="bg-white rounded-2xl p-6 shadow-sm" id="fare-section">
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="fare-section">
         <h2 class="font-bold text-navy-800 text-lg mb-4">👥 인원 선택</h2>
         <div id="fare-list">
           ${region.fares?.map(f => `
@@ -438,7 +454,7 @@ ${Navbar.render('reservation')}
       </div>
 
       <!-- 탑승신고서 (전원 입력 방식) -->
-      <div class="bg-white rounded-2xl p-6 shadow-sm" id="form-section">
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="form-section">
         <div class="flex items-center justify-between mb-5">
           <h2 class="font-bold text-navy-800 text-lg">📋 온라인 탑승신고서</h2>
           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">탑승자 전원 입력</span>
@@ -578,9 +594,9 @@ ${Navbar.render('reservation')}
       </div>
     </div>
 
-    <!-- 오른쪽: 예약 요약 -->
-    <div class="space-y-4">
-      <div class="summary-box sticky top-20">
+    <!-- 오른쪽: 예약 요약 (모바일: 예약 폼 아래 표시, md+: 사이드바 sticky) -->
+    <div class="space-y-4 min-w-0">
+      <div class="summary-box md:sticky md:top-20">
         <div class="text-white/60 text-sm mb-2">${region.name}</div>
         <div class="text-white font-black text-xl mb-4" id="summary-region">${region.name} 수륙양용투어</div>
         <div class="space-y-2">
@@ -849,7 +865,45 @@ ${Footer.render()}
   initRegionPage: (region, schedules) => {
     CustomerPages._state.regionId = region.id;
     CustomerPages._state.fares = {};
-    CustomerPages._allSchedules = schedules; // 전체 회차 저장
+
+    // ★ 스케줄 저장: 페이지 초기화 시 Settings localStorage 재확인 (동적 변경 반영)
+    const regionId = region.id;
+    let finalSchedules = schedules;
+    try {
+      const s = JSON.parse(localStorage.getItem('amk_settings') || '{}');
+      const lsSchedules = (s.schedules || {})[regionId];
+      if (lsSchedules && lsSchedules.length > 0) {
+        // localStorage 데이터를 고객화면 형식으로 재변환
+        const today = new Date().toISOString().slice(0,10);
+        const active = lsSchedules.filter(s => {
+          const st = s.status || 'active';
+          if (st !== 'active' && st !== 'available') return false;
+          if (s.startDate && s.startDate > today) return false;
+          if (s.endDate && s.endDate < today) return false;
+          return true;
+        });
+        if (active.length > 0) {
+          finalSchedules = active.map(s => {
+            const cap = s.capacity || 38;
+            const onl = s.online !== undefined ? s.online : (s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil(cap * 0.7));
+            const off = s.offline !== undefined ? s.offline : cap - Math.ceil(cap * 0.7);
+            const booked = s.onlineBooked !== undefined ? s.onlineBooked : Math.floor(Math.random() * Math.floor(onl * 0.6));
+            return {
+              id: s.id || `${regionId}-${(s.time||'').replace(':','')}`,
+              time: s.time || '-',
+              endTime: s.endTime || (s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-'),
+              capacity: cap, online: onl, offline: off, onlineBooked: booked,
+              status: (s.status === 'soldout' || booked >= onl) ? 'soldout' : 'active',
+              course: s.course || `${region.name} 수륙양용 코스`,
+              vehicle: s.vehicle || '',
+              operatingDays: s.operatingDays || ['월','화','수','목','금','토','일'],
+            };
+          });
+        }
+      }
+    } catch(e) {}
+
+    CustomerPages._allSchedules = finalSchedules; // 전체 회차 저장
     region.fares?.forEach(f => { CustomerPages._state.fares[f.id] = { count: 0, price: f.price, label: f.label }; });
     CustomerPages.renderCalendar(new Date());
 
