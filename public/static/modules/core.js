@@ -446,12 +446,45 @@ const Footer = {
 // ── 팝업 표시기 ──────────────────────────────────────────────
 const PopupManager = {
   shown: new Set(),
+
+  // 날짜 범위 체크 헬퍼
+  _inDateRange(popup) {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    if (popup.showFrom && today < popup.showFrom) return false;
+    if (popup.showTo   && today > popup.showTo)   return false;
+    return true;
+  },
+
+  // PC/모바일 체크 헬퍼
+  _matchesDevice(popup) {
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile && popup.showOnMobile === false) return false;
+    if (!isMobile && popup.showOnPC === false)    return false;
+    return true;
+  },
+
+  // "다시 보지 않기" (localStorage 영구)
+  _isForeverHidden(id) {
+    const stored = JSON.parse(localStorage.getItem('amk_popups_forever')||'[]');
+    return stored.includes(id);
+  },
+
   async show(regionId='all') {
     const res = await API.get(`/api/popups?region=${regionId}`);
     if (!res.success || !res.data?.length) return;
-    const stored = JSON.parse(sessionStorage.getItem('amk_popups_hidden')||'[]');
-    const toShow = res.data.filter(p => !stored.includes(p.id));
+
+    // 세션 숨김 목록
+    const sessionHidden = JSON.parse(sessionStorage.getItem('amk_popups_hidden')||'[]');
+
+    const toShow = res.data.filter(p =>
+      p.active !== false &&
+      !sessionHidden.includes(p.id) &&
+      !PopupManager._isForeverHidden(p.id) &&
+      PopupManager._inDateRange(p) &&
+      PopupManager._matchesDevice(p)
+    );
     if (!toShow.length) return;
+
     const popup = toShow[0];
     const isUrgent = popup.type === 'suspension' || popup.urgent;
     const el = document.createElement('div');
@@ -461,8 +494,8 @@ const PopupManager = {
       <div class="popup-box ${isUrgent?'popup-urgent':''} max-w-sm w-full mx-4">
         <div class="popup-header p-4 ${isUrgent?'':'bg-gradient-to-r from-navy-800 to-ocean-700'}">
           <div class="flex items-center justify-between">
-            <span class="text-white font-bold text-sm ${isUrgent?'':'text-white'}">${isUrgent?'⚠️ 긴급공지':'📢 공지'}</span>
-            <button onclick="PopupManager.close('${popup.id}', false)" class="text-white/70 hover:text-white text-lg leading-none">&times;</button>
+            <span class="text-white font-bold text-sm">${isUrgent?'⚠️ 긴급공지':'📢 공지'}</span>
+            <button onclick="PopupManager.close('${popup.id}', false, false)" class="text-white/70 hover:text-white text-lg leading-none">&times;</button>
           </div>
         </div>
         <div class="p-5">
@@ -470,17 +503,34 @@ const PopupManager = {
           <p class="text-gray-600 text-sm leading-relaxed whitespace-pre-line">${popup.content}</p>
         </div>
         <div class="px-5 pb-4 flex items-center justify-between gap-3">
-          ${popup.allowHideToday ? `<button onclick="PopupManager.close('${popup.id}', true)" class="text-xs text-gray-400 hover:text-gray-600 underline">오늘 하루 보지 않기</button>` : '<span></span>'}
-          <button onclick="PopupManager.close('${popup.id}', false)" class="btn-primary text-sm px-4 py-2">확인</button>
+          <div class="flex flex-col gap-1">
+            ${popup.allowHideToday ? `
+            <button onclick="PopupManager.close('${popup.id}', true, false)"
+              class="text-xs text-gray-400 hover:text-gray-600 underline text-left">
+              오늘 하루 보지 않기
+            </button>` : ''}
+            <button onclick="PopupManager.close('${popup.id}', false, true)"
+              class="text-xs text-gray-300 hover:text-gray-500 underline text-left">
+              다시 보지 않기
+            </button>
+          </div>
+          <button onclick="PopupManager.close('${popup.id}', false, false)" class="btn-primary text-sm px-4 py-2">확인</button>
         </div>
       </div>`;
     document.body.appendChild(el);
   },
-  close(id, hideToday) {
+
+  close(id, hideToday, hideForever) {
     document.getElementById(`popup-${id}`)?.remove();
-    if (hideToday) {
+    if (hideForever) {
+      // localStorage 영구 숨김
+      const stored = JSON.parse(localStorage.getItem('amk_popups_forever')||'[]');
+      if (!stored.includes(id)) stored.push(id);
+      localStorage.setItem('amk_popups_forever', JSON.stringify(stored));
+    } else if (hideToday) {
+      // sessionStorage: 탭/브라우저 닫을 때까지
       const stored = JSON.parse(sessionStorage.getItem('amk_popups_hidden')||'[]');
-      stored.push(id);
+      if (!stored.includes(id)) stored.push(id);
       sessionStorage.setItem('amk_popups_hidden', JSON.stringify(stored));
     }
   },

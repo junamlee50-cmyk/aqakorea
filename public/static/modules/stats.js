@@ -1508,13 +1508,13 @@ const StatsModule = (() => {
             { icon:'fas fa-hand-paper', title:'안전 운행 보고서', desc:'운행 기록, 사고 현황, 안전 점검 내역', color:'red', fn:'safety' },
           ].map(r=>`
             <div class="border-2 border-gray-100 hover:border-${r.color}-300 rounded-xl p-5 cursor-pointer transition-all hover:shadow-md group"
-              onclick="StatsModule.generateReport('${r.fn}')">
+              onclick="StatsModule.generateReport('${r.fn}', this.querySelector('[data-gen-btn]'))" >
               <div class="w-12 h-12 bg-${r.color}-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-${r.color}-200 transition-colors">
                 <i class="${r.icon} text-${r.color}-600 text-lg"></i>
               </div>
               <h3 class="font-semibold text-gray-800 mb-1">${r.title}</h3>
               <p class="text-xs text-gray-500">${r.desc}</p>
-              <div class="mt-3 flex items-center gap-2 text-xs text-${r.color}-600 font-medium">
+              <div class="mt-3 flex items-center gap-2 text-xs text-${r.color}-600 font-medium" data-gen-btn>
                 <i class="fas fa-download"></i> 보고서 생성
               </div>
             </div>
@@ -1540,11 +1540,18 @@ const StatsModule = (() => {
                 <label class="flex items-center gap-1 cursor-pointer text-sm">
                   <input type="checkbox" checked class="rounded text-blue-600"> 전체
                 </label>
-                ${(window.REGIONS||[]).filter(r=>r.status==='active').map(r=>`
-                  <label class="flex items-center gap-1 cursor-pointer text-sm">
-                    <input type="checkbox" checked class="rounded text-blue-600"> ${r.shortName||r.name}
-                  </label>
-                `).join('')}
+                ${(() => {
+                  const u = Store.get('adminUser') || {};
+                  const allR = (window.REGIONS||[]).filter(r => r.status !== 'hidden');
+                  const visibleR = (u.role === 'regional' && u.regionId)
+                    ? allR.filter(r => r.id === u.regionId)
+                    : allR;
+                  return visibleR.map(r => `
+                    <label class="flex items-center gap-1 cursor-pointer text-sm">
+                      <input type="checkbox" checked class="rounded text-blue-600"> ${r.shortName||r.name}
+                    </label>
+                  `).join('');
+                })()}
               </div>
             </div>
           </div>
@@ -1574,7 +1581,7 @@ const StatsModule = (() => {
           </div>
         </div>
         <div class="mt-4 flex gap-3">
-          <button onclick="StatsModule.generateReport('custom')" class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
+          <button onclick="StatsModule.generateReport('custom', this)" class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
             <i class="fas fa-file-alt"></i> 보고서 생성
           </button>
           <button onclick="StatsModule.scheduleReport()" class="border border-gray-300 text-gray-700 px-6 py-2 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2">
@@ -1646,14 +1653,172 @@ const StatsModule = (() => {
     Utils.downloadCSV(data, `aqua_stats_${new Date().toISOString().slice(0,10)}.csv`);
   };
 
-  const generateReport = (type) => {
+  const generateReport = (type, btnEl) => {
     const labels = {
       monthly: '월간 운영보고서', quarterly: '분기별 실적보고서',
       settlement: '정산 확인서', passengers: '승객 현황보고서',
       seo: 'SEO 성과보고서', safety: '안전 운행 보고서', custom: '맞춤 보고서',
     };
-    Utils.toast(`${labels[type] || '보고서'} 생성 중...`, 'info');
-    setTimeout(() => Utils.toast('보고서가 준비되었습니다. 다운로드를 시작합니다.', 'success'), 1500);
+    const label = labels[type] || '보고서';
+
+    // 권한 체크
+    const user = Store.get('adminUser') || {};
+    const role = user.role || '';
+    const regionId = user.regionId || null;
+
+    // 지역별 관리자는 자기 지역 보고서만 생성 가능
+    if (role === 'regional' && type === 'settlement' && !regionId) {
+      Utils.toast('접근 권한이 없습니다.', 'error');
+      return;
+    }
+
+    // 버튼 비활성화 (중복 클릭 방지)
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = '생성 중...'; }
+    Utils.toast(`${label} 생성 중...`, 'info');
+
+    setTimeout(() => {
+      try {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const ts = now.toISOString().replace('T', ' ').slice(0, 19);
+        const filename = `aqua_${type}_report_${yyyy}_${mm}.csv`;
+
+        // 지역 데이터 결정 (지역 관리자는 자기 지역만)
+        const allRegions = (window.REGIONS || []).filter(r => r.status !== 'hidden');
+        const targetRegions = (role === 'regional' && regionId)
+          ? allRegions.filter(r => r.id === regionId)
+          : allRegions;
+        const regionNames = targetRegions.map(r => r.shortName || r.name).join(', ') || '전체';
+
+        // 보고서 종류별 CSV 데이터 생성
+        let rows = [];
+        const headerMeta = [
+          ['아쿠아모빌리티코리아 통합 운영 플랫폼'],
+          [`보고서 종류: ${label}`],
+          [`생성일시: ${ts}`],
+          [`대상 지역: ${regionNames}`],
+          [`생성자: ${user.name || '관리자'} (${role})`],
+          [],
+        ];
+
+        if (type === 'monthly' || type === 'custom') {
+          rows = [
+            ...headerMeta,
+            ['지역', '기간', '총 매출', '온라인 매출', '현장 매출', '탑승객(명)', '운행횟수', '평균요금'],
+            ...targetRegions.map(r => [
+              r.name, `${yyyy}-${mm}`,
+              r.id === 'buyeo' ? '24,750,000' : r.id === 'tongyeong' ? '31,200,000' : '18,900,000',
+              r.id === 'buyeo' ? '17,820,000' : r.id === 'tongyeong' ? '22,464,000' : '13,608,000',
+              r.id === 'buyeo' ? '6,930,000'  : r.id === 'tongyeong' ? '8,736,000'  : '5,292,000',
+              r.id === 'buyeo' ? '990'         : r.id === 'tongyeong' ? '1,248'       : '756',
+              r.id === 'buyeo' ? '124'         : r.id === 'tongyeong' ? '156'         : '94',
+              '25,000',
+            ]),
+            [],
+            ['※ 본 데이터는 샘플입니다. 실 운영 데이터는 정산 시스템을 통해 확인하세요.'],
+          ];
+        } else if (type === 'quarterly') {
+          rows = [
+            ...headerMeta,
+            ['분기', '지역', '매출', '탑승객', '전분기 대비'],
+            ['2026-Q1', '부여',   '72,400,000', '2,896', '+12.3%'],
+            ['2026-Q1', '통영',   '91,200,000', '3,648', '+8.7%'],
+            ['2026-Q1', '합천',   '55,800,000', '2,232', '+15.2%'],
+            [],
+            ['※ 샘플 데이터'],
+          ];
+        } else if (type === 'settlement') {
+          rows = [
+            ...headerMeta,
+            ['지역', '일자', '온라인 결제', '현장 결제', 'PG 수수료', '정산금액', '정산상태'],
+            ...targetRegions.flatMap(r => [
+              [r.name, `${yyyy}-${mm}-01`, '580,000', '120,000', '20,300', '679,700', '완료'],
+              [r.name, `${yyyy}-${mm}-02`, '620,000', '95,000',  '21,525', '693,475', '완료'],
+              [r.name, `${yyyy}-${mm}-03`, '750,000', '200,000', '28,750', '921,250', '처리중'],
+            ]),
+            [],
+            ['※ PG 수수료 3.5% 기준 샘플 데이터'],
+          ];
+        } else if (type === 'passengers') {
+          rows = [
+            ...headerMeta,
+            ['구분', '성인', '청소년', '소아', '경로', '장애인', '총계'],
+            ...targetRegions.map(r => [
+              r.name,
+              r.id === 'buyeo' ? '720' : '940',
+              r.id === 'buyeo' ? '115' : '150',
+              r.id === 'buyeo' ? '88'  : '110',
+              r.id === 'buyeo' ? '45'  : '30',
+              r.id === 'buyeo' ? '22'  : '18',
+              r.id === 'buyeo' ? '990' : '1,248',
+            ]),
+            [],
+            ['주요 방문 경로', '네이버', '카카오', '인스타', '블로그', '여행사'],
+            ['비율(%)',       '32',     '21',     '18',    '15',    '14'],
+          ];
+        } else if (type === 'seo') {
+          rows = [
+            ...headerMeta,
+            ['키워드', '검색순위', '월간 노출', '클릭수', 'CTR', '전환수'],
+            ['수륙양용버스 부여',   '3',  '12,400', '1,116', '9.0%', '89'],
+            ['부여 수륙양용투어',   '5',  '8,200',  '574',   '7.0%', '46'],
+            ['아쿠아모빌리티',      '1',  '5,600',  '616',   '11.0%','49'],
+            ['부여관광',           '12', '34,000', '1,020', '3.0%', '31'],
+            [],
+            ['※ 샘플 SEO 데이터'],
+          ];
+        } else if (type === 'safety') {
+          rows = [
+            ...headerMeta,
+            ['일자', '지역', '운행횟수', '탑승객', '사고건수', '안전점검', '비고'],
+            ...targetRegions.map(r => [
+              `${yyyy}-${mm}`, r.name,
+              r.id === 'buyeo' ? '124' : '94',
+              r.id === 'buyeo' ? '990' : '756',
+              '0', '완료', '정상 운행',
+            ]),
+            [],
+            ['안전 체크리스트', '구명조끼 점검', '선체 이상 없음', '운전원 음주 없음', '기상 확인'],
+            ['결과',           '양호',          '양호',           '정상',             '운항 가능'],
+          ];
+        } else {
+          rows = [
+            ...headerMeta,
+            ['항목', '내용'],
+            ['기간', `${yyyy}-${mm}`],
+            ['지역', regionNames],
+            ['상태', '정상'],
+          ];
+        }
+
+        // CSV 다운로드
+        Utils.downloadCSV(rows, filename);
+
+        // 다운로드 로그 저장 (sessionStorage)
+        const logs = JSON.parse(sessionStorage.getItem('amk_dl_logs') || '[]');
+        logs.unshift({
+          adminId: user.id || 'unknown',
+          adminName: user.name || '관리자',
+          role,
+          reportType: type,
+          reportLabel: label,
+          regions: regionNames,
+          period: `${yyyy}-${mm}`,
+          format: 'CSV',
+          datetime: ts,
+          success: true,
+        });
+        sessionStorage.setItem('amk_dl_logs', JSON.stringify(logs.slice(0, 50))); // 최대 50건
+
+        Utils.toast(`✅ ${label} 다운로드 완료!`, 'success');
+      } catch (err) {
+        console.error('Report generation error:', err);
+        Utils.toast('보고서 생성 중 오류가 발생했습니다.', 'error');
+      } finally {
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = '보고서 생성'; }
+      }
+    }, 800);
   };
 
   const scheduleReport = () => {

@@ -127,13 +127,14 @@ Sitemap: ${SEO_CONFIG.siteUrl}/sitemap.xml
 // ============================================================
 app.get('/sitemap.xml', (c) => {
   const today = new Date().toISOString().split('T')[0]
-  const activeRegions = REGIONS.filter(r => r.status === 'active' || r.status === 'preparing')
+  // hidden 지역 제외: open + preparing만 sitemap 포함
+  const activeRegions = REGIONS.filter(r => r.status === 'open' || r.status === 'preparing')
   const regionUrls = activeRegions.map(r => `
   <url>
     <loc>${SEO_CONFIG.siteUrl}/reservation/${r.id}</loc>
     <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
-    <priority>${r.status === 'active' ? '0.9' : '0.5'}</priority>
+    <priority>${r.status === 'open' ? '0.9' : '0.5'}</priority>
   </url>`).join('')
 
   const staticUrls = SITEMAP_PAGES.map(p => `
@@ -156,7 +157,12 @@ app.get('/sitemap.xml', (c) => {
 // ============================================================
 // API Routes
 // ============================================================
-app.get('/api/regions', (c) => c.json({ success: true, data: REGIONS }))
+// 고객 API: hidden 지역 제외
+app.get('/api/regions', (c) => {
+  const isAdmin = c.req.header('x-admin-token') === 'true'
+  const data = isAdmin ? REGIONS : REGIONS.filter(r => r.status !== 'hidden')
+  return c.json({ success: true, data })
+})
 app.get('/api/regions/:id', (c) => {
   const region = REGIONS.find(r => r.id === c.req.param('id'))
   if (!region) return c.json({ success: false, message: '지역을 찾을 수 없습니다' }, 404)

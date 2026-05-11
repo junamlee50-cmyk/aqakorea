@@ -10,7 +10,7 @@ const CustomerPages = {
       API.get('/api/regions'),
       API.get('/api/stats'),
     ]);
-    const regions = (regRes.data || []).filter(r => r.status === 'active');
+    const regions = (regRes.data || []).filter(r => r.status === 'open' || r.status === 'preparing');
     const today = Utils.today();
     setTimeout(() => { Navbar.init(); PopupManager.show('all'); }, 100);
     return `
@@ -26,7 +26,7 @@ ${Navbar.render('home')}
       <div class="slide-up">
         <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium mb-6 border border-white/20">
           <span class="w-2 h-2 bg-green-400 rounded-full pulse-anim"></span>
-          통영 · 부여 · 합천 정상 운행 중
+          부여 예약가능 · 통영/합천 준비중
         </div>
         <h1 class="text-4xl md:text-6xl font-black leading-tight mb-6">
           수륙양용버스로<br>
@@ -59,8 +59,8 @@ ${Navbar.render('home')}
             <img src="https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=600" alt="수륙양용버스 수상 진입" class="w-full h-full object-cover" loading="eager">
           </div>
           <div class="absolute -bottom-4 -left-8 bg-white rounded-2xl p-3 shadow-xl flex items-center gap-3 slide-up" style="animation-delay:0.3s">
-            <div class="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-xl">🌊</div>
-            <div><div class="font-bold text-navy-800 text-sm">오늘 잔여석</div><div class="text-green-600 font-bold">통영 8석 · 부여 7석</div></div>
+            <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl">🎫</div>
+            <div><div class="font-bold text-navy-800 text-sm">부여 예약 가능</div><div class="text-blue-600 font-bold">온라인 즉시 예약</div></div>
           </div>
           <div class="absolute -top-4 -right-4 bg-cyan-500 text-white rounded-2xl p-3 shadow-xl slide-up" style="animation-delay:0.5s">
             <div class="font-bold text-sm">QR 손목밴드</div>
@@ -80,15 +80,19 @@ ${Navbar.render('home')}
   </div>
   <div class="grid md:grid-cols-3 gap-6">
     ${regions.map(r => `
-    <div class="region-card" onclick="Router.go('/reservation/${r.id}')">
+    <div class="region-card ${r.status==='preparing'?'opacity-80':''}"
+      onclick="${r.status==='open'?`Router.go('/reservation/${r.id}')`:''}"
+      style="${r.status==='preparing'?'cursor:default':'cursor:pointer'}">
       <div class="relative overflow-hidden" style="height:200px">
         <img src="${r.image}" alt="${r.name} 수륙양용버스" class="w-full h-full object-cover transition-transform duration-500 hover:scale-110" loading="lazy">
         <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
         <div class="absolute bottom-3 left-3">
-          <span class="region-status status-active"><i class="fas fa-circle text-xs"></i> 예약 가능</span>
+          ${r.status==='open'
+            ? '<span class="region-status status-active"><i class="fas fa-circle text-xs"></i> 예약 가능</span>'
+            : '<span class="region-status status-preparing">🔧 준비중</span>'}
         </div>
         <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-xs font-bold text-navy-800">
-          성인 ${Utils.money(r.fares?.find(f=>f.type==='adult')?.price||0).replace('원','')}~
+          ${r.status==='open'?`성인 ${Utils.money(r.fares?.find(f=>f.type==='adult')?.price||0).replace('원','')}~`:'오픈 예정'}
         </div>
       </div>
       <div class="region-card-body">
@@ -96,7 +100,9 @@ ${Navbar.render('home')}
         <p class="text-gray-500 text-sm mb-4 leading-relaxed">${r.tagline}</p>
         <div class="flex items-center justify-between">
           <div class="text-xs text-gray-400"><i class="fas fa-map-marker-alt mr-1 text-cyan-500"></i>${r.location}</div>
-          <button class="btn-ocean text-sm px-4 py-2" style="border-radius:10px">예약하기 →</button>
+          ${r.status==='open'
+            ? '<button class="btn-ocean text-sm px-4 py-2" style="border-radius:10px">예약하기 →</button>'
+            : '<span class="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">🔔 오픈 알림 신청</span>'}
         </div>
       </div>
     </div>`).join('')}
@@ -146,25 +152,57 @@ ${Navbar.render('home')}
   </div>
 </section>
 
-<!-- 오늘의 운행 현황 -->
-<section class="bg-gray-50 py-12">
+<!-- 지금 예약 가능한 지역 + 서비스 안내 -->
+<section class="bg-gradient-to-br from-cyan-50 to-blue-50 py-14">
   <div class="max-w-6xl mx-auto px-4">
-    <h2 class="text-2xl font-black text-navy-800 mb-6">오늘(${today}) 운행 현황</h2>
-    <div class="grid md:grid-cols-3 gap-4">
-      ${regions.map(r => `
-      <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="font-bold text-navy-800">${r.shortName}</h3>
-          <span class="region-status status-active">정상운행</span>
+    <div class="text-center mb-10">
+      <h2 class="text-2xl font-black text-navy-800 mb-2">지금 바로 예약하세요</h2>
+      <p class="text-gray-500 text-sm">부여 수륙양용투어 온라인 예약 운영 중 · 통영/합천 오픈 예정</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6">
+      <!-- 부여 예약 -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border-2 border-cyan-400 relative overflow-hidden">
+        <div class="absolute top-3 right-3 bg-cyan-500 text-white text-xs font-bold px-2 py-1 rounded-full">예약 가능</div>
+        <div class="text-4xl mb-3">🌊</div>
+        <h3 class="font-black text-navy-800 text-lg mb-1">부여 수륙양용투어</h3>
+        <p class="text-gray-500 text-sm mb-4">백제의 수도 부여에서 펼쳐지는<br>수륙양용버스 체험 · 백마강 수상 진입 코스</p>
+        <div class="space-y-1.5 text-xs text-gray-500 mb-5">
+          <div><i class="fas fa-clock text-cyan-500 mr-1"></i> 09:30 / 11:30 / 13:30 / 15:30 (4회차)</div>
+          <div><i class="fas fa-map-marker-alt text-cyan-500 mr-1"></i> 충남 부여군 백마강 선착장</div>
+          <div><i class="fas fa-won-sign text-cyan-500 mr-1"></i> 성인 25,000원 ~ (소아/경로 할인)</div>
         </div>
-        <div class="space-y-2 text-sm">
-          <div class="flex justify-between text-gray-600"><span>09:30 회차</span><span class="text-green-600 font-bold">잔여 8석</span></div>
-          <div class="flex justify-between text-gray-600"><span>11:30 회차</span><span class="text-red-500 font-bold">예약 마감</span></div>
-          <div class="flex justify-between text-gray-600"><span>13:30 회차</span><span class="text-green-600 font-bold">잔여 12석</span></div>
-          <div class="flex justify-between text-gray-600"><span>15:30 회차</span><span class="text-green-600 font-bold">잔여 22석</span></div>
+        <button onclick="Router.go('/reservation/buyeo')" class="btn-ocean w-full text-sm py-2.5" style="border-radius:10px">
+          <i class="fas fa-ticket-alt mr-1"></i> 부여 예약하기
+        </button>
+      </div>
+      <!-- 단체예약 -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+        <div class="text-4xl mb-3">🚌</div>
+        <h3 class="font-black text-navy-800 text-lg mb-1">단체·학교·기업 예약</h3>
+        <p class="text-gray-500 text-sm mb-4">20인 이상 단체는 별도 문의 주세요<br>단체 할인 · 전용 서비스 · 맞춤 코스 제공</p>
+        <div class="space-y-1.5 text-xs text-gray-500 mb-5">
+          <div><i class="fas fa-users text-blue-500 mr-1"></i> 20인 이상 단체 특가</div>
+          <div><i class="fas fa-school text-blue-500 mr-1"></i> 학교 체험학습 전용 프로그램</div>
+          <div><i class="fas fa-building text-blue-500 mr-1"></i> 기업 워크숍 / 여행사 패키지</div>
         </div>
-        <button onclick="Router.go('/reservation/${r.id}')" class="btn-ocean w-full mt-4 text-sm py-2" style="border-radius:10px">예약하기</button>
-      </div>`).join('')}
+        <button onclick="Router.go('/inquiry')" class="w-full border-2 border-navy-800 text-navy-800 font-bold text-sm py-2.5 rounded-xl hover:bg-navy-800 hover:text-white transition-all">
+          <i class="fas fa-phone mr-1"></i> 단체예약 문의하기
+        </button>
+      </div>
+      <!-- QR 손목밴드 -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+        <div class="text-4xl mb-3">🎫</div>
+        <h3 class="font-black text-navy-800 text-lg mb-1">QR 손목밴드 시스템</h3>
+        <p class="text-gray-500 text-sm mb-4">현장 도착 후 QR 손목밴드 즉시 발급<br>탑승부터 탈출까지 스마트하게</p>
+        <div class="space-y-1.5 text-xs text-gray-500 mb-5">
+          <div><i class="fas fa-qrcode text-purple-500 mr-1"></i> 예약번호 QR로 현장 수령</div>
+          <div><i class="fas fa-tint text-purple-500 mr-1"></i> 방수 소재 손목밴드</div>
+          <div><i class="fas fa-bolt text-purple-500 mr-1"></i> 5초 탑승 완료 · 줄서기 없음</div>
+        </div>
+        <div class="bg-purple-50 rounded-xl px-4 py-2.5 text-xs text-purple-700 font-medium text-center">
+          <i class="fas fa-info-circle mr-1"></i> 온라인 예약 후 현장에서 수령
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -201,7 +239,7 @@ ${Footer.render()}
   // ── 예약 허브 ───────────────────────────────────────────────
   reservationHub: async () => {
     const res = await API.get('/api/regions');
-    const regions = res.data || [];
+    const regions = (res.data || []).filter(r => r.status !== 'hidden');
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render('reservation')}
@@ -213,27 +251,33 @@ ${Navbar.render('reservation')}
   <div class="max-w-5xl mx-auto px-4 py-10">
     <div class="grid md:grid-cols-3 gap-6 mb-10">
       ${regions.map(r => `
-      <div class="region-card ${r.status!=='active'?'opacity-75':''}" onclick="${r.status==='active'?`Router.go('/reservation/${r.id}')`:''}" style="${r.status!=='active'?'cursor:default':''}">
+      <div class="region-card ${r.status==='preparing'?'opacity-80':''}"
+        onclick="${r.status==='open'?`Router.go('/reservation/${r.id}')`:''}"
+        style="${r.status==='preparing'?'cursor:default':'cursor:pointer'}">
         <div class="relative overflow-hidden" style="height:180px">
           <img src="${r.image}" alt="${r.name} 수륙양용버스" class="w-full h-full object-cover" loading="lazy">
           <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           <div class="absolute bottom-3 left-3">
-            <span class="region-status ${r.status==='active'?'status-active':r.status==='preparing'?'status-preparing':'status-suspension'}">
-              ${r.status==='active'?'✅ 예약 가능':r.status==='preparing'?'🔧 준비중':'⚠️ 운휴'}
+            <span class="region-status ${r.status==='open'?'status-active':'status-preparing'}">
+              ${r.status==='open'?'✅ 예약 가능':'🔧 준비중'}
             </span>
           </div>
         </div>
         <div class="p-4">
           <h2 class="font-black text-navy-800 text-lg mb-1">${r.name}</h2>
           <p class="text-gray-500 text-sm mb-3">${r.tagline}</p>
-          ${r.status==='active' ? `
+          ${r.status==='open' ? `
           <div class="text-xs text-gray-400 mb-3"><i class="fas fa-map-marker-alt text-cyan-500 mr-1"></i>${r.boardingPlace}</div>
           <div class="flex items-center justify-between">
             <div class="text-sm"><span class="font-bold text-navy-800">성인 ${Utils.money(r.fares?.find(f=>f.type==='adult')?.price||0)}</span><span class="text-gray-400">~</span></div>
             <button class="btn-ocean text-sm px-4 py-2" style="border-radius:10px">예약 →</button>
           </div>` : `
-          <div class="text-center text-gray-400 py-2 text-sm">
-            ${r.status==='preparing'?'PG 계약 및 법인 등록 완료 후 오픈 예정':'운휴 중입니다'}
+          <div class="text-center py-3">
+            <p class="text-gray-400 text-sm mb-2">오픈 준비 중입니다</p>
+            <button onclick="event.stopPropagation();Utils.toast('오픈 시 알림을 보내드립니다 📢','info')"
+              class="text-xs text-blue-500 border border-blue-300 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-all">
+              🔔 오픈 알림 신청
+            </button>
           </div>`}
         </div>
       </div>`).join('')}
@@ -258,6 +302,7 @@ ${Footer.render()}
     if (!regRes.success) return CustomerPages._404();
     const region = regRes.data;
     const schedules = schRes.data || [];
+    if (region.status === 'hidden') return CustomerPages._404();
     if (region.status === 'preparing') return CustomerPages._preparingPage(region);
     setTimeout(() => { Navbar.init(); CustomerPages.initRegionPage(region, schedules); }, 100);
     return `
@@ -576,6 +621,122 @@ ${Navbar.render('reservation')}
   </div>
 </div>
 </div>
+
+${regionId === 'buyeo' ? `
+<!-- 부여 지역 콘텐츠 섹션 -->
+<div class="bg-gray-50 py-14">
+  <div class="max-w-6xl mx-auto px-4">
+    <div class="text-center mb-10">
+      <span class="inline-block bg-cyan-100 text-cyan-700 text-xs font-bold px-3 py-1 rounded-full mb-3">부여 여행 가이드</span>
+      <h2 class="text-2xl font-black text-navy-800 mb-2">수륙양용투어와 함께하는 부여 여행</h2>
+      <p class="text-gray-500 text-sm">백제 역사와 자연이 어우러진 부여의 숨은 보석을 만나보세요</p>
+    </div>
+
+    <!-- 4탭 콘텐츠 -->
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
+      <div class="tab-nav p-2" style="border-radius:0">
+        ${['주변관광지','맛집추천','카페·디저트','추천코스'].map((t,i)=>`
+        <button class="tab-item ${i===0?'active':''}" data-tab="buyeo-${t}" data-tab-group="buyeo-content">${t}</button>`).join('')}
+      </div>
+      <div class="p-6">
+        <!-- 주변관광지 -->
+        <div data-tab-content="buyeo-주변관광지" data-tab-content-group="buyeo-content">
+          <div class="grid md:grid-cols-2 gap-4">
+            ${[
+              {icon:'🏛️', name:'국립부여박물관', desc:'백제 유물 6만여 점 보유. 수륙양용 출발지에서 도보 15분', time:'09:00~18:00', tip:'무료입장'},
+              {icon:'🏯', name:'부소산성·낙화암', desc:'백제 최후의 성과 삼천 궁녀 전설의 낙화암', time:'상시개방', tip:'도보 30분'},
+              {icon:'🌿', name:'백제문화단지', desc:'백제 왕궁을 재현한 대규모 역사테마파크', time:'09:00~18:00', tip:'유료입장'},
+              {icon:'🌸', name:'궁남지', desc:'우리나라 최초의 인공연못. 7월 연꽃축제', time:'상시개방', tip:'무료'},
+              {icon:'⛩️', name:'정림사지 5층석탑', desc:'백제 시대 석탑. 국보 제9호', time:'상시', tip:'무료'},
+              {icon:'🌊', name:'백마강 황포돛배', desc:'수륙양용 코스와 연계되는 전통 황포돛배 체험', time:'10:00~17:00', tip:'유료'},
+            ].map(p=>`
+            <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
+              <div class="text-2xl flex-shrink-0">${p.icon}</div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-navy-800 text-sm">${p.name}</div>
+                <div class="text-xs text-gray-500 mt-0.5">${p.desc}</div>
+                <div class="flex gap-2 mt-1.5">
+                  <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">${p.time}</span>
+                  <span class="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">${p.tip}</span>
+                </div>
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>
+        <!-- 맛집추천 -->
+        <div data-tab-content="buyeo-맛집추천" data-tab-content-group="buyeo-content" class="hidden">
+          <div class="grid md:grid-cols-2 gap-4">
+            ${[
+              {icon:'🍖', name:'연잎밥 정식', place:'부여읍 구드래 일원', desc:'백제시대 전통 연잎밥. 부여 대표 향토음식', price:'12,000~15,000원', tip:'점심만 운영'},
+              {icon:'🐟', name:'백마강 민물매운탕', place:'백마강 선착장 인근', desc:'이어, 쏘가리 등 백마강 민물고기 매운탕', price:'20,000~35,000원', tip:'현지 강추'},
+              {icon:'🥩', name:'부여 한우 갈비', place:'부여시내 한우거리', desc:'충남 청양산 한우 갈비. 1인분부터 가능', price:'30,000~50,000원', tip:'예약 권장'},
+              {icon:'🍜', name:'칼국수 & 손두부', place:'정림사지 인근', desc:'손으로 만든 쫄깃한 칼국수와 순두부찌개', price:'8,000~10,000원', tip:'웨이팅 있음'},
+            ].map(p=>`
+            <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
+              <div class="text-2xl flex-shrink-0">${p.icon}</div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-navy-800 text-sm">${p.name}</div>
+                <div class="text-xs text-cyan-600 mb-0.5">${p.place}</div>
+                <div class="text-xs text-gray-500">${p.desc}</div>
+                <div class="flex gap-2 mt-1.5">
+                  <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">${p.price}</span>
+                  <span class="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded">${p.tip}</span>
+                </div>
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>
+        <!-- 카페·디저트 -->
+        <div data-tab-content="buyeo-카페·디저트" data-tab-content-group="buyeo-content" class="hidden">
+          <div class="grid md:grid-cols-2 gap-4">
+            ${[
+              {icon:'☕', name:'백마강 뷰 카페', place:'백마강 선착장 인근', desc:'수륙양용버스가 보이는 테라스 카페. 아메리카노 추천', price:'5,000~8,000원', tip:'포토스팟'},
+              {icon:'🍰', name:'백제 빵집', place:'부여읍 중심가', desc:'연꽃 모양 케이크와 백제 캐릭터 쿠키', price:'3,000~15,000원', tip:'선물용 인기'},
+              {icon:'🧋', name:'연꽃 라떼 전문점', place:'궁남지 인근', desc:'부여 특산 연꽃 추출물로 만든 시그니처 라떼', price:'6,000~8,000원', tip:'SNS 필수템'},
+              {icon:'🍦', name:'황포돛배 아이스크림', place:'구드래나루터', desc:'부여 쌀로 만든 수제 아이스크림', price:'3,000~5,000원', tip:'여름 필수'},
+            ].map(p=>`
+            <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
+              <div class="text-2xl flex-shrink-0">${p.icon}</div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-navy-800 text-sm">${p.name}</div>
+                <div class="text-xs text-cyan-600 mb-0.5">${p.place}</div>
+                <div class="text-xs text-gray-500">${p.desc}</div>
+                <div class="flex gap-2 mt-1.5">
+                  <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">${p.price}</span>
+                  <span class="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded">${p.tip}</span>
+                </div>
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>
+        <!-- 추천코스 -->
+        <div data-tab-content="buyeo-추천코스" data-tab-content-group="buyeo-content" class="hidden">
+          <div class="space-y-4">
+            ${[
+              {tag:'당일치기', title:'수륙양용 + 백제역사 코스', items:['09:30 수륙양용버스 탑승','11:00 국립부여박물관 관람','12:30 연잎밥 정식 점심','14:00 부소산성·낙화암 산책','16:00 궁남지 산책 후 귀가']},
+              {tag:'1박2일', title:'부여 완전정복 코스', items:['1일: 수륙양용 + 백제문화단지 + 한우 저녁','2일: 정림사지 + 부여장터 + 연꽃라떼 + 귀가']},
+              {tag:'가족여행', title:'어린이 역사 체험 코스', items:['수륙양용버스 탑승 (어린이 최고 인기)','백제문화단지 어린이 체험관','궁남지 자연학습 + 연꽃 관찰','부여 캐릭터 쿠키 만들기']},
+            ].map(c=>`
+            <div class="border border-gray-200 rounded-xl p-4">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="bg-cyan-500 text-white text-xs font-bold px-2 py-0.5 rounded">${c.tag}</span>
+                <span class="font-bold text-navy-800 text-sm">${c.title}</span>
+              </div>
+              <div class="space-y-1.5">
+                ${c.items.map((item,i)=>`
+                <div class="flex gap-2 text-sm text-gray-600">
+                  <span class="text-cyan-500 font-bold flex-shrink-0">${i+1}.</span>
+                  <span>${item}</span>
+                </div>`).join('')}
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>` : ''}
+
 ${Footer.render()}
 <button onclick="CustomerPages.goPayment('${regionId}')" class="sticky-book-btn md:hidden"><i class="fas fa-ticket-alt"></i> 결제하기 (<span id="mob-total">₩0</span>)</button>`;
   },
@@ -976,15 +1137,64 @@ ${Navbar.render()}
 
   _preparingPage: (region) => `
 ${Navbar.render('reservation')}
-<div style="padding-top:64px" class="min-h-screen flex items-center justify-center bg-gray-50">
-  <div class="text-center p-8">
-    <div class="text-6xl mb-4">🚧</div>
-    <h1 class="text-3xl font-black text-navy-800 mb-3">${region.name}</h1>
-    <p class="text-gray-500 mb-2 text-lg">준비 중입니다</p>
-    <p class="text-gray-400 text-sm mb-8">PG 계약 및 운영 준비 완료 후 오픈 예정입니다</p>
-    <button onclick="Router.go('/reservation')" class="btn-ocean px-8 py-3">다른 지역 예약하기</button>
+<div style="padding-top:64px" class="min-h-screen bg-gray-50">
+  <!-- 히어로 -->
+  <div class="relative h-56 overflow-hidden">
+    <img src="${region.heroImage||region.image}" alt="${region.name}" class="w-full h-full object-cover opacity-60">
+    <div class="absolute inset-0 bg-gradient-to-r from-navy-900/80 to-ocean-700/60"></div>
+    <div class="absolute inset-0 flex items-center justify-center text-center text-white">
+      <div>
+        <span class="inline-block bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full mb-3">🔧 준비중</span>
+        <h1 class="text-3xl font-black mb-1">${region.name}</h1>
+        <p class="text-white/70">${region.tagline}</p>
+      </div>
+    </div>
   </div>
-</div>`,
+
+  <div class="max-w-3xl mx-auto px-4 py-10">
+    <!-- 오픈 예정 안내 -->
+    <div class="bg-white rounded-2xl p-8 shadow-sm text-center mb-6">
+      <div class="text-5xl mb-4">🚧</div>
+      <h2 class="text-xl font-black text-navy-800 mb-2">${region.name} 오픈 준비 중</h2>
+      <p class="text-gray-500 text-sm leading-relaxed mb-6">
+        현재 PG 결제 계약 및 운영 법인 등록 절차가 진행 중입니다.<br>
+        오픈 즉시 온라인 예약 서비스를 제공해 드립니다.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <button onclick="Utils.toast('오픈 시 알림을 보내드립니다 📢 (기능 준비 중)','info')"
+          class="btn-ocean px-6 py-2.5">
+          🔔 오픈 알림 신청하기
+        </button>
+        <button onclick="Router.go('/inquiry')"
+          class="border-2 border-navy-800 text-navy-800 font-bold px-6 py-2.5 rounded-xl hover:bg-navy-800 hover:text-white transition-all">
+          📞 단체예약 문의하기
+        </button>
+      </div>
+    </div>
+
+    <!-- 코스/요금 미리보기 -->
+    ${region.fares?.length ? `
+    <div class="bg-white rounded-2xl p-6 shadow-sm mb-6">
+      <h3 class="font-bold text-navy-800 mb-4">💰 예상 요금 안내 <span class="text-xs text-gray-400 font-normal">(오픈 후 예약 적용)</span></h3>
+      <div class="space-y-2">
+        ${(region.fares||[]).map(f => `
+        <div class="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+          <span class="text-gray-700 text-sm">${f.label}</span>
+          <span class="font-bold text-navy-800">${Utils.money(f.price)}</span>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- 다른 지역 예약 -->
+    <div class="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-2xl p-5 text-center">
+      <p class="text-gray-600 text-sm mb-3">지금 예약 가능한 지역도 둘러보세요</p>
+      <button onclick="Router.go('/reservation')" class="btn-ocean px-6 py-2">
+        다른 지역 예약하기 →
+      </button>
+    </div>
+  </div>
+</div>
+${Footer.render()}`,
 };
 
 window.CustomerPages = CustomerPages;
