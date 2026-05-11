@@ -8,6 +8,15 @@ const app = new Hono()
 // Static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// Service Worker (PWA) - 404 방지용 최소 구현
+app.get('/sw.js', (c) => {
+  return c.text(
+    `// AMK Service Worker\nself.addEventListener('install',()=>self.skipWaiting());\nself.addEventListener('activate',(e)=>e.waitUntil(self.clients.claim()));\nself.addEventListener('fetch',(e)=>e.respondWith(fetch(e.request).catch(()=>new Response(''))));`,
+    200,
+    { 'Content-Type': 'application/javascript; charset=utf-8' }
+  )
+})
+
 // ============================================================
 // SEO 유틸리티
 // ============================================================

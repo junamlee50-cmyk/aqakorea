@@ -1577,12 +1577,52 @@ ${Footer.render()}`;
         try {
           const res = await API.get('/api/reservations');
           const list = res.data || [];
+          const apiStatusMap = {
+            confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
+            payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
+            payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
+            checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
+            cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
+            refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
+            noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
+          };
+          // API 원시 객체 → 표시용 normalized 객체 변환
+          const normalizeApiItem = (r) => {
+            const st = r.status || 'confirmed';
+            // passengers 배열에서 adultCnt/childCnt 추출
+            const passengers = r.passengers || [];
+            const adultCnt = passengers.find(p => p.type === 'adult')?.count ||
+                             r.adultCnt || r.adults || r.pax || 1;
+            const childCnt = passengers.filter(p => p.type !== 'adult')
+                             .reduce((s, p) => s + (p.count || 0), 0) ||
+                             r.childCnt || r.children || 0;
+            return {
+              id:            r.id || r.reservationId,
+              regionName:    r.regionName || r.region || '-',
+              boardingPlace: r.boardingPlace || '-',
+              date:          r.date || r.boardingDate || '-',
+              schedule:      r.time || r.schedule || r.scheduleTime || '-',
+              adultCnt,
+              childCnt,
+              totalPassengers: adultCnt + childCnt,
+              totalAmount:   r.total || r.totalAmount || r.amount || 0,
+              name:          r.name || r.booker || '-',
+              phone:         r.phone || '-',
+              status:        st,
+              statusBadge:   apiStatusMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+              cancelable:    ['confirmed','payment_done','payment_pending'].includes(st),
+              wristband:     ['confirmed','payment_done','checkedin'].includes(st),
+              qr:            ['confirmed','payment_done','checkedin'].includes(st),
+            };
+          };
           if (mode === 'primary') {
-            found = list.find(r => r.id === resId && phoneMatch(r.phone, phone));
+            // phoneMatch는 객체를 첫 번째 인자로 받음
+            const raw = list.find(r => (r.id === resId || r.reservationId === resId) && phoneMatch(r, phone));
+            if (raw) found = normalizeApiItem(raw);
           } else {
-              const apiMatched = list.filter(r => phoneMatch(r.phone, phone) && (altDate ? r.date === altDate : true));
-            if (apiMatched.length > 1) { CustomerPages._renderAltMultiResult(el, apiMatched, null); return; }
-            found = apiMatched[0] || null;
+            const apiMatched = list.filter(r => phoneMatch(r, phone) && (altDate ? (r.date === altDate || r.boardingDate === altDate) : true));
+            if (apiMatched.length > 1) { CustomerPages._renderAltMultiResult(el, apiMatched.map(normalizeApiItem), null); return; }
+            if (apiMatched[0]) found = normalizeApiItem(apiMatched[0]);
           }
         } catch (_) { /* fallback */ }
       }
@@ -1688,7 +1728,8 @@ ${Footer.render()}`;
             if (storedLast4 !== inputLast4) found = null;
           }
         } else {
-          const demoMatched = DEMO_RESERVATIONS.filter(r => phoneMatch(r.phone, phone) && (altDate ? r.date === altDate : true));
+          // phoneMatch는 객체를 첫 번째 인자로 받음
+          const demoMatched = DEMO_RESERVATIONS.filter(r => phoneMatch(r, phone) && (altDate ? r.date === altDate : true));
           if (demoMatched.length > 1) { CustomerPages._renderAltMultiResult(el, demoMatched, null); return; }
           found = demoMatched[0] || null;
         }
