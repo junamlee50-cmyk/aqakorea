@@ -248,6 +248,7 @@ ${Footer.render()}`;
           totalAmount:      cart.total,
           name:             cart.name,
           phone:            cart.phone,
+          normalized_phone: (cart.phone || '').replace(/[^0-9]/g, ''),
           email:            cart.email || '',
           source:           cart.source || '',
           status:           'confirmed',

@@ -1439,9 +1439,20 @@ ${Footer.render()}`;
         <span class="text-sm">예약 정보를 조회 중입니다...</span>
       </div>`;
 
-    const phoneMatch = (stored, input) => {
-      const s = (stored || '').replace(/[^0-9]/g, '');
-      return s === input || s.slice(-4) === input.slice(-4);
+    // 휴대폰 번호 매칭: normalized_phone 우선, phone fallback, 끝 4자리도 허용
+    const phoneMatch = (raw, input) => {
+      const normalized = (raw.normalized_phone || '').replace(/[^0-9]/g, '');
+      const plain      = (raw.phone           || '').replace(/[^0-9]/g, '');
+      const inp        = (input || '').replace(/[^0-9]/g, '');
+      if (!inp) return false;
+      // 정규화 번호 완전 일치 우선
+      if (normalized && normalized === inp) return true;
+      // phone 원본 숫자 완전 일치
+      if (plain && plain === inp) return true;
+      // 끝 4자리 일치 (보조)
+      const ref = normalized || plain;
+      if (ref && ref.length >= 4 && inp.length >= 4 && ref.slice(-4) === inp.slice(-4)) return true;
+      return false;
     };
 
     try {
@@ -1462,10 +1473,13 @@ ${Footer.render()}`;
           };
           let raw = null;
           if (mode === 'primary') {
-            // reservationId 또는 id 필드 모두 지원
-            raw = stored.find(r => (r.reservationId === resId || r.id === resId) && phoneMatch(r.phone, phone));
+            // reservationId 또는 id 필드 모두 지원 + normalized_phone 비교
+            raw = stored.find(r =>
+              (r.reservationId === resId || r.id === resId) &&
+              phoneMatch(r, phone)
+            );
           } else {
-            raw = stored.find(r => phoneMatch(r.phone, phone) && (r.date === altDate || r.boardingDate === altDate));
+            raw = stored.find(r => phoneMatch(r, phone) && (r.date === altDate || r.boardingDate === altDate));
           }
           if (raw) {
             const st = raw.status || 'confirmed';
@@ -1837,32 +1851,147 @@ ${Footer.render()}`;
   },
 
   // ── 공지사항 페이지 ─────────────────────────────────────────
-  notice: async () => {
-    const res = await API.get('/api/notices');
-    const notices = res.data || [];
-    setTimeout(() => Navbar.init(), 100);
+  // 공지 유형 → 한글 레이블/색상 (admin과 동일 체계)
+  _noticeTypeMeta: (t) => {
+    const MAP = {
+      general:   { label: '일반공지', cls: 'bg-gray-100 text-gray-600' },
+      operation: { label: '운행안내', cls: 'bg-blue-100 text-blue-700' },
+      fare:      { label: '요금변경', cls: 'bg-yellow-100 text-yellow-700' },
+      suspend:   { label: '운휴안내', cls: 'bg-orange-100 text-orange-700' },
+      event:     { label: '이벤트',   cls: 'bg-purple-100 text-purple-700' },
+      safety:    { label: '안전공지', cls: 'bg-cyan-100 text-cyan-700' },
+      urgent:    { label: '긴급공지', cls: 'bg-red-100 text-red-700' },
+      // 구형 호환
+      normal:    { label: '공지',     cls: 'bg-gray-100 text-gray-600' },
+    };
+    return MAP[t] || MAP.general;
+  },
+
+  notice: async (params) => {
+    // URL 쿼리에서 상세 보기 대상 ID 확인
+    const urlParams = new URLSearchParams(window.location.search);
+    const detailId  = (params && params.noticeId) || urlParams.get('id') || '';
+
+    // localStorage에서 공지 데이터 로드 (amk_notices)
+    const today = new Date().toISOString().slice(0, 10);
+    const allNotices = (() => {
+      try { return JSON.parse(localStorage.getItem('amk_notices') || '[]'); } catch(e) { return []; }
+    })();
+
+    // 고객 표시 기준 필터링:
+    // - visible !== false (숨김 아님)
+    // - startDate 이전이 아님
+    // - endDate 이후가 아님
+    const notices = allNotices
+      .filter(n => {
+        if (n.visible === false) return false;
+        if (n.startDate && today < n.startDate) return false;
+        if (n.endDate   && today > n.endDate)   return false;
+        return true;
+      })
+      // 상단고정 우선, 그 다음 최신순
+      .sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        return (b.createdAt || b.date || '').localeCompare(a.createdAt || a.date || '');
+      });
+
+    setTimeout(() => {
+      Navbar.init();
+      // URL에 상세 ID 있으면 바로 열기
+      if (detailId) {
+        const target = notices.find(n => n.id === detailId);
+        if (target) CustomerPages._openNoticeDetail(target);
+      }
+    }, 150);
+
+    const renderRow = (n) => {
+      const meta = CustomerPages._noticeTypeMeta(n.type);
+      const dateStr = (n.createdAt || n.date || '').slice(0, 10);
+      return `
+      <div class="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer"
+           onclick="CustomerPages._openNoticeDetail(${JSON.stringify(JSON.stringify(n))})">
+        <div class="flex items-start gap-3 px-6 py-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
+              ${n.important ? '<span class="inline-block bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">중요</span>' : ''}
+              ${n.pinned    ? '<span class="inline-block text-blue-500 text-xs">📌</span>' : ''}
+              <span class="inline-block text-xs font-medium px-2 py-0.5 rounded-full ${meta.cls}">${meta.label}</span>
+            </div>
+            <div class="font-semibold text-gray-800 text-sm leading-snug truncate">${n.title}</div>
+            ${n.content ? `<div class="text-xs text-gray-400 mt-0.5 truncate">${n.content.slice(0, 60)}${n.content.length > 60 ? '...' : ''}</div>` : ''}
+          </div>
+          <div class="shrink-0 text-xs text-gray-400 mt-0.5">${dateStr}</div>
+        </div>
+      </div>`;
+    };
+
     return `
 ${Navbar.render()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
-  <div class="max-w-4xl mx-auto px-4 py-12">
-    <h1 class="text-3xl font-black text-navy-800 mb-8">공지사항</h1>
+  <div class="max-w-4xl mx-auto px-4 py-10">
+    <div class="flex items-center gap-3 mb-8">
+      <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl">📢</div>
+      <h1 class="text-2xl font-black text-navy-800">공지사항</h1>
+    </div>
     <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-      ${notices.length ? notices.map(n => `
-      <div class="flex items-center gap-4 px-6 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 mb-1">
-            ${n.important?'<span class="badge badge-red">중요</span>':''}
-            ${n.pinned?'<span class="badge badge-blue">📌 상단고정</span>':''}
-            <span class="badge badge-gray">${n.type}</span>
-          </div>
-          <div class="font-medium text-navy-800">${n.title}</div>
-        </div>
-        <div class="text-xs text-gray-400">${n.date}</div>
-      </div>`).join('') : Utils.empty('공지사항이 없습니다')}
+      ${notices.length
+        ? notices.map(renderRow).join('')
+        : `<div class="text-center py-16 text-gray-400">
+            <div class="text-5xl mb-3">📭</div>
+            <div class="text-sm">등록된 공지사항이 없습니다</div>
+           </div>`}
     </div>
   </div>
 </div>
+
+<!-- 공지 상세 모달 -->
+<div id="notice-detail-modal" class="modal-overlay hidden" style="z-index:9000" onclick="if(event.target===this)CustomerPages._closeNoticeDetail()">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div id="nd-badges" class="flex flex-wrap gap-1.5"></div>
+      <button onclick="CustomerPages._closeNoticeDetail()" class="text-gray-400 hover:text-gray-600 text-lg ml-2 shrink-0">✕</button>
+    </div>
+    <h2 id="nd-title" class="text-lg font-black text-gray-800 mb-1"></h2>
+    <div id="nd-meta"  class="text-xs text-gray-400 mb-4"></div>
+    <hr class="mb-4">
+    <div id="nd-content" class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap"></div>
+  </div>
+</div>
+
 ${Footer.render()}`;
+  },
+
+  // 공지 상세 모달 열기
+  _openNoticeDetail: (noticeOrJson) => {
+    let n = noticeOrJson;
+    // onclick에서 JSON.stringify를 두 번 한 경우 대비
+    if (typeof n === 'string') { try { n = JSON.parse(n); } catch(e) { return; } }
+    const meta    = CustomerPages._noticeTypeMeta(n.type);
+    const dateStr = (n.createdAt || n.date || '').slice(0, 10);
+    const modal   = document.getElementById('notice-detail-modal');
+    if (!modal) return;
+    const badgesEl  = document.getElementById('nd-badges');
+    const titleEl   = document.getElementById('nd-title');
+    const metaEl    = document.getElementById('nd-meta');
+    const contentEl = document.getElementById('nd-content');
+    if (badgesEl) {
+      badgesEl.innerHTML = [
+        n.important ? '<span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">중요</span>' : '',
+        n.pinned    ? '<span class="text-blue-500 text-sm">📌</span>' : '',
+        `<span class="text-xs font-medium px-2 py-0.5 rounded-full ${meta.cls}">${meta.label}</span>`,
+      ].join('');
+    }
+    if (titleEl)   titleEl.textContent   = n.title   || '';
+    if (metaEl)    metaEl.textContent    = `작성일: ${dateStr}${n.author ? '  |  작성자: ' + n.author : ''}`;
+    if (contentEl) contentEl.textContent = n.content || '';
+    modal.classList.remove('hidden');
+  },
+
+  // 공지 상세 모달 닫기
+  _closeNoticeDetail: () => {
+    const modal = document.getElementById('notice-detail-modal');
+    if (modal) modal.classList.add('hidden');
   },
 
   // ── 404 ────────────────────────────────────────────────────

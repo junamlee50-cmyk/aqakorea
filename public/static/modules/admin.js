@@ -3027,10 +3027,38 @@ const AdminModule = (() => {
   };
 
   // ── 팝업/공지 관리 ─────────────────────────────────────────
+  // 공지사항 localStorage 키 (admin ↔ customer 공유)
+  const NOTICE_STORE_KEY = 'amk_notices';
+  const _getNotices = () => { try { return JSON.parse(localStorage.getItem(NOTICE_STORE_KEY) || '[]'); } catch(e) { return []; } };
+  const _setNotices = (list) => localStorage.setItem(NOTICE_STORE_KEY, JSON.stringify(list));
+
+  // 지역 ID → 한글 레이블 변환
+  const _regionLabel = (rid) => rid === 'buyeo' ? '부여' : rid === 'tongyeong' ? '통영' : rid === 'hapcheon' ? '합천' : rid ? rid : '전체';
+
+  // 공지 유형 → 한글 레이블/색상
+  const NOTICE_TYPE_MAP = {
+    general:    { label: '일반공지',   cls: 'bg-gray-100 text-gray-600' },
+    operation:  { label: '운행안내',   cls: 'bg-blue-100 text-blue-700' },
+    fare:       { label: '요금변경',   cls: 'bg-yellow-100 text-yellow-700' },
+    suspend:    { label: '운휴안내',   cls: 'bg-orange-100 text-orange-700' },
+    event:      { label: '이벤트',     cls: 'bg-purple-100 text-purple-700' },
+    safety:     { label: '안전공지',   cls: 'bg-cyan-100 text-cyan-700' },
+    urgent:     { label: '긴급공지',   cls: 'bg-red-100 text-red-700' },
+  };
+  const _noticeTypeLabel = (t) => (NOTICE_TYPE_MAP[t] || NOTICE_TYPE_MAP.general).label;
+  const _noticeTypeCls   = (t) => (NOTICE_TYPE_MAP[t] || NOTICE_TYPE_MAP.general).cls;
+
   const popupsPage = async () => {
     _adminState.currentSection = 'popups';
     const popups = Settings.get('popups') || window.POPUPS || [];
-    const notices = Settings.get('notices') || window.NOTICES || [];
+    const user   = _adminState.user || { role: 'super', regionId: null };
+    const isSuper = user.role === ROLES.SUPER;
+
+    // 공지 목록: 지역관리자는 자신의 지역만, 슈퍼는 전체
+    const allNotices = _getNotices();
+    const notices = isSuper
+      ? allNotices
+      : allNotices.filter(n => n.region === user.regionId);
 
     // 노출수/클릭수 통계 로드
     const popupStats = (() => { try { return JSON.parse(localStorage.getItem('amk_popup_stats')||'{}'); } catch(e) { return {}; } })();
@@ -3038,7 +3066,7 @@ const AdminModule = (() => {
     const popupRows = popups.map((p, i) => {
       const pid = p.id || (p.title + (p.startDate||''));
       const stat = popupStats[pid] || { impressions: 0, clicks: 0 };
-      const regionLabel = p.region ? (p.region === 'buyeo' ? '부여' : p.region === 'tongyeong' ? '통영' : p.region === 'hapcheon' ? '합천' : p.region) : '전체';
+      const regionLabel = _regionLabel(p.region);
       return `
       <tr class="hover:bg-gray-50">
         <td class="px-4 py-3 text-sm font-medium">${p.title}</td>
@@ -3058,19 +3086,42 @@ const AdminModule = (() => {
       </tr>`;
     }).join('') || '<tr><td colspan="6" class="text-center py-4 text-gray-500">팝업이 없습니다.</td></tr>';
 
-    const noticeRows = notices.slice(0, 5).map((n, i) => `
-      <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3">
-          <span class="px-1.5 py-0.5 rounded text-xs font-medium mr-2 ${n.type==='urgent'?'bg-red-100 text-red-700':n.type==='event'?'bg-purple-100 text-purple-700':'bg-gray-100 text-gray-600'}">${n.type==='urgent'?'긴급':n.type==='event'?'이벤트':'공지'}</span>
-          <span class="text-sm">${n.title}</span>
+    // 공지 목록 테이블 행 생성 (상세 컬럼 포함)
+    const noticeRows = notices.map((n, i) => {
+      // allNotices에서의 실제 인덱스 (수정/삭제 시 사용)
+      const realIdx = allNotices.indexOf(n);
+      const typeCls   = _noticeTypeCls(n.type);
+      const typeLabel = _noticeTypeLabel(n.type);
+      const regionLbl = _regionLabel(n.region);
+      const pinBadge  = n.pinned    ? '<span class="inline-block bg-blue-50 text-blue-600 text-xs px-1 py-0.5 rounded mr-1">📌</span>' : '';
+      const impBadge  = n.important ? '<span class="inline-block bg-red-50 text-red-600 text-xs px-1 py-0.5 rounded mr-1">중요</span>' : '';
+      const statusCls = n.visible === false ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700';
+      const statusLbl = n.visible === false ? '숨김' : '공개';
+      return `
+      <tr class="hover:bg-gray-50 ${n.visible===false?'opacity-60':''}">
+        <td class="px-4 py-3 text-sm">
+          ${pinBadge}${impBadge}
+          <span class="px-1.5 py-0.5 rounded text-xs font-medium ${typeCls} mr-1">${typeLabel}</span>
+          <span class="font-medium">${n.title}</span>
         </td>
-        <td class="px-4 py-3 text-sm text-center text-gray-500">${n.date||'-'}</td>
+        <td class="px-4 py-3 text-xs text-center text-gray-500">${regionLbl}</td>
+        <td class="px-4 py-3 text-xs text-center text-gray-500">${n.startDate||'-'} ~ ${n.endDate||'-'}</td>
         <td class="px-4 py-3 text-center">
-          <button onclick="AdminModule.editNotice(${i})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
-          <button onclick="AdminModule.deleteNotice(${i})" class="text-red-500 hover:underline text-xs">삭제</button>
+          <span class="px-2 py-0.5 rounded-full text-xs ${statusCls}">${statusLbl}</span>
         </td>
-      </tr>
-    `).join('') || '<tr><td colspan="3" class="text-center py-4 text-gray-500">공지가 없습니다.</td></tr>';
+        <td class="px-4 py-3 text-xs text-center text-gray-400">${n.createdAt ? n.createdAt.slice(0,10) : (n.date||'-')}</td>
+        <td class="px-4 py-3 text-center whitespace-nowrap">
+          <button onclick="AdminModule.editNotice(${realIdx})" class="text-blue-600 hover:underline text-xs mr-1">수정</button>
+          <button onclick="AdminModule.hideNotice(${realIdx})" class="text-amber-500 hover:underline text-xs mr-1">${n.visible===false?'공개':'숨김'}</button>
+          ${isSuper ? `<button onclick="AdminModule.deleteNotice(${realIdx})" class="text-red-500 hover:underline text-xs">삭제</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" class="text-center py-4 text-gray-500">공지가 없습니다.</td></tr>';
+
+    // 공지 추가 모달의 대상 지역 옵션 (슈퍼: 전체+지역 / 지역관리자: 자기 지역만)
+    const regionOptions = isSuper
+      ? `<option value="">전체</option>${(window.REGIONS||[]).filter(r=>r.status==='active').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}`
+      : `<option value="${user.regionId}" selected>${_regionLabel(user.regionId)}</option>`;
 
     const content = `
       <div class="space-y-6">
@@ -3088,7 +3139,7 @@ const AdminModule = (() => {
           </table>
         </div>
 
-        <!-- 공지 관리 -->
+        <!-- 공지사항 관리 -->
         <div class="bg-white rounded-xl shadow-sm p-6">
           <div class="flex justify-between items-center mb-4">
             <h2 class="font-semibold text-gray-800">공지사항 관리</h2>
@@ -3096,10 +3147,12 @@ const AdminModule = (() => {
               <i class="fas fa-plus"></i> 공지 추가
             </button>
           </div>
-          <table class="admin-table w-full">
-            <thead><tr class="bg-gray-50">${['제목','날짜','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}</tr></thead>
-            <tbody class="divide-y divide-gray-100">${noticeRows}</tbody>
-          </table>
+          <div class="overflow-x-auto">
+            <table class="admin-table w-full">
+              <thead><tr class="bg-gray-50">${['제목','대상지역','노출기간','공개상태','작성일','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}</tr></thead>
+              <tbody class="divide-y divide-gray-100">${noticeRows}</tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -3135,6 +3188,77 @@ const AdminModule = (() => {
           </div>
         </div>
       </div>
+
+      <!-- 공지사항 추가/수정 모달 -->
+      <div id="notice-modal" class="modal-overlay hidden" style="z-index:9999">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xl max-h-screen overflow-y-auto">
+          <h3 class="font-semibold text-gray-800 text-lg mb-4" id="notice-modal-title">공지 추가</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">제목 <span class="text-red-400">*</span></label>
+              <input id="ntc-title" type="text" placeholder="공지 제목을 입력하세요" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-700 mb-1">내용 <span class="text-red-400">*</span></label>
+              <textarea id="ntc-content" rows="5" placeholder="공지 내용을 입력하세요" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">대상 지역</label>
+                <select id="ntc-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" ${!isSuper ? 'disabled' : ''}>
+                  ${regionOptions}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">공지 유형</label>
+                <select id="ntc-type" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="general">일반공지</option>
+                  <option value="operation">운행안내</option>
+                  <option value="fare">요금변경</option>
+                  <option value="suspend">운휴안내</option>
+                  <option value="event">이벤트</option>
+                  <option value="safety">안전공지</option>
+                  <option value="urgent">긴급공지</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">노출 시작일</label>
+                <input id="ntc-startDate" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">노출 종료일</label>
+                <input id="ntc-endDate" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">작성자</label>
+                <input id="ntc-author" type="text" value="${user.name||''}" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-4 pt-1">
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" id="ntc-important" class="rounded text-red-500">
+                <span class="text-gray-700">중요 공지</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" id="ntc-pinned" class="rounded text-blue-500">
+                <span class="text-gray-700">상단 고정</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" id="ntc-visible" checked class="rounded text-green-500">
+                <span class="text-gray-700">공개</span>
+              </label>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-5">
+            <button onclick="AdminModule.saveNotice()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700">저장</button>
+            <button onclick="AdminModule.closeNoticeModal()" class="flex-1 border py-2.5 rounded-lg text-sm hover:bg-gray-50">취소</button>
+          </div>
+        </div>
+      </div>
     `;
     return renderAdminLayout('popups', content, '팝업/공지 관리');
   };
@@ -3166,9 +3290,129 @@ const AdminModule = (() => {
     popupsPage().then(html=>{document.getElementById('app').innerHTML=html;});
   };
   const deletePopup = (idx) => { Utils.confirm('팝업을 삭제하시겠습니까?',()=>{ let p=JSON.parse(JSON.stringify(Settings.get('popups')||window.POPUPS||[])); p.splice(idx,1); Settings.set('popups',p); Utils.toast('삭제되었습니다.','success'); popupsPage().then(html=>{document.getElementById('app').innerHTML=html;}); }); };
-  const addNotice = () => Utils.toast('공지사항 추가 모달 (구현 중)', 'info');
-  const editNotice = (idx) => Utils.toast(`공지사항 ${idx} 수정 모달 (구현 중)`, 'info');
-  const deleteNotice = (idx) => { Utils.confirm('공지사항을 삭제하시겠습니까?',()=>Utils.toast('삭제되었습니다.','success')); };
+
+  // ── 공지사항 CRUD ────────────────────────────────────────────
+  let _editingNoticeIdx = null;
+
+  const _openNoticeModal = (title, notice = null, idx = null) => {
+    _editingNoticeIdx = idx;
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const isSuper = user.role === ROLES.SUPER;
+    // 모달 제목
+    const titleEl = document.getElementById('notice-modal-title');
+    if (titleEl) titleEl.textContent = title;
+    // 필드 초기화/채우기
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    setVal('ntc-title',     notice?.title     || '');
+    setVal('ntc-content',   notice?.content   || '');
+    setVal('ntc-type',      notice?.type      || 'general');
+    setVal('ntc-startDate', notice?.startDate || '');
+    setVal('ntc-endDate',   notice?.endDate   || '');
+    setVal('ntc-author',    notice?.author    || user.name || '');
+    setChk('ntc-important', notice?.important ?? false);
+    setChk('ntc-pinned',    notice?.pinned    ?? false);
+    setChk('ntc-visible',   notice ? (notice.visible !== false) : true);
+    // 지역: 지역관리자는 자기 지역 고정
+    const regionEl = document.getElementById('ntc-region');
+    if (regionEl) {
+      if (!isSuper) {
+        regionEl.value = user.regionId || '';
+        regionEl.disabled = true;
+      } else {
+        regionEl.disabled = false;
+        regionEl.value = notice?.region || '';
+      }
+    }
+    document.getElementById('notice-modal').classList.remove('hidden');
+  };
+
+  const addNotice = () => _openNoticeModal('공지 추가', null, null);
+
+  const closeNoticeModal = () => document.getElementById('notice-modal').classList.add('hidden');
+
+  const saveNotice = () => {
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const isSuper = user.role === ROLES.SUPER;
+    const title   = (document.getElementById('ntc-title')?.value || '').trim();
+    const content = (document.getElementById('ntc-content')?.value || '').trim();
+    if (!title)   { Utils.toast('제목을 입력하세요', 'error'); return; }
+    if (!content) { Utils.toast('내용을 입력하세요', 'error'); return; }
+
+    // 지역관리자는 자기 지역만, 슈퍼는 선택값
+    const region = isSuper ? (document.getElementById('ntc-region')?.value || '') : (user.regionId || '');
+
+    const now = new Date().toISOString();
+    const notices = _getNotices();
+    if (_editingNoticeIdx !== null && notices[_editingNoticeIdx]) {
+      // 수정: 대상 지역은 원본 유지 (지역관리자), 슈퍼는 변경 가능
+      notices[_editingNoticeIdx] = {
+        ...notices[_editingNoticeIdx],
+        title,
+        content,
+        type:       document.getElementById('ntc-type')?.value || 'general',
+        region:     isSuper ? region : notices[_editingNoticeIdx].region,
+        startDate:  document.getElementById('ntc-startDate')?.value || '',
+        endDate:    document.getElementById('ntc-endDate')?.value   || '',
+        important:  document.getElementById('ntc-important')?.checked || false,
+        pinned:     document.getElementById('ntc-pinned')?.checked    || false,
+        visible:    document.getElementById('ntc-visible')?.checked !== false,
+        author:     document.getElementById('ntc-author')?.value || user.name || '',
+        updatedAt:  now,
+      };
+    } else {
+      // 신규 등록
+      const record = {
+        id:        `notice-${Date.now()}`,
+        title,
+        content,
+        type:      document.getElementById('ntc-type')?.value || 'general',
+        region,
+        startDate: document.getElementById('ntc-startDate')?.value || '',
+        endDate:   document.getElementById('ntc-endDate')?.value   || '',
+        important: document.getElementById('ntc-important')?.checked || false,
+        pinned:    document.getElementById('ntc-pinned')?.checked    || false,
+        visible:   document.getElementById('ntc-visible')?.checked !== false,
+        author:    document.getElementById('ntc-author')?.value || user.name || '',
+        createdAt: now,
+        updatedAt: now,
+      };
+      notices.unshift(record);
+    }
+    _setNotices(notices);
+    closeNoticeModal();
+    Utils.toast('공지사항이 저장되었습니다.', 'success');
+    popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  const editNotice = (idx) => {
+    const notices = _getNotices();
+    const n = notices[idx];
+    if (!n) { Utils.toast('공지를 찾을 수 없습니다.', 'error'); return; }
+    _openNoticeModal('공지 수정', n, idx);
+  };
+
+  const hideNotice = (idx) => {
+    const notices = _getNotices();
+    if (!notices[idx]) return;
+    const isHidden = notices[idx].visible === false;
+    notices[idx].visible = isHidden ? true : false;
+    _setNotices(notices);
+    Utils.toast(isHidden ? '공지가 공개되었습니다.' : '공지가 숨김 처리되었습니다.', 'success');
+    popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  const deleteNotice = (idx) => {
+    const user = _adminState.user || { role: 'super' };
+    if (user.role !== ROLES.SUPER) { Utils.toast('슈퍼관리자만 삭제할 수 있습니다.', 'error'); return; }
+    Utils.confirm('공지사항을 완전히 삭제하시겠습니까?', () => {
+      const notices = _getNotices();
+      notices.splice(idx, 1);
+      _setNotices(notices);
+      Utils.toast('삭제되었습니다.', 'success');
+      popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
+    });
+  };
 
   // ── 약관/환불정책 관리 ─────────────────────────────────────
   const termsPage = async () => {
@@ -4225,7 +4469,8 @@ const AdminModule = (() => {
     updateSeatRatio, saveSeatRatio,
     viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter,
     saveWristbandText,
-    addPopup, editPopup, savePopup, deletePopup, addNotice, editNotice, deleteNotice,
+    addPopup, editPopup, savePopup, deletePopup,
+    addNotice, editNotice, saveNotice, hideNotice, deleteNotice, closeNoticeModal,
     showTermsTab, saveTerms, previewTerms,
     selectSeoRegion, saveSeoSettings,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, saveNewRegion, _autoGenRegionCode,
