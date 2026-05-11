@@ -682,28 +682,28 @@ ${Navbar.render('reservation')}
         <h3 class="font-bold text-navy-800 mb-3">주변 관광지</h3>
         <div class="grid md:grid-cols-3 gap-3 text-sm text-gray-600" id="tourism-list-${regionId}">
           ${(() => {
-            // ★ localStorage amk_settings.tourism 기반 실시간 반영
+            // ★ localStorage amk_tourism_contents 기반 (관리자 관광정보관리와 동일 저장소)
             try {
-              const s = JSON.parse(localStorage.getItem('amk_settings') || '{}');
-              const tourismList = (s.tourism || []).filter(t => t.regionId === regionId && t.visible !== false);
-              if (tourismList.length > 0) {
-                return tourismList.map(t => `
+              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const list = allContents.filter(t =>
+                t.regionId === regionId &&
+                t.visible !== false &&
+                (t.type === 'attraction' || (!t.type && !['restaurant','cafe','course'].includes(t.type)))
+              );
+              if (list.length > 0) {
+                return list.map(t => `
                   <div class="bg-gray-50 rounded-xl p-3 flex items-start gap-2">
                     <i class="fas fa-landmark text-cyan-500 mt-0.5 flex-shrink-0"></i>
                     <div>
-                      <div class="font-medium text-navy-800 text-sm">${t.name || ''}</div>
-                      ${t.description ? `<div class="text-xs text-gray-500 mt-0.5">${t.description}</div>` : ''}
-                      ${t.tip ? `<div class="text-xs text-cyan-600 mt-1">${t.tip}</div>` : ''}
+                      <div class="font-medium text-navy-800 text-sm">${t.title || ''}</div>
+                      ${t.desc ? `<div class="text-xs text-gray-500 mt-0.5">${t.desc}</div>` : ''}
+                      ${t.address ? `<div class="text-xs text-cyan-600 mt-0.5">${t.address}</div>` : ''}
+                      ${t.hours ? `<div class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded inline-block mt-1">${t.hours}</div>` : ''}
                     </div>
                   </div>`).join('');
               }
             } catch(e) {}
-            // 기본 하드코딩 폴백
-            return regionId==='buyeo'
-              ? ['국립부여박물관','부소산성','낙화암','정림사지','백제문화단지','궁남지'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-landmark text-cyan-500"></i>${s}</div>`).join('')
-              : regionId==='tongyeong'
-              ? ['통영케이블카','한산도이순신공원','통영중앙시장','남망산조각공원','달아공원','미륵산'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-mountain text-cyan-500"></i>${s}</div>`).join('')
-              : ['해인사','팔만대장경','황매산','합천영상테마파크','황매산철쭉','합천호수공원'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-tree text-cyan-500"></i>${s}</div>`).join('');
+            return '<div class="col-span-3 text-center text-gray-400 py-6 text-sm">등록된 관광지 정보가 없습니다.</div>';
           })()}
         </div>
       </div>
@@ -734,98 +734,104 @@ ${regionId === 'buyeo' ? `
         <button class="tab-item ${i===0?'active':''}" data-tab="buyeo-${t}" data-tab-group="buyeo-content">${t}</button>`).join('')}
       </div>
       <div class="p-6">
-        <!-- 주변관광지 -->
+        <!-- 주변관광지 (관리자 관광정보관리 데이터 기반) -->
         <div data-tab-content="buyeo-주변관광지" data-tab-content-group="buyeo-content">
-          <div class="grid md:grid-cols-2 gap-4">
-            ${[
-              {icon:'🏛️', name:'국립부여박물관', desc:'백제 유물 6만여 점 보유. 수륙양용 출발지에서 도보 15분', time:'09:00~18:00', tip:'무료입장'},
-              {icon:'🏯', name:'부소산성·낙화암', desc:'백제 최후의 성과 삼천 궁녀 전설의 낙화암', time:'상시개방', tip:'도보 30분'},
-              {icon:'🌿', name:'백제문화단지', desc:'백제 왕궁을 재현한 대규모 역사테마파크', time:'09:00~18:00', tip:'유료입장'},
-              {icon:'🌸', name:'궁남지', desc:'우리나라 최초의 인공연못. 7월 연꽃축제', time:'상시개방', tip:'무료'},
-              {icon:'⛩️', name:'정림사지 5층석탑', desc:'백제 시대 석탑. 국보 제9호', time:'상시', tip:'무료'},
-              {icon:'🌊', name:'백마강 황포돛배', desc:'수륙양용 코스와 연계되는 전통 황포돛배 체험', time:'10:00~17:00', tip:'유료'},
-            ].map(p=>`
-            <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
-              <div class="text-2xl flex-shrink-0">${p.icon}</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-bold text-navy-800 text-sm">${p.name}</div>
-                <div class="text-xs text-gray-500 mt-0.5">${p.desc}</div>
-                <div class="flex gap-2 mt-1.5">
-                  <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">${p.time}</span>
-                  <span class="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">${p.tip}</span>
-                </div>
-              </div>
-            </div>`).join('')}
-          </div>
+          ${(() => {
+            try {
+              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'attraction');
+              if (list.length > 0) {
+                return `<div class="grid md:grid-cols-2 gap-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
+                  <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div class="text-2xl flex-shrink-0">🏛️</div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-bold text-navy-800 text-sm">${p.title||''}</div>
+                      ${p.desc?`<div class="text-xs text-gray-500 mt-0.5">${p.desc}</div>`:''}
+                      <div class="flex flex-wrap gap-1.5 mt-1.5">
+                        ${p.hours?`<span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">${p.hours}</span>`:''}
+                        ${p.address?`<span class="text-xs text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded">${p.address}</span>`:''}
+                        ${p.tags&&p.tags.length?p.tags.map(tag=>`<span class="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">${tag}</span>`).join(''):''}
+                      </div>
+                    </div>
+                  </div>`).join('')}</div>`;
+              }
+            } catch(e) {}
+            return '<div class="text-center text-gray-400 py-8 text-sm"><i class="fas fa-landmark text-3xl mb-2 block text-gray-300"></i>등록된 관광지 정보가 없습니다.<br><span class="text-xs">관리자 관광정보관리에서 등록해 주세요.</span></div>';
+          })()}
         </div>
-        <!-- 맛집추천 -->
+        <!-- 맛집추천 (관리자 관광정보관리 데이터 기반) -->
         <div data-tab-content="buyeo-맛집추천" data-tab-content-group="buyeo-content" class="hidden">
-          <div class="grid md:grid-cols-2 gap-4">
-            ${[
-              {icon:'🍖', name:'연잎밥 정식', place:'부여읍 구드래 일원', desc:'백제시대 전통 연잎밥. 부여 대표 향토음식', price:'12,000~15,000원', tip:'점심만 운영'},
-              {icon:'🐟', name:'백마강 민물매운탕', place:'백마강 선착장 인근', desc:'이어, 쏘가리 등 백마강 민물고기 매운탕', price:'20,000~35,000원', tip:'현지 강추'},
-              {icon:'🥩', name:'부여 한우 갈비', place:'부여시내 한우거리', desc:'충남 청양산 한우 갈비. 1인분부터 가능', price:'30,000~50,000원', tip:'예약 권장'},
-              {icon:'🍜', name:'칼국수 & 손두부', place:'정림사지 인근', desc:'손으로 만든 쫄깃한 칼국수와 순두부찌개', price:'8,000~10,000원', tip:'웨이팅 있음'},
-            ].map(p=>`
-            <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
-              <div class="text-2xl flex-shrink-0">${p.icon}</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-bold text-navy-800 text-sm">${p.name}</div>
-                <div class="text-xs text-cyan-600 mb-0.5">${p.place}</div>
-                <div class="text-xs text-gray-500">${p.desc}</div>
-                <div class="flex gap-2 mt-1.5">
-                  <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">${p.price}</span>
-                  <span class="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded">${p.tip}</span>
-                </div>
-              </div>
-            </div>`).join('')}
-          </div>
+          ${(() => {
+            try {
+              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'restaurant');
+              if (list.length > 0) {
+                return `<div class="grid md:grid-cols-2 gap-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
+                  <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div class="text-2xl flex-shrink-0">🍽️</div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-bold text-navy-800 text-sm">${p.title||''}</div>
+                      ${p.address?`<div class="text-xs text-cyan-600 mb-0.5">${p.address}</div>`:''}
+                      ${p.desc?`<div class="text-xs text-gray-500">${p.desc}</div>`:''}
+                      <div class="flex flex-wrap gap-1.5 mt-1.5">
+                        ${p.hours?`<span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">${p.hours}</span>`:''}
+                        ${p.phone?`<span class="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded">${p.phone}</span>`:''}
+                        ${p.tags&&p.tags.length?p.tags.map(tag=>`<span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">${tag}</span>`).join(''):''}
+                      </div>
+                    </div>
+                  </div>`).join('')}</div>`;
+              }
+            } catch(e) {}
+            return '<div class="text-center text-gray-400 py-8 text-sm"><i class="fas fa-utensils text-3xl mb-2 block text-gray-300"></i>등록된 맛집 정보가 없습니다.<br><span class="text-xs">관리자 관광정보관리에서 맛집을 등록해 주세요.</span></div>';
+          })()}
         </div>
-        <!-- 카페·디저트 -->
+        <!-- 카페·디저트 (관리자 관광정보관리 데이터 기반) -->
         <div data-tab-content="buyeo-카페·디저트" data-tab-content-group="buyeo-content" class="hidden">
-          <div class="grid md:grid-cols-2 gap-4">
-            ${[
-              {icon:'☕', name:'백마강 뷰 카페', place:'백마강 선착장 인근', desc:'수륙양용버스가 보이는 테라스 카페. 아메리카노 추천', price:'5,000~8,000원', tip:'포토스팟'},
-              {icon:'🍰', name:'백제 빵집', place:'부여읍 중심가', desc:'연꽃 모양 케이크와 백제 캐릭터 쿠키', price:'3,000~15,000원', tip:'선물용 인기'},
-              {icon:'🧋', name:'연꽃 라떼 전문점', place:'궁남지 인근', desc:'부여 특산 연꽃 추출물로 만든 시그니처 라떼', price:'6,000~8,000원', tip:'SNS 필수템'},
-              {icon:'🍦', name:'황포돛배 아이스크림', place:'구드래나루터', desc:'부여 쌀로 만든 수제 아이스크림', price:'3,000~5,000원', tip:'여름 필수'},
-            ].map(p=>`
-            <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
-              <div class="text-2xl flex-shrink-0">${p.icon}</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-bold text-navy-800 text-sm">${p.name}</div>
-                <div class="text-xs text-cyan-600 mb-0.5">${p.place}</div>
-                <div class="text-xs text-gray-500">${p.desc}</div>
-                <div class="flex gap-2 mt-1.5">
-                  <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">${p.price}</span>
-                  <span class="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded">${p.tip}</span>
-                </div>
-              </div>
-            </div>`).join('')}
-          </div>
+          ${(() => {
+            try {
+              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'cafe');
+              if (list.length > 0) {
+                return `<div class="grid md:grid-cols-2 gap-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
+                  <div class="flex gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div class="text-2xl flex-shrink-0">☕</div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-bold text-navy-800 text-sm">${p.title||''}</div>
+                      ${p.address?`<div class="text-xs text-cyan-600 mb-0.5">${p.address}</div>`:''}
+                      ${p.desc?`<div class="text-xs text-gray-500">${p.desc}</div>`:''}
+                      <div class="flex flex-wrap gap-1.5 mt-1.5">
+                        ${p.hours?`<span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">${p.hours}</span>`:''}
+                        ${p.phone?`<span class="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded">${p.phone}</span>`:''}
+                        ${p.tags&&p.tags.length?p.tags.map(tag=>`<span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">${tag}</span>`).join(''):''}
+                      </div>
+                    </div>
+                  </div>`).join('')}</div>`;
+              }
+            } catch(e) {}
+            return '<div class="text-center text-gray-400 py-8 text-sm"><i class="fas fa-coffee text-3xl mb-2 block text-gray-300"></i>등록된 카페·디저트 정보가 없습니다.<br><span class="text-xs">관리자 관광정보관리에서 카페를 등록해 주세요.</span></div>';
+          })()}
         </div>
-        <!-- 추천코스 -->
+        <!-- 추천코스 (관리자 관광정보관리 데이터 기반) -->
         <div data-tab-content="buyeo-추천코스" data-tab-content-group="buyeo-content" class="hidden">
-          <div class="space-y-4">
-            ${[
-              {tag:'당일치기', title:'수륙양용 + 백제역사 코스', items:['09:30 수륙양용버스 탑승','11:00 국립부여박물관 관람','12:30 연잎밥 정식 점심','14:00 부소산성·낙화암 산책','16:00 궁남지 산책 후 귀가']},
-              {tag:'1박2일', title:'부여 완전정복 코스', items:['1일: 수륙양용 + 백제문화단지 + 한우 저녁','2일: 정림사지 + 부여장터 + 연꽃라떼 + 귀가']},
-              {tag:'가족여행', title:'어린이 역사 체험 코스', items:['수륙양용버스 탑승 (어린이 최고 인기)','백제문화단지 어린이 체험관','궁남지 자연학습 + 연꽃 관찰','부여 캐릭터 쿠키 만들기']},
-            ].map(c=>`
-            <div class="border border-gray-200 rounded-xl p-4">
-              <div class="flex items-center gap-2 mb-3">
-                <span class="bg-cyan-500 text-white text-xs font-bold px-2 py-0.5 rounded">${c.tag}</span>
-                <span class="font-bold text-navy-800 text-sm">${c.title}</span>
-              </div>
-              <div class="space-y-1.5">
-                ${c.items.map((item,i)=>`
-                <div class="flex gap-2 text-sm text-gray-600">
-                  <span class="text-cyan-500 font-bold flex-shrink-0">${i+1}.</span>
-                  <span>${item}</span>
-                </div>`).join('')}
-              </div>
-            </div>`).join('')}
-          </div>
+          ${(() => {
+            try {
+              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'course');
+              if (list.length > 0) {
+                return `<div class="space-y-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
+                  <div class="border border-gray-200 rounded-xl p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                      <span class="bg-cyan-500 text-white text-xs font-bold px-2 py-0.5 rounded">추천코스</span>
+                      <span class="font-bold text-navy-800 text-sm">${p.title||''}</span>
+                    </div>
+                    ${p.desc?`<div class="text-sm text-gray-600 mb-2">${p.desc}</div>`:''}
+                    ${p.address?`<div class="text-xs text-cyan-600">${p.address}</div>`:''}
+                    ${p.tags&&p.tags.length?`<div class="flex flex-wrap gap-1 mt-2">${p.tags.map(tag=>`<span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">${tag}</span>`).join('')}</div>`:''}
+                  </div>`).join('')}</div>`;
+              }
+            } catch(e) {}
+            return '<div class="text-center text-gray-400 py-8 text-sm"><i class="fas fa-route text-3xl mb-2 block text-gray-300"></i>등록된 추천코스가 없습니다.<br><span class="text-xs">관리자 관광정보관리에서 코스를 등록해 주세요.</span></div>';
+          })()}
         </div>
       </div>
     </div>
@@ -838,10 +844,12 @@ ${Footer.render()}
 
   // ── 예약 전 공통 상태 ───────────────────────────────────────
   _state: { date: '', scheduleId: '', fares: {}, source: '', regionId: '' },
+  _allSchedules: [], // 날짜별 필터링을 위한 전체 회차 목록 저장
 
   initRegionPage: (region, schedules) => {
     CustomerPages._state.regionId = region.id;
     CustomerPages._state.fares = {};
+    CustomerPages._allSchedules = schedules; // 전체 회차 저장
     region.fares?.forEach(f => { CustomerPages._state.fares[f.id] = { count: 0, price: f.price, label: f.label }; });
     CustomerPages.renderCalendar(new Date());
 
@@ -893,9 +901,50 @@ ${Footer.render()}
     document.querySelectorAll('.cal-day.selected').forEach(e => e.classList.remove('selected'));
     el.classList.add('selected');
     CustomerPages._state.date = dateStr;
+    CustomerPages._state.scheduleId = ''; // 날짜 바뀌면 회차 선택 초기화
     const sumDate = document.getElementById('sum-date');
     if (sumDate) sumDate.textContent = Utils.dateKo(dateStr);
+    // ★ 날짜 선택 시 해당 요일에 운행하는 회차만 재렌더링
+    CustomerPages.renderSchedulesByDate(dateStr);
     CustomerPages.updateSummary();
+  },
+
+  // ★ 날짜 기준 요일 필터링 후 회차 목록 재렌더링
+  renderSchedulesByDate: (dateStr) => {
+    const listEl = document.getElementById('schedule-list');
+    if (!listEl) return;
+    const allSchedules = CustomerPages._allSchedules || [];
+    if (allSchedules.length === 0) {
+      listEl.innerHTML = '<div class="col-span-2 text-center text-gray-400 py-6 text-sm"><i class="fas fa-calendar-times text-2xl mb-2 block"></i>이 날짜에 운행하는 회차가 없습니다.</div>';
+      return;
+    }
+    const DAY_NAMES = ['일','월','화','수','목','금','토'];
+    const dayOfWeek = DAY_NAMES[new Date(dateStr + 'T00:00:00').getDay()];
+    const today = new Date().toISOString().slice(0, 10);
+    // operatingDays 포함 여부 + startDate/endDate 범위 체크
+    const filtered = allSchedules.filter(s => {
+      const days = s.operatingDays || ['일','월','화','수','목','금','토'];
+      if (!days.includes(dayOfWeek)) return false;
+      if (s.startDate && dateStr < s.startDate) return false;
+      if (s.endDate && dateStr > s.endDate) return false;
+      return true;
+    });
+    if (filtered.length === 0) {
+      listEl.innerHTML = '<div class="col-span-2 text-center text-gray-400 py-6 text-sm"><i class="fas fa-calendar-times text-2xl mb-2 block"></i>이 날짜(' + dayOfWeek + '요일)에 운행하는 회차가 없습니다.</div>';
+      return;
+    }
+    listEl.innerHTML = filtered.map(s => `
+      <div class="schedule-card ${s.status==='soldout'?'soldout':''}" data-schedule-id="${s.id}" onclick="CustomerPages.selectSchedule('${s.id}', this)">
+        <div class="flex justify-between items-start mb-2">
+          <span class="schedule-card-time">${s.time}</span>
+          <span class="text-xs ${s.status==='soldout'?'text-red-500 font-bold':'text-green-600 font-bold'}">
+            ${s.status==='soldout'?'매진':s.onlineBooked>=s.online?'온라인 마감':'잔여 '+(s.online-s.onlineBooked)+'석'}
+          </span>
+        </div>
+        <div class="text-xs text-gray-500">${(s.course||'').split('→')[0].trim()} 출발</div>
+        <div class="seat-bar mt-2"><div class="seat-bar-fill ${(s.onlineBooked/s.online)>0.8?'danger':(s.onlineBooked/s.online)>0.6?'warning':''}" style="width:${Math.min(100,Math.round(s.onlineBooked/s.online*100))}%"></div></div>
+        <div class="text-xs text-gray-400 mt-1">온라인 예약 ${s.online-s.onlineBooked}/${s.online}석</div>
+      </div>`).join('');
   },
 
   selectSchedule: (id, el) => {

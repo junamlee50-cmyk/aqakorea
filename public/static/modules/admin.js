@@ -3852,8 +3852,9 @@ const AdminModule = (() => {
     { id:'event',      label:'이벤트',   icon:'fas fa-calendar-star',color:'pink'  },
     { id:'etc',        label:'기타',     icon:'fas fa-ellipsis-h',  color:'gray'   },
   ];
-  const _getTourismContents = () => JSON.parse(sessionStorage.getItem(TOURISM_STORE_KEY) || '[]');
-  const _setTourismContents = (list) => sessionStorage.setItem(TOURISM_STORE_KEY, JSON.stringify(list));
+  // ★ localStorage 사용 → 고객 페이지와 데이터 공유 가능 (sessionStorage는 탭/새로고침 시 소멸)
+  const _getTourismContents = () => JSON.parse(localStorage.getItem(TOURISM_STORE_KEY) || '[]');
+  const _setTourismContents = (list) => localStorage.setItem(TOURISM_STORE_KEY, JSON.stringify(list));
 
   // 관광정보 관리 페이지
   const tourismManagePage = async () => {
