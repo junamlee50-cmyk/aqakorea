@@ -161,21 +161,27 @@ export const REGIONS = [
 
 export const SCHEDULES = {
   tongyeong: [
-    { id: 'sch-t1', time: '09:30', endTime: '11:00', capacity: 40, online: 32, offline: 8, onlineBooked: 24, offlineBooked: 5, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-t2', time: '11:30', endTime: '13:00', capacity: 40, online: 32, offline: 8, onlineBooked: 32, offlineBooked: 8, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-t3', time: '13:30', endTime: '15:00', capacity: 40, online: 32, offline: 8, onlineBooked: 15, offlineBooked: 3, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-t4', time: '15:30', endTime: '17:00', capacity: 40, online: 32, offline: 8, onlineBooked: 8, offlineBooked: 2, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-t1', time: '09:00', endTime: '10:30', capacity: 40, online: 32, offline: 8, onlineBooked: 10, offlineBooked: 3, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-t2', time: '10:30', endTime: '12:00', capacity: 40, online: 32, offline: 8, onlineBooked: 24, offlineBooked: 5, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-t3', time: '12:00', endTime: '13:30', capacity: 40, online: 32, offline: 8, onlineBooked: 32, offlineBooked: 8, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-t4', time: '13:30', endTime: '15:00', capacity: 40, online: 32, offline: 8, onlineBooked: 15, offlineBooked: 3, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-t5', time: '15:00', endTime: '16:30', capacity: 40, online: 32, offline: 8, onlineBooked: 8, offlineBooked: 2, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-t6', time: '16:30', endTime: '18:00', capacity: 40, online: 32, offline: 8, onlineBooked: 5, offlineBooked: 1, status: 'active', course: '도남항 출발 → 한려수도 수상구간 → 미륵산 전망 → 도남항 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
   ],
   buyeo: [
-    { id: 'sch-b1', time: '09:30', endTime: '11:00', capacity: 39, online: 27, offline: 12, onlineBooked: 20, offlineBooked: 8, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-b2', time: '11:30', endTime: '13:00', capacity: 39, online: 27, offline: 12, onlineBooked: 27, offlineBooked: 10, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-b3', time: '13:30', endTime: '15:00', capacity: 39, online: 27, offline: 12, onlineBooked: 18, offlineBooked: 5, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-b4', time: '15:30', endTime: '17:00', capacity: 39, online: 27, offline: 12, onlineBooked: 5, offlineBooked: 2, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-b1', time: '09:00', endTime: '10:30', capacity: 39, online: 27, offline: 12, onlineBooked: 8,  offlineBooked: 3, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-b2', time: '10:30', endTime: '12:00', capacity: 39, online: 27, offline: 12, onlineBooked: 20, offlineBooked: 8, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-b3', time: '12:00', endTime: '13:30', capacity: 39, online: 27, offline: 12, onlineBooked: 27, offlineBooked: 10, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-b4', time: '13:30', endTime: '15:00', capacity: 39, online: 27, offline: 12, onlineBooked: 18, offlineBooked: 5, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-b5', time: '15:00', endTime: '16:30', capacity: 39, online: 27, offline: 12, onlineBooked: 5,  offlineBooked: 2, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-b6', time: '16:30', endTime: '18:00', capacity: 39, online: 27, offline: 12, onlineBooked: 3,  offlineBooked: 1, status: 'active', course: '구드래 나루 출발 → 백마강 수상구간 → 낙화암 전망 → 구드래 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
   ],
   hapcheon: [
-    { id: 'sch-h1', time: '10:00', endTime: '11:30', capacity: 35, online: 21, offline: 14, onlineBooked: 15, offlineBooked: 8, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-h2', time: '13:00', endTime: '14:30', capacity: 35, online: 21, offline: 14, onlineBooked: 21, offlineBooked: 12, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
-    { id: 'sch-h3', time: '15:00', endTime: '16:30', capacity: 35, online: 21, offline: 14, onlineBooked: 10, offlineBooked: 4, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-h1', time: '09:30', endTime: '11:00', capacity: 35, online: 21, offline: 14, onlineBooked: 8,  offlineBooked: 4, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-h2', time: '11:00', endTime: '12:30', capacity: 35, online: 21, offline: 14, onlineBooked: 15, offlineBooked: 8, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-h3', time: '13:00', endTime: '14:30', capacity: 35, online: 21, offline: 14, onlineBooked: 21, offlineBooked: 12, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-h4', time: '14:30', endTime: '16:00', capacity: 35, online: 21, offline: 14, onlineBooked: 10, offlineBooked: 4, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
+    { id: 'sch-h5', time: '16:00', endTime: '17:30', capacity: 35, online: 21, offline: 14, onlineBooked: 4,  offlineBooked: 2, status: 'active', course: '합천호 선착장 출발 → 합천호 수상구간 → 황매산 전망 → 선착장 귀환', operatingDays: ['월','화','수','목','금','토','일'] },
   ],
 };
 

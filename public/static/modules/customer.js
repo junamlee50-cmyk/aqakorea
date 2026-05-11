@@ -304,16 +304,24 @@ ${Footer.render()}
     if (region.status === 'hidden') return CustomerPages._404();
     if (region.status === 'preparing') return CustomerPages._preparingPage(region);
 
-    // ★ localStorage 저장 스케줄 우선 참조 (관리자 자동 생성 반영)
-    const savedSchedules = (() => {
+    // ★ 스케줄 병합 로직: API 데이터를 기본값으로 사용하고, localStorage에 관리자가
+    //   수정/추가한 회차가 있으면 해당 회차를 덮어쓰는 방식으로 병합
+    //   (기기별 localStorage 분리로 인해 앱/모바일에서도 API 기본 회차가 표시되도록 보장)
+    const apiSchedules = schRes.data || [];
+    const lsMerged = (() => {
       try {
         const s = JSON.parse(localStorage.getItem('amk_settings') || '{}');
-        const saved = (s.schedules || {})[regionId];
-        if (saved && saved.length > 0) return saved;
+        const lsSch = (s.schedules || {})[regionId];
+        if (!lsSch || lsSch.length === 0) return apiSchedules;
+        // localStorage 회차를 기준으로 API 회차와 병합
+        // localStorage에 없는 API 회차는 그대로 포함 (시간 기준 중복 제거)
+        const lsTimes = new Set(lsSch.map(s => s.time));
+        const apiOnly = apiSchedules.filter(s => !lsTimes.has(s.time));
+        return [...lsSch, ...apiOnly].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       } catch(e) {}
-      return null;
+      return apiSchedules;
     })();
-    let rawSchedules = savedSchedules || schRes.data || [];
+    let rawSchedules = lsMerged;
 
     // ★ 오늘 날짜 기준 운영/예약가능 상태 필터링
     // status: 'active'(관리자 저장값) 또는 'available'(API 기본값) 모두 허용
@@ -325,6 +333,7 @@ ${Footer.render()}
       if (s.endDate && s.endDate < today) return false;
       return true;
     });
+    console.log(`[AMK DEBUG] regionPage schedules 로드: region=${regionId}, API=${apiSchedules.length}개, 병합후=${rawSchedules.length}개, 시간=[${rawSchedules.map(s=>s.time).join(',')}]`);
 
     // ★ 스케줄 객체를 고객화면 형식으로 변환
     const schedules = rawSchedules.map((s, i) => {
@@ -866,44 +875,11 @@ ${Footer.render()}
     CustomerPages._state.regionId = region.id;
     CustomerPages._state.fares = {};
 
-    // ★ 스케줄 저장: 페이지 초기화 시 Settings localStorage 재확인 (동적 변경 반영)
+    // ★ 페이지 초기화 시 전달받은 schedules를 그대로 사용
+    //   (regionPage()에서 이미 API+localStorage 병합 완료된 상태)
     const regionId = region.id;
-    let finalSchedules = schedules;
-    try {
-      const s = JSON.parse(localStorage.getItem('amk_settings') || '{}');
-      const lsSchedules = (s.schedules || {})[regionId];
-      if (lsSchedules && lsSchedules.length > 0) {
-        // localStorage 데이터를 고객화면 형식으로 재변환
-        const today = new Date().toISOString().slice(0,10);
-        const active = lsSchedules.filter(s => {
-          const st = s.status || 'active';
-          if (st !== 'active' && st !== 'available') return false;
-          if (s.startDate && s.startDate > today) return false;
-          if (s.endDate && s.endDate < today) return false;
-          return true;
-        });
-        if (active.length > 0) {
-          finalSchedules = active.map(s => {
-            const cap = s.capacity || 38;
-            const onl = s.online !== undefined ? s.online : (s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil(cap * 0.7));
-            const off = s.offline !== undefined ? s.offline : cap - Math.ceil(cap * 0.7);
-            const booked = s.onlineBooked !== undefined ? s.onlineBooked : Math.floor(Math.random() * Math.floor(onl * 0.6));
-            return {
-              id: s.id || `${regionId}-${(s.time||'').replace(':','')}`,
-              time: s.time || '-',
-              endTime: s.endTime || (s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-'),
-              capacity: cap, online: onl, offline: off, onlineBooked: booked,
-              status: (s.status === 'soldout' || booked >= onl) ? 'soldout' : 'active',
-              course: s.course || `${region.name} 수륙양용 코스`,
-              vehicle: s.vehicle || '',
-              operatingDays: s.operatingDays || ['월','화','수','목','금','토','일'],
-            };
-          });
-        }
-      }
-    } catch(e) {}
-
-    CustomerPages._allSchedules = finalSchedules; // 전체 회차 저장
+    CustomerPages._allSchedules = schedules; // 전체 회차 저장
+    console.log(`[AMK DEBUG] initRegionPage: region=${regionId}, 전체회차=${schedules.length}개, 시간=[${schedules.map(s=>s.time).join(',')}]`);
     region.fares?.forEach(f => { CustomerPages._state.fares[f.id] = { count: 0, price: f.price, label: f.label }; });
     CustomerPages.renderCalendar(new Date());
 
@@ -983,6 +959,7 @@ ${Footer.render()}
       if (s.endDate && dateStr > s.endDate) return false;
       return true;
     });
+    console.log(`[AMK DEBUG] renderSchedulesByDate: date=${dateStr}(${dayOfWeek}), 전체=${allSchedules.length}개, 필터후=${filtered.length}개, 표시시간=[${filtered.map(s=>s.time).join(',')}]`);
     if (filtered.length === 0) {
       listEl.innerHTML = '<div class="col-span-2 text-center text-gray-400 py-6 text-sm"><i class="fas fa-calendar-times text-2xl mb-2 block"></i>이 날짜(' + dayOfWeek + '요일)에 운행하는 회차가 없습니다.</div>';
       return;

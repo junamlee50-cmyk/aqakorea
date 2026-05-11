@@ -331,6 +331,20 @@ body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; backgroun
 
   /* 전체 페이지 가로 스크롤 방지 */
   body { overflow-x: hidden; }
+
+  /* ★ 모바일: sticky 결제버튼이 콘텐츠를 가리지 않도록 하단 여백 확보 */
+  /* sticky-book-btn 높이(약 64px) + 여유 공간 = 120px */
+  #app > div[style*="padding-top"] { padding-bottom: 120px; }
+
+  /* ★ 모바일: 회차 목록 overflow 제거 — 전체 회차 세로 스크롤 표시 */
+  #schedule-section { overflow: visible !important; max-height: none !important; }
+  #schedule-list {
+    overflow: visible !important;
+    max-height: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
 }
 @media (max-width: 480px) {
   .btn-xl { font-size: 15px; padding: 14px 20px; }
@@ -338,6 +352,9 @@ body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; backgroun
 
   /* 매우 좁은 화면: 회차 카드 한 줄 표시 */
   #schedule-list { grid-template-columns: 1fr !important; }
+
+  /* ★ 매우 좁은 화면 하단 여백 */
+  #app > div[style*="padding-top"] { padding-bottom: 130px; }
 
   /* 요약 박스 폰트 축소 */
   .summary-total { font-size: 20px; }
