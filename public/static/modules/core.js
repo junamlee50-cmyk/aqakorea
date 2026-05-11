@@ -188,12 +188,68 @@ const Utils = {
   },
   // 인쇄
   print: () => window.print(),
-  // 엑셀 다운로드 (CSV)
-  downloadCSV: (data, filename) => {
-    const csv = data.map(r => Object.values(r).map(v => `"${v}"`).join(',')).join('\n');
-    const header = Object.keys(data[0]).join(',') + '\n';
-    const blob = new Blob(['\uFEFF' + header + csv], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  // CSV 다운로드 (배열 rows 기반 — 금액 지수표기법 방지)
+  downloadCSV: (rows, filename) => {
+    // rows: Array<Array<any>> — 2차원 배열
+    const escape = (v) => {
+      if (v === null || v === undefined) return '""';
+      const s = String(v);
+      // 쌍따옴표 이스케이프
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    const csv = rows.map(row => (Array.isArray(row) ? row : [row]).map(escape).join(',')).join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename.endsWith('.csv') ? filename : filename + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  },
+
+  // XLSX 다운로드 — SheetJS(XLSX) 라이브러리 사용
+  // sheets: [{ name: '시트명', rows: Array<Array<any>> }, ...]
+  downloadXLSX: (sheets, filename) => {
+    // SheetJS CDN 로드 후 실행
+    const _build = () => {
+      if (typeof XLSX === 'undefined') {
+        Utils.toast('XLSX 라이브러리 로딩 중... 잠시 후 다시 시도해주세요.', 'warning');
+        // 동적 로드
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        s.onload = () => Utils.downloadXLSX(sheets, filename);
+        document.head.appendChild(s);
+        return;
+      }
+      const wb = XLSX.utils.book_new();
+      sheets.forEach(({ name, rows }) => {
+        // 금액 셀: 숫자형으로 유지 (지수표기법 방지는 셀 너비/형식으로 처리)
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        // 열 너비 자동 설정
+        const colWidths = rows.reduce((acc, row) => {
+          (Array.isArray(row) ? row : [row]).forEach((cell, ci) => {
+            const len = String(cell ?? '').length;
+            acc[ci] = Math.max(acc[ci] || 8, Math.min(len + 2, 40));
+          });
+          return acc;
+        }, []);
+        ws['!cols'] = colWidths.map(w => ({ wch: w }));
+        XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+      });
+      XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : filename + '.xlsx');
+    };
+    _build();
+  },
+
+  // PDF 보고서: 새 창에 HTML 렌더링 후 window.print()
+  // reportHtml: 완성된 HTML 문자열
+  printPDF: (reportHtml, filename) => {
+    const win = window.open('', '_blank');
+    if (!win) { Utils.toast('팝업이 차단되었습니다. 팝업을 허용해주세요.', 'error'); return; }
+    win.document.write(reportHtml);
+    win.document.close();
+    win.focus();
+    setTimeout(() => {
+      win.print();
+    }, 800);
   },
   // 상태 뱃지
   badge: (text, color) => `<span class="badge badge-${color}">${text}</span>`,
