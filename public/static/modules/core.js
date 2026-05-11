@@ -164,12 +164,39 @@ const Utils = {
       }
     } else { el?.remove(); }
   },
-  // QR 생성
+  // QR 생성 (qrcode@1.5.3 브라우저 빌드 기반)
   generateQR: async (canvasId, text) => {
     const canvas = document.getElementById(canvasId);
-    if (!canvas || typeof QRCode === 'undefined') return;
+    if (!canvas) return;
+    // QRCode 라이브러리 로드 대기 (최대 3초)
+    let waited = 0;
+    while (typeof QRCode === 'undefined' && waited < 3000) {
+      await new Promise(r => setTimeout(r, 100));
+      waited += 100;
+    }
+    if (typeof QRCode === 'undefined') {
+      // CDN 폴백: QRCode.js (qrcodejs) 동적 로드
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      }).catch(() => {});
+    }
+    if (typeof QRCode === 'undefined') return;
     try {
-      await QRCode.toCanvas(canvas, text, { width:200, margin:2, color:{dark:'#0a2d6b', light:'#ffffff'} });
+      // qrcode@1.5.3: QRCode.toCanvas API
+      if (typeof QRCode.toCanvas === 'function') {
+        await QRCode.toCanvas(canvas, text, { width: 200, margin: 2, color: { dark: '#0a2d6b', light: '#ffffff' } });
+      } else if (typeof QRCode === 'function') {
+        // qrcodejs 라이브러리: new QRCode(element, opts)
+        canvas.innerHTML = '';
+        const div = document.createElement('div');
+        canvas.parentNode.insertBefore(div, canvas);
+        canvas.remove();
+        div.id = canvasId;
+        new QRCode(div, { text, width: 200, height: 200, colorDark: '#0a2d6b', colorLight: '#ffffff' });
+      }
     } catch(e) { console.error('QR error:', e); }
   },
   // 날짜 유효성

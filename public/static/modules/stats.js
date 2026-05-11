@@ -84,12 +84,15 @@ const StatsModule = (() => {
               </button>
               <h1 class="text-gray-800 font-semibold">${title}</h1>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 print:hidden">
               <button onclick="StatsModule.exportPDF()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1">
                 <i class="fas fa-file-pdf text-red-500"></i> PDF 출력
               </button>
               <button onclick="StatsModule.exportExcel()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1">
                 <i class="fas fa-file-excel text-green-500"></i> 엑셀 다운로드
+              </button>
+              <button onclick="StatsModule.printCurrentTab()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1">
+                <i class="fas fa-print text-blue-500"></i> 인쇄
               </button>
             </div>
           </div>
@@ -116,8 +119,8 @@ const StatsModule = (() => {
 
       <!-- 콘텐츠 영역 -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <!-- 공통 필터 -->
-        <div class="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-3 items-center">
+        <!-- 공통 필터 (보고서 생성 탭에서는 JS로 숨김) -->
+        <div id="stats-common-filter" class="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-3 items-center print:hidden">
           <div class="flex items-center gap-2">
             <i class="fas fa-filter text-gray-400 text-sm"></i>
             <span class="text-sm font-medium text-gray-700">필터:</span>
@@ -1842,6 +1845,10 @@ const StatsModule = (() => {
       activeTab.classList.remove('border-transparent','text-gray-500');
     }
 
+    // 보고서 생성 탭에서는 공통 필터 숨김
+    const filterEl = document.getElementById('stats-common-filter');
+    if (filterEl) filterEl.style.display = tabId === 'report' ? 'none' : '';
+
     const contentMap = {
       sales: salesTab,
       passengers: passengersTab,
@@ -1873,6 +1880,11 @@ const StatsModule = (() => {
   const exportPDF = () => {
     Utils.toast('PDF 보고서를 생성 중입니다... (인쇄 다이얼로그가 열립니다)', 'info');
     setTimeout(() => window.print(), 500);
+  };
+
+  const printCurrentTab = () => {
+    Utils.toast('인쇄 다이얼로그가 열립니다.', 'info');
+    setTimeout(() => window.print(), 400);
   };
 
   const exportExcel = () => {
@@ -2969,9 +2981,41 @@ window.onafterprint = function() { /* window.close(); */ };
 
     return rows;
   };
+  // ── @media print 스타일 주입 ───────────────────────────────
+  const _injectPrintStyles = () => {
+    if (document.getElementById('stats-print-style')) return;
+    const style = document.createElement('style');
+    style.id = 'stats-print-style';
+    style.textContent = `
+      @media print {
+        /* 관리자 사이드바·헤더·버튼 숨김 */
+        .admin-sidebar, .admin-topbar, nav, .admin-nav,
+        #admin-sidebar, #admin-header, #top-nav,
+        .print\\:hidden, [class*="no-print"] { display: none !important; }
+        /* 배경·그림자 제거 */
+        body { background: white !important; }
+        .bg-gray-50 { background: white !important; }
+        /* 여백 최소화 */
+        .max-w-7xl { max-width: 100% !important; padding: 0 !important; }
+        /* 차트 캔버스 크기 고정 */
+        canvas { max-width: 100% !important; }
+        /* 보고서 본문 전체 너비 */
+        #monthly-report-body, #stats-content { width: 100% !important; }
+        /* sticky 헤더 해제 */
+        .sticky { position: static !important; }
+        /* 페이지 나누기 */
+        .bg-white.rounded-xl { page-break-inside: avoid; margin-bottom: 12pt; }
+      }
+    `;
+    document.head.appendChild(style);
+  };
+
+  // 페이지 로드 시 print 스타일 주입
+  _injectPrintStyles();
+
   return {
     page, switchTab, refreshCurrent,
-    exportPDF, exportExcel,
+    exportPDF, exportExcel, printCurrentTab,
     generateReport, generateReportFromSettings, selectReportCard,
     scheduleReport,
     switchMonthlyRegion, exportMonthlyPDF, exportMonthlyExcel,

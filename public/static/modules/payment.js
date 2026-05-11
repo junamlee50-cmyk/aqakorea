@@ -238,9 +238,15 @@ ${Footer.render()}`;
     const qrData = `AMK:${reservation.reservationId}:${cart?.date}:${cart?.scheduleId}`;
     setTimeout(async () => {
       Navbar.init();
-      await Utils.generateQR('qr-main', qrData);
-      await Utils.generateQR('qr-wristband-preview', qrData);
-    }, 300);
+      // QR 생성 - DOM 렌더링 완료 후 시도 (최대 3회 재시도)
+      const tryQR = async (id, data, attempt = 1) => {
+        const el = document.getElementById(id);
+        if (!el && attempt <= 5) { await new Promise(r => setTimeout(r, 300)); return tryQR(id, data, attempt + 1); }
+        await Utils.generateQR(id, data);
+      };
+      await tryQR('qr-main', qrData);
+      await tryQR('qr-wristband-preview', qrData);
+    }, 500);
     return `
 ${Navbar.render()}
 <div style="padding-top:64px" class="min-h-screen bg-gradient-to-br from-green-50 to-cyan-50">

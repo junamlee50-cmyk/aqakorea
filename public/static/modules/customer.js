@@ -678,12 +678,33 @@ ${Navbar.render('reservation')}
         </div>
         <a href="https://map.kakao.com/?q=${encodeURIComponent(region.boardingPlace)}" target="_blank" class="btn-outline w-full mt-3 text-sm text-center block py-3" style="border-radius:12px"><i class="fas fa-map mr-2"></i>카카오맵으로 길찾기</a>
       </div>
-      <div data-tab-content="주변관광지" data-tab-content-group="region-info" class="hidden">
+      <div data-tab-content="주변관광지" data-tab-content-group="region-info" class="hidden" id="tourism-tab-${regionId}">
         <h3 class="font-bold text-navy-800 mb-3">주변 관광지</h3>
-        <div class="grid md:grid-cols-3 gap-3 text-sm text-gray-600">
-          ${regionId==='buyeo'?['국립부여박물관','부소산성','낙화암','정림사지','백제문화단지','궁남지'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-landmark text-cyan-500"></i>${s}</div>`).join(''):
-            regionId==='tongyeong'?['통영케이블카','한산도이순신공원','통영중앙시장','남망산조각공원','달아공원','미륵산'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-mountain text-cyan-500"></i>${s}</div>`).join(''):
-            ['해인사','팔만대장경','황매산','합천영상테마파크','황매산철쭉','합천호수공원'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-tree text-cyan-500"></i>${s}</div>`).join('')}
+        <div class="grid md:grid-cols-3 gap-3 text-sm text-gray-600" id="tourism-list-${regionId}">
+          ${(() => {
+            // ★ localStorage amk_settings.tourism 기반 실시간 반영
+            try {
+              const s = JSON.parse(localStorage.getItem('amk_settings') || '{}');
+              const tourismList = (s.tourism || []).filter(t => t.regionId === regionId && t.visible !== false);
+              if (tourismList.length > 0) {
+                return tourismList.map(t => `
+                  <div class="bg-gray-50 rounded-xl p-3 flex items-start gap-2">
+                    <i class="fas fa-landmark text-cyan-500 mt-0.5 flex-shrink-0"></i>
+                    <div>
+                      <div class="font-medium text-navy-800 text-sm">${t.name || ''}</div>
+                      ${t.description ? `<div class="text-xs text-gray-500 mt-0.5">${t.description}</div>` : ''}
+                      ${t.tip ? `<div class="text-xs text-cyan-600 mt-1">${t.tip}</div>` : ''}
+                    </div>
+                  </div>`).join('');
+              }
+            } catch(e) {}
+            // 기본 하드코딩 폴백
+            return regionId==='buyeo'
+              ? ['국립부여박물관','부소산성','낙화암','정림사지','백제문화단지','궁남지'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-landmark text-cyan-500"></i>${s}</div>`).join('')
+              : regionId==='tongyeong'
+              ? ['통영케이블카','한산도이순신공원','통영중앙시장','남망산조각공원','달아공원','미륵산'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-mountain text-cyan-500"></i>${s}</div>`).join('')
+              : ['해인사','팔만대장경','황매산','합천영상테마파크','황매산철쭉','합천호수공원'].map(s=>`<div class="bg-gray-50 rounded-xl p-3 flex items-center gap-2"><i class="fas fa-tree text-cyan-500"></i>${s}</div>`).join('');
+          })()}
         </div>
       </div>
       <div data-tab-content="FAQ" data-tab-content-group="region-info" class="hidden">
@@ -1164,18 +1185,64 @@ ${Footer.render()}`;
     try {
       let found = null;
 
-      // 1) 실제 API 시도
+      // 1) localStorage AMK 예약 데이터 우선 조회
       try {
-        const res = await API.get('/api/reservations');
-        const list = res.data || [];
-        if (mode === 'primary') {
-          found = list.find(r => r.id === resId && phoneMatch(r.phone, phone));
-        } else {
-          found = list.find(r => phoneMatch(r.phone, phone) && r.date === altDate);
+        const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
+        if (stored.length > 0) {
+          const statusLabelMap = {
+            confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
+            payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
+            payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
+            checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
+            cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
+            refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
+            noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
+          };
+          let raw = null;
+          if (mode === 'primary') {
+            // reservationId 또는 id 필드 모두 지원
+            raw = stored.find(r => (r.reservationId === resId || r.id === resId) && phoneMatch(r.phone, phone));
+          } else {
+            raw = stored.find(r => phoneMatch(r.phone, phone) && (r.date === altDate || r.boardingDate === altDate));
+          }
+          if (raw) {
+            const st = raw.status || 'confirmed';
+            found = {
+              id:               raw.reservationId || raw.id,
+              regionName:       raw.regionName || raw.region || raw.regionId || '-',
+              boardingPlace:    raw.boardingPlace || '-',
+              date:             raw.date || raw.boardingDate || '-',
+              schedule:         raw.schedule || raw.scheduleTime || raw.time || '-',
+              adultCnt:         raw.adultCnt || raw.adults || (raw.pax ? raw.pax : 1),
+              childCnt:         raw.childCnt || raw.children || 0,
+              totalPassengers:  raw.totalPassengers || raw.pax || 1,
+              totalAmount:      raw.totalAmount || raw.total || raw.amount || 0,
+              name:             raw.name || raw.booker || '-',
+              phone:            raw.phone || '-',
+              status:           st,
+              statusBadge:      statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+              cancelable:       ['confirmed','payment_done','payment_pending'].includes(st),
+              wristband:        ['confirmed','payment_done','checkedin'].includes(st),
+              qr:               ['confirmed','payment_done','checkedin'].includes(st),
+            };
+          }
         }
-      } catch (_) { /* fallback */ }
+      } catch (_) { /* localStorage 오류 무시 */ }
 
-      // 2) 데모 데이터 fallback
+      // 2) 실제 API 시도
+      if (!found) {
+        try {
+          const res = await API.get('/api/reservations');
+          const list = res.data || [];
+          if (mode === 'primary') {
+            found = list.find(r => r.id === resId && phoneMatch(r.phone, phone));
+          } else {
+            found = list.find(r => phoneMatch(r.phone, phone) && r.date === altDate);
+          }
+        } catch (_) { /* fallback */ }
+      }
+
+      // 3) 데모 데이터 fallback
       if (!found) {
         const DEMO_RESERVATIONS = (() => {
           const regions = [

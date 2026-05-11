@@ -2116,7 +2116,10 @@ const AdminModule = (() => {
     const allRegions = (window.REGIONS||[]).filter(r=>r.status!=='hidden');
     const region = allRegions.find(r=>r.id===activeRegionId) || { id: activeRegionId, name: activeRegionId, shortName: activeRegionId };
     const fares = _getFares(activeRegionId);
-    const approvals = _getFareApprovals().filter(a => a.regionId === activeRegionId);
+    // ★ 슈퍼관리자: 전체 지역 승인대기 표시 / 지역관리자: 자기 지역만
+    const approvals = isSuper
+      ? _getFareApprovals().filter(a => a.status !== 'approved' && a.status !== 'rejected')
+      : _getFareApprovals().filter(a => a.regionId === activeRegionId);
     const fareMode = Settings.get('fareChangeMode') || 'approval';
 
     // 지역관리자: 즉시적용 권한 여부 확인
@@ -2150,9 +2153,14 @@ const AdminModule = (() => {
     // 승인 대기 행
     const approvalRows = approvals.length === 0
       ? '<tr><td colspan="7" class="text-center py-4 text-gray-400 text-sm">승인 대기 요청이 없습니다.</td></tr>'
-      : approvals.map((a, i) => `
+      : approvals.map((a, i) => {
+          const regionLabel = a.regionName || (window.REGIONS||[]).find(r=>r.id===a.regionId)?.name || a.regionId || '-';
+          return `
         <tr class="hover:bg-yellow-50" id="appr-row-${i}">
-          <td class="px-4 py-3 text-sm font-medium">${a.label}</td>
+          <td class="px-4 py-3 text-sm font-medium">
+            ${a.label}
+            ${isSuper ? `<div class="text-xs text-blue-500 mt-0.5">${regionLabel}</div>` : ''}
+          </td>
           <td class="px-4 py-3 text-sm text-center text-gray-500">${a.type||'일반'}</td>
           <td class="px-4 py-3 text-right font-semibold">₩${(a.price||0).toLocaleString()}</td>
           <td class="px-4 py-3 text-right text-gray-500">${a.discountPrice ? `₩${a.discountPrice.toLocaleString()}` : '-'}</td>
@@ -2160,11 +2168,12 @@ const AdminModule = (() => {
           <td class="px-4 py-3 text-xs text-gray-400 text-center">${a.requestedBy||'지역관리자'} · ${a.requestedAt||'-'}</td>
           <td class="px-4 py-3 text-center">
             ${isSuper ? `
-              <button onclick="AdminModule.approvefare(${i}, true)" class="text-green-600 hover:underline text-xs mr-2 font-medium">승인</button>
-              <button onclick="AdminModule.approvefare(${i}, false)" class="text-red-500 hover:underline text-xs">반려</button>
+              <button onclick="AdminModule.approvefare(${i}, true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 hover:bg-green-600">승인</button>
+              <button onclick="AdminModule.approvefare(${i}, false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">반려</button>
             ` : `<span class="text-xs text-yellow-600">승인 대기중</span>`}
           </td>
-        </tr>`).join('');
+        </tr>`;
+        }).join('');
 
     const content = `
       <div class="space-y-6">
@@ -3443,8 +3452,14 @@ const AdminModule = (() => {
             <div class="border-b pb-4">
               <h4 class="text-sm font-medium text-gray-700 mb-3">기본 정보</h4>
               <div class="grid grid-cols-2 gap-3">
-                <div><label class="block text-xs text-gray-600 mb-1">지역명</label><input id="reg-name" type="text" placeholder="예: 경주수륙양용투어" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
-                <div><label class="block text-xs text-gray-600 mb-1">코드 (3자리)</label><input id="reg-code" type="text" placeholder="예: GYJ" maxlength="5" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono uppercase"></div>
+                <div><label class="block text-xs text-gray-600 mb-1">지역명</label><input id="reg-name" type="text" placeholder="예: 경주수륙양용투어" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" oninput="AdminModule._autoGenRegionCode(this.value)"></div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">지역 코드 <span class="text-gray-400 font-normal">(자동 생성)</span></label>
+                  <div class="flex items-center gap-2">
+                    <input id="reg-code" type="text" readonly placeholder="지역명 입력 시 자동 생성" class="flex-1 border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600 font-mono cursor-not-allowed" title="코드는 자동으로 생성됩니다">
+                    <span class="text-xs text-gray-400 whitespace-nowrap">AMK-001 형식</span>
+                  </div>
+                </div>
                 <div class="col-span-2"><label class="block text-xs text-gray-600 mb-1">위치</label><input id="reg-location" type="text" placeholder="예: 경북 경주시 황남동 xxx" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
                 <div><label class="block text-xs text-gray-600 mb-1">고객센터 전화</label><input id="reg-phone" type="text" placeholder="054-xxx-xxxx" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
                 <div><label class="block text-xs text-gray-600 mb-1">온라인 비율 (%)</label><input id="reg-online-ratio" type="number" value="70" min="0" max="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
@@ -3485,11 +3500,32 @@ const AdminModule = (() => {
   const editRegion = (idx) => { Utils.toast(`지역 ${idx} 수정 (구현 중)`, 'info'); };
   const suspendRegion = (idx) => { Utils.confirm('이 지역 운영을 중단하시겠습니까?', () => Utils.toast('운영이 중단되었습니다.', 'success')); };
   const activateRegion = (idx) => { Utils.confirm('이 지역 운영을 시작하시겠습니까?', () => Utils.toast('운영이 시작되었습니다.', 'success')); };
+  // 지역명 → 자동 코드 생성 (AMK-001 형식)
+  const _autoGenRegionCode = (name) => {
+    const codeEl = document.getElementById('reg-code');
+    if (!codeEl) return;
+    if (!name || name.trim().length === 0) { codeEl.value = ''; return; }
+    // 기존 지역 수 기반 시퀀스 번호
+    const existingCount = (window.REGIONS || []).length;
+    // localStorage에 추가된 지역 수
+    const addedCount = parseInt(localStorage.getItem('amk_region_added_count') || '0', 10);
+    const seq = existingCount + addedCount + 1;
+    const seqStr = String(seq).padStart(3, '0');
+    codeEl.value = `AMK-${seqStr}`;
+  };
+
   const saveNewRegion = () => {
     const get = (id) => document.getElementById(id)?.value||'';
-    const name = get('reg-name'); const code = get('reg-code');
-    if (!name || !code) { Utils.toast('지역명과 코드를 입력하세요', 'error'); return; }
-    Utils.toast(`"${name}" 지역이 추가되었습니다. SEO 설정을 구성하세요.`, 'success');
+    const name = get('reg-name').trim();
+    if (!name) { Utils.toast('지역명을 입력하세요', 'error'); return; }
+    // 코드가 없으면 자동 생성
+    const codeEl = document.getElementById('reg-code');
+    if (codeEl && !codeEl.value) { _autoGenRegionCode(name); }
+    const code = get('reg-code') || `AMK-${String((window.REGIONS||[]).length+1).padStart(3,'0')}`;
+    // 추가 카운터 증가
+    const cnt = parseInt(localStorage.getItem('amk_region_added_count') || '0', 10);
+    localStorage.setItem('amk_region_added_count', String(cnt + 1));
+    Utils.toast(`"${name}" (${code}) 지역이 추가되었습니다. SEO 설정을 구성하세요.`, 'success');
     document.getElementById('region-modal').classList.add('hidden');
     regionsPage().then(html=>{document.getElementById('app').innerHTML=html;});
   };
@@ -4191,7 +4227,7 @@ const AdminModule = (() => {
     addPopup, editPopup, savePopup, deletePopup, addNotice, editNotice, deleteNotice,
     showTermsTab, saveTerms, previewTerms,
     selectSeoRegion, saveSeoSettings,
-    showAddRegionModal, editRegion, suspendRegion, activateRegion, saveNewRegion,
+    showAddRegionModal, editRegion, suspendRegion, activateRegion, saveNewRegion, _autoGenRegionCode,
     closeDay, viewSettlement, exportSettlement,
     addAdmin, resetPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,
