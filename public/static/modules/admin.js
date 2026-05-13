@@ -2172,9 +2172,10 @@ const AdminModule = (() => {
 
   // API 기반 요금 데이터 로드
   const _getFares = async (regionId) => {
-    const res = await API.get(`/api/fares/${regionId}`);
+    // 관리자는 예정/종료 포함 전체 조회
+    const path = regionId.includes('?') ? `/api/fares/${regionId}` : `/api/fares/${regionId}?all=1`;
+    const res = await API.get(path);
     if (res.success && res.data) return res.data;
-    // fallback: region.fares
     const region = (window.REGIONS||[]).find(r=>r.id===regionId);
     return region?.fares || [];
   };
@@ -2197,6 +2198,7 @@ const AdminModule = (() => {
     approved:  { label:'승인완료',  color:'blue'   },
     rejected:  { label:'반려',      color:'red'    },
     active:    { label:'적용중',    color:'green'  },
+    scheduled: { label:'적용예정',  color:'purple' },
     ended:     { label:'종료',      color:'gray'   },
     inactive:  { label:'비활성',    color:'gray'   },
   };
@@ -2289,7 +2291,10 @@ const AdminModule = (() => {
         <td class="px-4 py-3 text-right font-semibold text-gray-800">₩${(f.price||0).toLocaleString()}</td>
         <td class="px-4 py-3 text-right text-gray-500">${f.discountPrice ? `₩${f.discountPrice.toLocaleString()}` : '-'}</td>
         <td class="px-4 py-3 text-center">${fareStatusBadge(f.status||'active')}</td>
-        <td class="px-4 py-3 text-xs text-gray-400 text-center">${f.effectiveFrom||'-'} ~ ${f.effectiveTo||'무기한'}</td>
+        <td class="px-4 py-3 text-xs text-gray-400 text-center">
+          ${f.effectiveFrom ? `<span class="font-medium text-gray-600">${f.effectiveFrom}</span>` : '즉시'} ~
+          ${f.effectiveTo   ? f.effectiveTo : '<span class="text-gray-400">무기한</span>'}
+        </td>
         <td class="px-4 py-3 text-center">
           <button onclick="AdminModule.editFare('${activeRegionId}', ${i})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
           <button onclick="AdminModule.toggleFareStatus('${activeRegionId}', ${i})" class="text-gray-500 hover:underline text-xs">
@@ -2576,9 +2581,10 @@ const AdminModule = (() => {
     };
 
     if (hasInstant || fareMode === 'auto') {
-      // 즉시 저장
-      newFare.status = 'active';
-      const fares = await _getFares(regionId);
+      // 즉시 저장 - effectiveFrom이 미래면 scheduled
+      const todayStr = new Date().toISOString().slice(0,10);
+      newFare.status = (newFare.effectiveFrom && newFare.effectiveFrom > todayStr) ? 'scheduled' : 'active';
+      const fares = await _getFares(regionId + '?all=1');
       if (_editingFareIdx !== null) {
         fares[_editingFareIdx] = { ...fares[_editingFareIdx], ...newFare };
       } else {
@@ -2599,6 +2605,8 @@ const AdminModule = (() => {
         discountPrice: newFare.discountPrice || null,
         reason: newFare.reason || '',
         requestedBy: user.name || '지역관리자',
+        effectiveFrom: newFare.effectiveFrom || null,
+        effectiveTo: newFare.effectiveTo || null,
       });
       Utils.loading(false);
       if (approvalRes.success) {
