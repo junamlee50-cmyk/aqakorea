@@ -24,9 +24,16 @@ ${Navbar.render('home')}
   <div class="max-w-6xl mx-auto px-4 py-20 relative z-10 text-white">
     <div class="grid md:grid-cols-2 gap-12 items-center">
       <div class="slide-up">
-        <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium mb-6 border border-white/20">
-          <span class="w-2 h-2 bg-green-400 rounded-full pulse-anim"></span>
-          ${regions.filter(r=>r.status==='open').map(r=>r.name).join(' · ')} 예약가능${regions.filter(r=>r.status==='preparing').length ? ' · ' + regions.filter(r=>r.status==='preparing').map(r=>r.name).join('/') + ' 준비중' : ''}
+        <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium mb-6 border border-white/20 whitespace-nowrap max-w-full overflow-hidden">
+          <span class="w-2 h-2 bg-green-400 rounded-full pulse-anim flex-shrink-0"></span>
+          <span class="truncate">
+            ${(() => {
+              const shorten = n => n.replace('수륙양용투어','').replace('해양관광','').replace('수륙양용','').trim() || n;
+              const open = regions.filter(r=>r.status==='open').map(r=>shorten(r.name));
+              const prep = regions.filter(r=>r.status==='preparing').map(r=>shorten(r.name));
+              return open.join(' · ') + ' 예약가능' + (prep.length ? ' · ' + prep.join('/') + ' 준비중' : '');
+            })()}
+          </span>
         </div>
         <h1 class="text-4xl md:text-6xl font-black leading-tight mb-6">
           수륙양용버스로<br>
