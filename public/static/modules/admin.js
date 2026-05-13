@@ -2225,8 +2225,43 @@ const AdminModule = (() => {
     // ★ 슈퍼관리자: 전체 지역 승인대기 표시 / 지역관리자: 자기 지역만
     const _allApprovals = await _getFareApprovals(isSuper ? null : activeRegionId);
     const approvals = isSuper
-      ? _allApprovals.filter(a => a.status !== 'approved' && a.status !== 'rejected')
-      : _allApprovals.filter(a => a.region_id === activeRegionId);
+      ? _allApprovals.filter(a => a.status === 'pending')
+      : _allApprovals.filter(a => a.region_id === activeRegionId && a.status === 'pending');
+
+    // 지역관리자: 최근 처리 결과(승인/반려) 표시용
+    const recentResults = isSuper ? [] : _allApprovals.filter(a =>
+      a.region_id === activeRegionId && (a.status === 'approved' || a.status === 'rejected')
+    ).slice(0, 10);
+    const recentResultSection = recentResults.length === 0 ? '' : `
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="px-5 py-3 bg-gray-50 border-b flex items-center gap-2">
+          <i class="fas fa-history text-gray-400"></i>
+          <h3 class="font-semibold text-gray-700 text-sm">최근 처리 결과</h3>
+          <span class="text-xs text-gray-400">(최근 10건)</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="admin-table w-full">
+            <thead><tr class="bg-gray-50">
+              \${['구분명','변경금액','사유','처리','처리자·일시'].map(h=>\`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">\${h}</th>\`).join('')}
+            </tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              \${recentResults.map(a => {
+                const isApproved = a.status === 'approved';
+                const badge = isApproved
+                  ? '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">✅ 승인</span>'
+                  : '<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">❌ 반려</span>';
+                return \`<tr class="hover:bg-gray-50 \${isApproved ? '' : 'bg-red-50/30'}">
+                  <td class="px-4 py-3 text-sm font-medium">\${a.fare_label||'-'}</td>
+                  <td class="px-4 py-3 text-right text-sm">\${a.old_price != null ? \`<span class="line-through text-gray-400 text-xs mr-1">₩\${(a.old_price||0).toLocaleString()}</span>\` : ''}₩\${(a.new_price||0).toLocaleString()}</td>
+                  <td class="px-4 py-3 text-xs text-gray-500 text-center">\${a.reason||'-'}</td>
+                  <td class="px-4 py-3 text-center">\${badge}</td>
+                  <td class="px-4 py-3 text-xs text-gray-400 text-center">\${a.reviewed_by||'-'}<br>\${(a.reviewed_at||'').replace('T',' ').slice(0,16)}</td>
+                </tr>\`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
     // fareChangeMode를 서버에서 읽어와서 전역에 캐시
     let fareMode;
     try {
@@ -2284,7 +2319,10 @@ const AdminModule = (() => {
             ${isSuper ? `
               <button onclick="AdminModule.approvefare('${a.id}', true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 hover:bg-green-600">승인</button>
               <button onclick="AdminModule.approvefare('${a.id}', false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">반려</button>
-            ` : `<span class="text-xs text-yellow-600">승인 대기중</span>`}
+            ` : `
+              <span class="text-xs text-yellow-600 font-medium">승인 대기중</span>
+              <button onclick="AdminModule.cancelFareApproval('${a.id}')" class="ml-1 text-xs text-gray-400 hover:text-red-500 underline">철회</button>
+            `}
           </td>
         </tr>`;
         }).join('');
@@ -2351,7 +2389,7 @@ const AdminModule = (() => {
               <i class="fas fa-clock text-yellow-500"></i>승인 대기 요금
               ${approvals.length > 0 ? `<span class="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">${approvals.length}</span>` : ''}
             </h3>
-            ${isSuper ? '<span class="text-xs text-gray-400">승인/반려 처리가 가능합니다</span>' : '<span class="text-xs text-gray-400">본사 승인 대기중인 요금 변경 요청</span>'}
+            ${isSuper ? '<span class="text-xs text-gray-400">승인/반려 처리가 가능합니다</span>' : '<span class="text-xs text-gray-400">본사 승인 대기중인 요금 변경 요청 · 철회 가능</span>'}
           </div>
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
@@ -2362,6 +2400,7 @@ const AdminModule = (() => {
             </table>
           </div>
         </div>
+        ${!isSuper ? recentResultSection : ''}
       </div>
 
       <!-- 요금 추가/수정 모달 -->
@@ -2570,6 +2609,21 @@ const AdminModule = (() => {
     }
     document.getElementById('fare-modal').classList.add('hidden');
     faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  // 요금 승인 요청 철회 (지역관리자용)
+  const cancelFareApproval = async (approvalId) => {
+    const ok = await Utils.confirm('승인 요청을 철회하시겠습니까?', '철회하면 본사 대기 목록에서 삭제됩니다.');
+    if (!ok) return;
+    Utils.loading(true);
+    const res = await API.delete(`/api/fares/approvals/${approvalId}`);
+    Utils.loading(false);
+    if (res.success) {
+      Utils.toast('승인 요청이 철회되었습니다.', 'info');
+      faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      Utils.toast('철회 실패: ' + (res.message||''), 'error');
+    }
   };
 
   // 요금 활성/비활성 토글
@@ -5137,7 +5191,7 @@ const backupPage = async () => {
     showAutoScheduleModal, previewAutoSchedule, confirmAutoSchedule, switchDispatchMode,
     switchRecMode, calcRecAutoTimes,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
-    grantInstantPerm, toggleFareStatus, approvefare,
+    grantInstantPerm, toggleFareStatus, approvefare, cancelFareApproval,
     updateSeatRatio, saveSeatRatio,
     viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter,
     saveWristbandText,
