@@ -62,6 +62,7 @@ const AdminModule = (() => {
       { icon: 'fas fa-tag', label: '요금 관리', section: 'fares' },
       { icon: 'fas fa-chair', label: '좌석 배분 관리', section: 'seats' },
       { icon: 'fas fa-ticket-alt', label: '예약 관리', section: 'reservations' },
+      { icon: 'fas fa-comment-dots', label: '문의 관리', section: 'inquiries' },
       { icon: 'fas fa-qrcode', label: '손목밴드 관리', section: 'wristbands' },
       { icon: 'fas fa-bullhorn', label: '팝업/공지 관리', section: 'popups' },
       { icon: 'fas fa-file-contract', label: '약관/환불정책', section: 'terms' },
@@ -81,6 +82,7 @@ const AdminModule = (() => {
       { icon: 'fas fa-tag', label: '요금 관리', section: 'fares' },
       { icon: 'fas fa-chair', label: '좌석 배분', section: 'seats' },
       { icon: 'fas fa-ticket-alt', label: '예약 관리', section: 'reservations' },
+      { icon: 'fas fa-comment-dots', label: '문의 관리', section: 'inquiries' },
       { icon: 'fas fa-qrcode', label: '손목밴드', section: 'wristbands' },
       { icon: 'fas fa-bullhorn', label: '팝업/공지', section: 'popups' },
       { icon: 'fas fa-file-contract', label: '약관/환불정책', section: 'terms' },
@@ -2670,7 +2672,125 @@ const AdminModule = (() => {
   };
 
   // ── 좌석 배분 관리 ─────────────────────────────────────────
-  const seatsPage = async () => {
+
+  // ── 문의 관리 페이지 ──────────────────────────────────────
+  const inquiriesPage = async () => {
+    _adminState.currentSection = 'inquiries';
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super';
+    const regionId = user.regionId || '';
+    const url = isSuper ? '/api/inquiries' : `/api/inquiries?regionId=${regionId}`;
+    const res = await API.get(url);
+    const list = res.data || [];
+    const pending = list.filter(i => i.status === 'pending').length;
+
+    const statusBadge = (s) => {
+      const m = { pending:'bg-yellow-100 text-yellow-700', answered:'bg-green-100 text-green-700', closed:'bg-gray-100 text-gray-500' };
+      const l = { pending:'미답변', answered:'답변완료', closed:'종료' };
+      return `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${m[s]||'bg-gray-100 text-gray-600'}">${l[s]||s}</span>`;
+    };
+    const catLabel = { general:'일반문의', reservation:'예약문의', refund:'환불문의', complaint:'불만접수' };
+
+    const rows = list.length === 0
+      ? '<tr><td colspan="7" class="text-center py-8 text-gray-400">문의가 없습니다.</td></tr>'
+      : list.map(i => `
+        <tr class="hover:bg-gray-50 cursor-pointer" onclick="AdminModule.viewInquiry('${i.id}')">
+          <td class="px-3 py-2 text-xs text-gray-400">${(i.createdAt||'').slice(0,10)}</td>
+          <td class="px-3 py-2 text-sm font-medium">${i.name}</td>
+          <td class="px-3 py-2 text-xs text-center">${catLabel[i.category]||i.category||'일반'}</td>
+          <td class="px-3 py-2 text-sm">${i.subject||i.content?.slice(0,30)||'-'}</td>
+          <td class="px-3 py-2 text-xs text-center text-gray-500">${isSuper ? (i.regionId||'전체') : ''}</td>
+          <td class="px-3 py-2 text-center">${statusBadge(i.status||'pending')}</td>
+          <td class="px-3 py-2 text-center">
+            <button onclick="event.stopPropagation();AdminModule.replyInquiry('${i.id}')" 
+              class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">답변</button>
+          </td>
+        </tr>`).join('');
+
+    return `
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800">문의 관리</h2>
+            <p class="text-sm text-gray-500 mt-0.5">총 ${list.length}건 · 미답변 <span class="text-red-500 font-bold">${pending}건</span></p>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table w-full">
+              <thead><tr class="bg-gray-50">
+                ${['접수일','문의자','유형','내용','지역','상태','처리'].map(h=>`<th class="px-3 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+              </tr></thead>
+              <tbody class="divide-y divide-gray-100">${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  };
+
+  const viewInquiry = async (id) => {
+    const res = await API.get(`/api/inquiries/${id}`);
+    if (!res.success) return Utils.toast('조회 실패', 'error');
+    const i = res.data;
+    Utils.modal(`
+      <div class="p-6 space-y-4">
+        <h3 class="font-bold text-lg">문의 상세</h3>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <div><span class="text-gray-500">문의자</span> <strong>${i.name}</strong></div>
+          <div><span class="text-gray-500">연락처</span> ${i.phone}</div>
+          <div><span class="text-gray-500">이메일</span> ${i.email||'-'}</div>
+          <div><span class="text-gray-500">접수일</span> ${(i.createdAt||'').slice(0,16).replace('T',' ')}</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3 text-sm">
+          <div class="font-medium mb-1">${i.subject||'(제목 없음)'}</div>
+          <div class="text-gray-700 whitespace-pre-wrap">${i.content}</div>
+        </div>
+        ${i.reply ? `<div class="bg-blue-50 rounded-lg p-3 text-sm">
+          <div class="font-medium text-blue-700 mb-1">답변 (${(i.repliedAt||'').slice(0,10)})</div>
+          <div class="whitespace-pre-wrap">${i.reply}</div>
+        </div>` : ''}
+        <div class="flex justify-end gap-2">
+          <button onclick="AdminModule.replyInquiry('${i.id}');Utils.closeModal()" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600">답변하기</button>
+          <button onclick="Utils.closeModal()" class="border px-4 py-2 rounded-lg text-sm">닫기</button>
+        </div>
+      </div>`);
+  };
+
+  const replyInquiry = async (id) => {
+    const res = await API.get(`/api/inquiries/${id}`);
+    if (!res.success) return;
+    const i = res.data;
+    Utils.modal(`
+      <div class="p-6 space-y-4">
+        <h3 class="font-bold text-lg">문의 답변</h3>
+        <div class="bg-gray-50 rounded-lg p-3 text-sm">
+          <div class="font-medium mb-1">${i.subject||i.content?.slice(0,40)||''}</div>
+          <div class="text-gray-500 text-xs">${i.name} · ${(i.createdAt||'').slice(0,10)}</div>
+        </div>
+        <textarea id="inq-reply" rows="5" class="w-full border rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-300" placeholder="답변 내용을 입력하세요...">${i.reply||''}</textarea>
+        <div class="flex justify-end gap-2">
+          <button onclick="AdminModule.submitInquiryReply('${i.id}')" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600">답변 저장</button>
+          <button onclick="Utils.closeModal()" class="border px-4 py-2 rounded-lg text-sm">취소</button>
+        </div>
+      </div>`);
+  };
+
+  const submitInquiryReply = async (id) => {
+    const reply = document.getElementById('inq-reply')?.value?.trim();
+    if (!reply) return Utils.toast('답변 내용을 입력하세요', 'warning');
+    Utils.loading(true);
+    const res = await API.put(`/api/inquiries/${id}`, { reply, status: 'answered' });
+    Utils.loading(false);
+    if (res.success) {
+      Utils.toast('답변이 저장되었습니다', 'success');
+      Utils.closeModal();
+      inquiriesPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      Utils.toast('저장 실패', 'error');
+    }
+  };
+
+    const seatsPage = async () => {
     _adminState.currentSection = 'seats';
     const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
 
@@ -5163,6 +5283,7 @@ const backupPage = async () => {
       'fares': () => faresPage(),
       'seats': () => seatsPage(),
       'reservations': () => reservationsPage(),
+      'inquiries': () => inquiriesPage(),
       'wristbands': () => wristbandsPage(),
       'popups': () => popupsPage(),
       'terms': () => termsPage(),
@@ -5185,7 +5306,7 @@ const backupPage = async () => {
   return {
     // 페이지
     loginPage, hqDashboard, regionDashboard, vehiclesPage, schedulesPage, faresPage,
-    seatsPage, reservationsPage, wristbandsPage, popupsPage, termsPage, seoManagePage,
+    seatsPage, reservationsPage, inquiriesPage, viewInquiry, replyInquiry, submitInquiryReply, wristbandsPage, popupsPage, termsPage, seoManagePage,
     regionsPage, settlementPage, adminsPage, settingsAdminPage, backupPage, statsAdminPage,
     tourismManagePage,
     travelGuidesPage, partnersPage,

@@ -494,46 +494,61 @@ ${Footer.render()}
     if (region.status === 'hidden') return CustomerPages._404();
     if (region.status === 'preparing') return CustomerPages._preparingPage(region);
 
-    // API로부터 스케줄 로드 (DB 직접 조회)
-    const apiSchedules = schRes.data || [];
-    let rawSchedules = [...apiSchedules];
-
-    // ★ 오늘 날짜 기준 운영/예약가능 상태 필터링
-    // status: 'active'(관리자 저장값) 또는 'available'(API 기본값) 모두 허용
-    const today = new Date().toISOString().slice(0,10);
-    rawSchedules = rawSchedules.filter(s => {
+    // API로부터 스케줄 기본 정보 로드
+    const apiSchedules = (schRes.data || []).filter(s => {
       const st = s.status || 'active';
-      if (st !== 'active' && st !== 'available') return false;
-      if (s.startDate && s.startDate > today) return false;
-      if (s.endDate && s.endDate < today) return false;
-      return true;
+      return st === 'active' || st === 'available';
     });
-    console.log(`[AMK DEBUG] regionPage schedules 로드: region=${regionId}, API=${apiSchedules.length}개, 병합후=${rawSchedules.length}개, 시간=[${rawSchedules.map(s=>s.time).join(',')}]`);
 
-    // ★ 스케줄 객체를 고객화면 형식으로 변환
-    const schedules = rawSchedules.map((s, i) => {
-      // 항목2: 38명 기준 (40석-운전자1-가이드1=38)
+    // 스케줄을 기본 정보 형태로 변환 (날짜별 잔여석은 _getAvailableSchedules로 조회)
+    const _baseSchedules = apiSchedules.map(s => {
       const cap38 = s.capacity || 38;
-      // API 응답에 online/offline 필드가 있으면 그대로 사용, 없으면 70/30 비율 계산
-      const onl = s.online !== undefined ? s.online : (s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil(cap38 * 0.7));
-      const off = s.offline !== undefined ? s.offline : (s.offlineSeats !== undefined ? s.offlineSeats : cap38 - Math.ceil(cap38 * 0.7));
-      // API 응답에 onlineBooked 필드가 있으면 그대로 사용, 없으면 시뮬레이션
-      const booked = s.onlineBooked !== undefined ? s.onlineBooked : Math.floor(Math.random() * Math.floor(onl * 0.6));
-      const isSoldout = s.status === 'soldout' || booked >= onl;
+      const onl = s.onlineCapacity || Math.ceil(cap38 * 0.7);
+      const off = s.offlineCapacity || (cap38 - onl);
       return {
         id: s.id || `${regionId}-${(s.time||'').replace(':','')}`,
         time: s.time || '-',
         endTime: s.endTime || (s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-'),
-        capacity: cap38,
-        online: onl,
-        offline: off,
-        onlineBooked: booked,
-        status: isSoldout ? 'soldout' : 'active',
+        capacity: cap38, online: onl, offline: off,
+        onlineBooked: 0, available: onl,
+        status: 'active',
         course: s.course || `${region.name} 수륙양용 코스`,
         vehicle: s.vehicle || '',
-        operatingDays: s.operatingDays || ['월','화','수','목','금','토','일'],
+        days: s.days || s.operatingDays || [],
+        duration: s.duration || 45,
       };
     });
+
+    // 날짜 선택 시 실시간 잔여석 조회 함수
+    window._getAvailableSchedules = async (date) => {
+      try {
+        const avRes = await API.get(`/api/schedules/${regionId}/availability?date=${date}`);
+        if (!avRes.success || !avRes.data) return _baseSchedules;
+        const avMap = {};
+        avRes.data.forEach(a => { avMap[a.id] = a; });
+        // 날짜 요일 필터
+        const dow = new Date(date).getDay();
+        const dowKo = ['일','월','화','수','목','금','토'][dow];
+        return _baseSchedules
+          .filter(s => {
+            if (!s.days || !s.days.length) return true;
+            return s.days.includes(dowKo) || s.days.includes(String(dow));
+          })
+          .map(s => {
+            const av = avMap[s.id];
+            if (!av) return { ...s, onlineBooked: 0 };
+            return {
+              ...s,
+              onlineBooked: av.onlineBooked,
+              available: av.available,
+              totalBooked: av.totalBooked,
+              status: av.status === 'soldout' ? 'soldout' : (av.status === 'online_full' ? 'soldout' : 'active'),
+            };
+          });
+      } catch(e) { return _baseSchedules; }
+    };
+
+    const schedules = _baseSchedules;
 
     // 요금은 API(region.fares)에서 직접 사용
 
@@ -1083,14 +1098,20 @@ ${Footer.render()}
     el.innerHTML = html;
   },
 
-  selectDate: (dateStr, el) => {
+  selectDate: async (dateStr, el) => {
     document.querySelectorAll('.cal-day.selected').forEach(e => e.classList.remove('selected'));
     el.classList.add('selected');
     CustomerPages._state.date = dateStr;
-    CustomerPages._state.scheduleId = ''; // 날짜 바뀌면 회차 선택 초기화
+    CustomerPages._state.scheduleId = '';
     const sumDate = document.getElementById('sum-date');
     if (sumDate) sumDate.textContent = Utils.dateKo(dateStr);
-    // ★ 날짜 선택 시 해당 요일에 운행하는 회차만 재렌더링
+    // ★ 날짜 선택 시 실제 잔여석 API 조회 후 회차 재렌더링
+    if (window._getAvailableSchedules) {
+      const listEl = document.getElementById('schedule-list');
+      if (listEl) listEl.innerHTML = '<div class="col-span-2 text-center py-4 text-gray-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>잔여석 확인중...</div>';
+      const liveSchedules = await window._getAvailableSchedules(dateStr);
+      CustomerPages._allSchedules = liveSchedules;
+    }
     CustomerPages.renderSchedulesByDate(dateStr);
     CustomerPages.updateSummary();
   },
