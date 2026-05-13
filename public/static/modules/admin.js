@@ -472,22 +472,23 @@ const AdminModule = (() => {
     }).join('');
 
     // ★ localStorage에서 실제 승인 대기 목록 로드
-    const fareApprovals = _getFareApprovals().filter(a => a.status === 'pending');
+    const fareApprovals = (await _getFareApprovals(null, 'pending'));
     const approvalRows = fareApprovals.length === 0
       ? '<tr><td colspan="7" class="text-center py-6 text-gray-400 text-sm">대기 중인 승인 요청이 없습니다.</td></tr>'
-      : fareApprovals.map((a, i) => {
-        const regionName = (window.REGIONS||[]).find(r=>r.id===a.regionId)?.name || a.regionId || '알 수 없음';
+      : fareApprovals.map((a) => {
+        const regionName = (window.REGIONS||[]).find(r=>r.id===a.region_id)?.name || a.region_id || '알 수 없음';
+        const oldPriceHtml = a.old_price != null ? `<div class="text-xs text-gray-400 line-through">₩${(a.old_price||0).toLocaleString()}</div>` : '';
         return `
-        <tr class="hover:bg-orange-50" id="hq-appr-row-${i}">
+        <tr class="hover:bg-orange-50" id="hq-appr-row-${a.id}">
           <td class="px-4 py-3 text-sm font-medium">${regionName}</td>
-          <td class="px-4 py-3 text-sm">${a.label}</td>
-          <td class="px-4 py-3 text-sm text-center text-gray-500">${a.type||'일반'}</td>
-          <td class="px-4 py-3 text-sm text-right font-semibold text-blue-700">₩${(a.price||0).toLocaleString()}</td>
+          <td class="px-4 py-3 text-sm">${a.fare_label||'-'}</td>
+          <td class="px-4 py-3 text-sm text-center text-gray-500">${a.fare_type||'일반'}</td>
+          <td class="px-4 py-3 text-sm text-right font-semibold text-blue-700">${oldPriceHtml}₩${(a.new_price||0).toLocaleString()}</td>
           <td class="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">${a.reason||'-'}</td>
-          <td class="px-4 py-3 text-xs text-gray-400 text-center">${a.requestedBy||'지역관리자'}<br>${a.requestedAt||'-'}</td>
+          <td class="px-4 py-3 text-xs text-gray-400 text-center">${a.requested_by||'지역관리자'}<br>${(a.requested_at||'').replace('T',' ').slice(0,16)}</td>
           <td class="px-4 py-3 text-center">
-            <button onclick="AdminModule.approvefare(${i}, true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 hover:bg-green-600">승인</button>
-            <button onclick="AdminModule.approvefare(${i}, false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">반려</button>
+            <button onclick="AdminModule.approvefare('${a.id}', true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 hover:bg-green-600">승인</button>
+            <button onclick="AdminModule.approvefare('${a.id}', false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">반려</button>
           </td>
         </tr>`;
       }).join('');
@@ -2180,8 +2181,15 @@ const AdminModule = (() => {
   const _setFares = async (regionId, fares) => {
     await API.put(`/api/fares/${regionId}`, { fares });
   };
-  const _getFareApprovals = () => [];
-  const _setFareApprovals = (list) => {};
+  const _getFareApprovals = async (regionId, status) => {
+    let url = '/api/fares/approvals/list';
+    const params = [];
+    if (regionId) params.push('regionId='+regionId);
+    if (status)   params.push('status='+status);
+    if (params.length) url += '?' + params.join('&');
+    const res = await API.get(url);
+    return res.data || [];
+  };
 
   // 요금 상태 레이블/색상
   const FARE_STATUS = {
@@ -2215,9 +2223,10 @@ const AdminModule = (() => {
     const region = allRegions.find(r=>r.id===activeRegionId) || { id: activeRegionId, name: activeRegionId, shortName: activeRegionId };
     const fares = await _getFares(activeRegionId);
     // ★ 슈퍼관리자: 전체 지역 승인대기 표시 / 지역관리자: 자기 지역만
+    const _allApprovals = await _getFareApprovals(isSuper ? null : activeRegionId);
     const approvals = isSuper
-      ? _getFareApprovals().filter(a => a.status !== 'approved' && a.status !== 'rejected')
-      : _getFareApprovals().filter(a => a.regionId === activeRegionId);
+      ? _allApprovals.filter(a => a.status !== 'approved' && a.status !== 'rejected')
+      : _allApprovals.filter(a => a.region_id === activeRegionId);
     const fareMode = Settings.get('fareChangeMode') || 'approval';
 
     // 지역관리자: 즉시적용 권한 여부 확인
@@ -2251,23 +2260,24 @@ const AdminModule = (() => {
     // 승인 대기 행
     const approvalRows = approvals.length === 0
       ? '<tr><td colspan="7" class="text-center py-4 text-gray-400 text-sm">승인 대기 요청이 없습니다.</td></tr>'
-      : approvals.map((a, i) => {
-          const regionLabel = a.regionName || (window.REGIONS||[]).find(r=>r.id===a.regionId)?.name || a.regionId || '-';
+      : approvals.map((a) => {
+          const regionLabel = a.region_id ? ((window.REGIONS||[]).find(r=>r.id===a.region_id)?.name || a.region_id) : '-';
+          const oldP = a.old_price != null ? `<div class="text-xs text-gray-400 line-through">₩${(a.old_price||0).toLocaleString()}</div>` : '';
           return `
-        <tr class="hover:bg-yellow-50" id="appr-row-${i}">
+        <tr class="hover:bg-yellow-50" id="appr-row-${a.id}">
           <td class="px-4 py-3 text-sm font-medium">
-            ${a.label}
+            ${a.fare_label||a.label||'-'}
             ${isSuper ? `<div class="text-xs text-blue-500 mt-0.5">${regionLabel}</div>` : ''}
           </td>
-          <td class="px-4 py-3 text-sm text-center text-gray-500">${a.type||'일반'}</td>
-          <td class="px-4 py-3 text-right font-semibold">₩${(a.price||0).toLocaleString()}</td>
-          <td class="px-4 py-3 text-right text-gray-500">${a.discountPrice ? `₩${a.discountPrice.toLocaleString()}` : '-'}</td>
+          <td class="px-4 py-3 text-sm text-center text-gray-500">${a.fare_type||a.type||'일반'}</td>
+          <td class="px-4 py-3 text-right font-semibold">${oldP}₩${(a.new_price||a.price||0).toLocaleString()}</td>
+          <td class="px-4 py-3 text-right text-gray-500">${a.discount_price != null ? `₩${a.discount_price.toLocaleString()}` : '-'}</td>
           <td class="px-4 py-3 text-center text-xs text-gray-500">${a.reason||'-'}</td>
-          <td class="px-4 py-3 text-xs text-gray-400 text-center">${a.requestedBy||'지역관리자'} · ${a.requestedAt||'-'}</td>
+          <td class="px-4 py-3 text-xs text-gray-400 text-center">${a.requested_by||'지역관리자'}<br>${(a.requested_at||'').replace('T',' ').slice(0,16)}</td>
           <td class="px-4 py-3 text-center">
             ${isSuper ? `
-              <button onclick="AdminModule.approvefare(${i}, true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 hover:bg-green-600">승인</button>
-              <button onclick="AdminModule.approvefare(${i}, false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">반려</button>
+              <button onclick="AdminModule.approvefare('${a.id}', true)" class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 hover:bg-green-600">승인</button>
+              <button onclick="AdminModule.approvefare('${a.id}', false)" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">반려</button>
             ` : `<span class="text-xs text-yellow-600">승인 대기중</span>`}
           </td>
         </tr>`;
@@ -2526,21 +2536,25 @@ const AdminModule = (() => {
       await _setFares(regionId, fares);
       Utils.toast('요금이 즉시 저장되었습니다. 고객 예약화면에 반영됩니다.', 'success');
     } else {
-      // ★ 승인 요청 - localStorage에 저장 → 슈퍼관리자 로그인 시 즉시 확인 가능
-      const approvals = _getFareApprovals();
-      const regionName = (window.REGIONS||[]).find(r=>r.id===regionId)?.name || regionId;
-      approvals.push({
-        ...newFare,
-        status: 'pending',
+      // ★ 승인 요청 — DB API로 저장 (슈퍼관리자 로그인 시 즉시 확인)
+      Utils.loading(true);
+      const approvalRes = await API.post('/api/fares/approvals', {
         regionId,
-        regionName,
-        editIdx: _editingFareIdx !== null ? _editingFareIdx : -1,
+        fareId: newFare.id || ('fare-' + Date.now()),
+        fareLabel: newFare.label,
+        fareType: newFare.type,
+        oldPrice: _editingFareIdx !== null ? (await _getFares(regionId))[_editingFareIdx]?.price : null,
+        newPrice: newFare.price,
+        discountPrice: newFare.discountPrice || null,
+        reason: newFare.reason || '',
         requestedBy: user.name || '지역관리자',
-        requestedAt: new Date().toLocaleString('ko-KR'),
-        requestedRole: user.role || 'regional',
       });
-      _setFareApprovals(approvals);
-      Utils.toast(`✅ 승인 요청이 전송되었습니다. 본사 대시보드에서 확인할 수 있습니다.\n승인 전까지 고객 예약화면에 미반영됩니다.`, 'success');
+      Utils.loading(false);
+      if (approvalRes.success) {
+        Utils.toast('✅ 승인 요청이 전송되었습니다. 본사 대시보드에서 확인할 수 있습니다.\n승인 전까지 고객 예약화면에 미반영됩니다.', 'success');
+      } else {
+        Utils.toast('승인 요청 실패: ' + (approvalRes.message||''), 'error');
+      }
     }
     document.getElementById('fare-modal').classList.add('hidden');
     faresPage().then(html => { document.getElementById('app').innerHTML = html; });
@@ -2557,45 +2571,22 @@ const AdminModule = (() => {
   };
 
   // 요금 승인/반려 (슈퍼관리자) - localStorage 공유로 실시간 반영
-  const approvefare = async (approvalIdx, isApprove) => {
-    const approvals = _getFareApprovals();
-    const item = approvals[approvalIdx];
-    if (!item) return;
-
-    const processedAt = new Date().toLocaleString('ko-KR');
+  const approvefare = async (approvalId, isApprove) => {
     const user = _adminState.user || {};
-
-    if (isApprove) {
-      // 승인: 요금 목록에 실제 반영 (localStorage에 저장 → 고객화면에도 반영)
-      const fares = await _getFares(item.regionId);
-      const fare = { ...item, status: 'active', approvedAt: processedAt, approvedBy: user.name || '슈퍼관리자' };
-      delete fare.regionId; delete fare.editIdx; delete fare.requestedBy; delete fare.requestedAt;
-      if (item.editIdx !== null && item.editIdx >= 0 && fares[item.editIdx]) {
-        fares[item.editIdx] = fare;
-      } else {
-        fares.push(fare);
-      }
-      await _setFares(item.regionId, fares);
-    }
-
-    // 이력 저장 (승인/반려 모두)
-    const history = JSON.parse(localStorage.getItem('amk_fare_history') || '[]');
-    history.unshift({
-      ...item,
-      result: isApprove ? 'approved' : 'rejected',
-      processedAt,
-      processedBy: user.name || '슈퍼관리자',
+    Utils.loading(true);
+    const res = await API.put(`/api/fares/approvals/${approvalId}`, {
+      status: isApprove ? 'approved' : 'rejected',
+      reviewedBy: user.name || '슈퍼관리자',
     });
-    if (history.length > 200) history.splice(200);
-    localStorage.setItem('amk_fare_history', JSON.stringify(history));
+    Utils.loading(false);
 
-    // 승인 목록에서 제거
-    approvals.splice(approvalIdx, 1);
-    _setFareApprovals(approvals);
-
+    if (!res.success) {
+      Utils.toast('처리 실패: ' + (res.message||''), 'error');
+      return;
+    }
     Utils.toast(isApprove ? '✅ 요금 변경이 승인되었습니다. 고객 예약화면에 즉시 반영됩니다.' : '❌ 요금 변경 요청이 반려되었습니다.', isApprove ? 'success' : 'info');
 
-    // 현재 페이지 유지하며 갱신
+    // 현재 페이지 갱신
     const section = _adminState.currentSection;
     if (section === 'hq-dashboard') {
       hqDashboard().then(html => { document.getElementById('app').innerHTML = html; });
