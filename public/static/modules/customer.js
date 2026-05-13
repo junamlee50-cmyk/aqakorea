@@ -2584,7 +2584,7 @@ const _renderGuideGrid = (guides) => {
     return;
   }
   grid.innerHTML = guides.map(g => `
-  <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group cursor-pointer" onclick="Router.go('/guide/'+g.id)">
+  <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group cursor-pointer" onclick="Router.go('/guide/${g.id}')">
     <div class="h-44 overflow-hidden relative">
       <img src="${g.imageUrl||'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600'}"
         alt="${g.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"
