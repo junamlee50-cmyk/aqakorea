@@ -12,7 +12,11 @@ const CustomerPages = {
     ]);
     const regions = (regRes.data || []).filter(r => r.status === 'open' || r.status === 'preparing');
     const today = Utils.today();
-    setTimeout(() => { Navbar.init(); PopupManager.show('all'); }, 100);
+    setTimeout(() => {
+      Navbar.init();
+      PopupManager.show('all');
+      _loadGuides('all');
+    }, 100);
     return `
 ${Navbar.render('home')}
 <!-- HERO -->
@@ -394,25 +398,24 @@ ${Navbar.render('home')}
   </div>
 </section>
 
-<!-- 관광 콘텐츠 -->
-<section class="max-w-6xl mx-auto px-4 py-16">
-  <h2 class="text-2xl font-black text-navy-800 mb-6">수륙양용버스 여행 가이드</h2>
-  <div class="grid md:grid-cols-3 gap-6">
-    ${[
-      {href:'/content/buyeo-daytrip',img:'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',tag:'부여',t:'부여 당일치기 여행코스',d:'수륙양용버스+백제역사유적지구 완벽 코스'},
-      {href:'/content/tongyeong-marine',img:'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400',tag:'통영',t:'통영 해양관광 추천코스',d:'한려수도의 절경을 수상에서 즐기는 투어'},
-      {href:'/content/hapcheon-family',img:'https://images.unsplash.com/photo-1518623489648-a173ef7824f3?w=400',tag:'합천',t:'합천 가족여행 추천',d:'합천호+해인사 가족여행 완성 코스'},
-    ].map(c => `
-    <a href="${c.href}" data-link class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group">
-      <div class="h-44 overflow-hidden">
-        <img src="${c.img}" alt="${c.t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy">
-      </div>
-      <div class="p-4">
-        <span class="text-xs font-bold text-cyan-500 bg-cyan-50 px-2 py-1 rounded-md">${c.tag}</span>
-        <h3 class="font-bold text-navy-800 mt-2 mb-1">${c.t}</h3>
-        <p class="text-gray-500 text-sm">${c.d}</p>
-      </div>
-    </a>`).join('')}
+<!-- 여행 가이드 (API 연동) -->
+<section class="max-w-6xl mx-auto px-4 py-16" id="travel-guide-section">
+  <div class="flex items-center justify-between mb-2">
+    <h2 class="text-2xl font-black text-navy-800">수륙양용버스 여행 가이드</h2>
+  </div>
+  <!-- 탭 필터 -->
+  <div class="flex gap-2 mb-6 flex-wrap">
+    <button onclick="CustomerModule.filterGuides('all')" id="guide-tab-all"
+      class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-navy-800 text-white border border-navy-800">전체</button>
+    <button onclick="CustomerModule.filterGuides('daytrip')" id="guide-tab-daytrip"
+      class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-white text-gray-600 border border-gray-200 hover:border-navy-400">당일치기</button>
+    <button onclick="CustomerModule.filterGuides('overnight')" id="guide-tab-overnight"
+      class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-white text-gray-600 border border-gray-200 hover:border-navy-400">1박2일</button>
+  </div>
+  <div id="guide-grid" class="grid md:grid-cols-3 lg:grid-cols-4 gap-5">
+    <div class="col-span-4 text-center py-10 text-gray-400">
+      <div class="animate-spin text-3xl mb-2">⏳</div>로딩 중...
+    </div>
   </div>
 </section>
 
@@ -2561,5 +2564,69 @@ ${Navbar.render('reservation')}
 </div>
 ${Footer.render()}`,
 };
+
+// ── 여행 가이드 로드/필터 ────────────────────────────────
+let _guideData = [];
+
+const _typeLabel = { daytrip:'당일치기', overnight:'1박2일', package:'패키지' };
+const _regionShort = (id) => {
+  const m = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+  if (m[id]) return m[id];
+  if (id.includes('목포')) return '목포';
+  return id;
+};
+
+const _renderGuideGrid = (guides) => {
+  const grid = document.getElementById('guide-grid');
+  if (!grid) return;
+  if (!guides.length) {
+    grid.innerHTML = '<div class="col-span-4 text-center py-10 text-gray-400">해당하는 가이드가 없습니다.</div>';
+    return;
+  }
+  grid.innerHTML = guides.map(g => `
+  <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group cursor-pointer">
+    <div class="h-44 overflow-hidden relative">
+      <img src="${g.imageUrl||'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600'}"
+        alt="${g.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"
+        onerror="this.src='https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600'">
+      <div class="absolute top-2 left-2 flex gap-1">
+        <span class="text-xs font-bold bg-white/90 text-cyan-600 px-2 py-0.5 rounded-full">${_regionShort(g.regionId)}</span>
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full ${g.type==='overnight'?'bg-purple-600 text-white':'bg-cyan-500 text-white'}">${_typeLabel[g.type]||g.type}</span>
+      </div>
+    </div>
+    <div class="p-4">
+      <h3 class="font-bold text-navy-800 mb-1 text-sm leading-tight">${g.title}</h3>
+      <p class="text-gray-500 text-xs mb-2 line-clamp-2">${g.description||''}</p>
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-gray-400">⏱ ${g.duration}</span>
+        <div class="flex gap-1">
+          ${(g.tags||[]).slice(0,2).map(t=>`<span class="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">${t}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`).join('');
+};
+
+const _loadGuides = async (filterType) => {
+  if (!_guideData.length) {
+    const res = await API.get('/api/guides');
+    _guideData = res.data || [];
+  }
+  const filtered = filterType === 'all' ? _guideData : _guideData.filter(g => g.type === filterType);
+  _renderGuideGrid(filtered);
+  // 탭 활성화
+  document.querySelectorAll('.guide-tab-btn').forEach(b => {
+    b.classList.remove('bg-navy-800','text-white','border-navy-800');
+    b.classList.add('bg-white','text-gray-600','border-gray-200');
+  });
+  const activeTab = document.getElementById('guide-tab-' + filterType);
+  if (activeTab) {
+    activeTab.classList.remove('bg-white','text-gray-600','border-gray-200');
+    activeTab.classList.add('bg-navy-800','text-white','border-navy-800');
+  }
+};
+
+// 전역 노출 (onclick에서 호출)
+window.CustomerModule = { filterGuides: _loadGuides };
 
 window.CustomerPages = CustomerPages;

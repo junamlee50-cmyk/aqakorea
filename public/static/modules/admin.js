@@ -70,6 +70,8 @@ const AdminModule = (() => {
       { icon: 'fas fa-calculator', label: '정산 관리', section: 'settlement' },
       { icon: 'fas fa-users-cog', label: '관리자 계정', section: 'admins' },
       { icon: 'fas fa-cog', label: '시스템 설정', section: 'settings-admin' },
+      { icon: 'fas fa-map-marked-alt', label: '여행가이드 관리', section: 'travel-guides' },
+      { icon: 'fas fa-handshake', label: '파트너 관리', section: 'partners' },
       { icon: 'fas fa-database', label: '백업/로그', section: 'backup' },
     ];
     const regionalMenus = [
@@ -85,7 +87,8 @@ const AdminModule = (() => {
       { icon: 'fas fa-search', label: 'SEO 관리', section: 'seo' },
       { icon: 'fas fa-calculator', label: '정산 관리', section: 'settlement' },
       { icon: 'fas fa-chart-bar', label: '통계', section: 'stats-admin' },
-      { icon: 'fas fa-map-marked-alt', label: '관광정보 관리', section: 'tourism' },
+      { icon: 'fas fa-map-marked-alt', label: '여행가이드 관리', section: 'travel-guides' },
+      { icon: 'fas fa-handshake', label: '파트너 관리', section: 'partners' },
     ];
     return role === ROLES.SUPER ? superMenus : regionalMenus;
   };
@@ -4399,7 +4402,312 @@ const AdminModule = (() => {
   const resetSettings = () => { Utils.confirm('모든 관리자 설정을 기본값으로 초기화하시겠습니까?', () => { Settings.reset(); Utils.toast('설정이 초기화되었습니다.', 'success'); }); };
 
   // ── 백업/로그 ──────────────────────────────────────────────
-  const backupPage = async () => {
+  
+  // ── 여행 가이드 관리 ─────────────────────────────────────
+  const travelGuidesPage = async () => {
+    _adminState.currentSection = 'travel-guides';
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const regRes = await API.get('/api/regions');
+    const allRegions = regRes.data || [];
+    const regions = user.role === 'regional' && user.regionId
+      ? allRegions.filter(r => r.id === user.regionId)
+      : allRegions;
+    const activeRegionId = _adminState.selectedRegion || regions[0]?.id || '';
+    const guidesRes = await API.get(`/api/guides/all${activeRegionId ? '?regionId='+activeRegionId : ''}`);
+    const guides = guidesRes.data || [];
+    const regionTabs = regions.map(r => `
+      <button onclick="AdminModule.selectGuideRegion('${r.id}')"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors ${r.id===activeRegionId?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+        ${r.name}
+      </button>`).join('');
+    const typeMap = { daytrip:'당일치기', overnight:'1박2일', package:'패키지' };
+    const rows = guides.map(g => `
+      <tr class="hover:bg-gray-50 border-b border-gray-100">
+        <td class="px-4 py-3"><img src="${g.imageUrl||''}" class="w-16 h-10 object-cover rounded" onerror="this.style.display='none'"></td>
+        <td class="px-4 py-3 text-sm font-medium">${g.title}</td>
+        <td class="px-4 py-3 text-sm text-gray-500">${g.description||''}</td>
+        <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs font-bold ${g.type==='overnight'?'bg-purple-100 text-purple-700':'bg-cyan-100 text-cyan-700'}">${typeMap[g.type]||g.type}</span></td>
+        <td class="px-4 py-3 text-center text-sm">${g.duration}</td>
+        <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${g.isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${g.isActive?'활성':'비활성'}</span></td>
+        <td class="px-4 py-3 text-center whitespace-nowrap">
+          <button onclick="AdminModule.editGuide('${g.id}')" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
+          <button onclick="AdminModule.deleteGuide('${g.id}')" class="text-red-500 hover:underline text-xs">삭제</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="7" class="py-8 text-center text-gray-400">등록된 여행 가이드가 없습니다</td></tr>';
+    return renderAdminLayout('travel-guides', `
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">여행 가이드 관리</h2>
+        <button onclick="AdminModule.addGuide('${activeRegionId}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ 가이드 추가</button>
+      </div>
+      ${user.role !== 'regional' ? `<div class="flex gap-2 mb-4 flex-wrap">${regionTabs}</div>` : ''}
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full">
+          <thead class="bg-gray-50"><tr>
+            ${['이미지','제목','설명','유형','소요시간','상태','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <!-- 가이드 추가/수정 모달 -->
+      <div id="guide-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg" onclick="event.stopPropagation()">
+          <h3 id="guide-modal-title" class="text-lg font-bold mb-4">여행 가이드 추가</h3>
+          <div class="space-y-3">
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">제목 *</label>
+              <input id="g-title" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="예: 부여 당일치기 여행코스"></div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">설명</label>
+              <textarea id="g-desc" class="w-full border rounded-lg px-3 py-2 text-sm h-20" placeholder="코스 설명"></textarea></div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">대표 이미지 URL</label>
+              <input id="g-img" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="https://..."></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-700 mb-1 block">유형</label>
+                <select id="g-type" class="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="daytrip">당일치기</option>
+                  <option value="overnight">1박2일</option>
+                  <option value="package">패키지</option>
+                </select></div>
+              <div><label class="text-xs font-medium text-gray-700 mb-1 block">소요시간</label>
+                <input id="g-duration" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="예: 4시간, 1박2일"></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">태그 (쉼표 구분)</label>
+              <input id="g-tags" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="가족, 커플, 역사"></div>
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="g-active" checked class="rounded">
+              <label class="text-sm text-gray-700" for="g-active">활성화</label>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button onclick="AdminModule.saveGuide()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700">저장</button>
+            <button onclick="document.getElementById('guide-modal').classList.add('hidden')" class="flex-1 border py-2 rounded-lg text-sm hover:bg-gray-50">취소</button>
+          </div>
+        </div>
+      </div>`, '여행 가이드 관리');
+  };
+
+  let _editingGuideId = null;
+  let _editingGuideRegion = null;
+
+  const selectGuideRegion = (regionId) => {
+    _adminState.selectedRegion = regionId;
+    travelGuidesPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  const addGuide = (regionId) => {
+    _editingGuideId = null;
+    _editingGuideRegion = regionId;
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||''; };
+    document.getElementById('guide-modal-title').textContent = '여행 가이드 추가';
+    set('g-title',''); set('g-desc',''); set('g-img',''); set('g-type','daytrip');
+    set('g-duration','4시간'); set('g-tags','');
+    const activeEl = document.getElementById('g-active'); if(activeEl) activeEl.checked = true;
+    document.getElementById('guide-modal').classList.remove('hidden');
+  };
+
+  const editGuide = async (guideId) => {
+    const res = await API.get('/api/guides/all');
+    const g = (res.data||[]).find(x => x.id === guideId);
+    if (!g) return;
+    _editingGuideId = guideId;
+    _editingGuideRegion = g.regionId;
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val??''; };
+    document.getElementById('guide-modal-title').textContent = '여행 가이드 수정';
+    set('g-title', g.title); set('g-desc', g.description); set('g-img', g.imageUrl);
+    set('g-type', g.type); set('g-duration', g.duration);
+    set('g-tags', (g.tags||[]).join(', '));
+    const activeEl = document.getElementById('g-active'); if(activeEl) activeEl.checked = g.isActive;
+    document.getElementById('guide-modal').classList.remove('hidden');
+  };
+
+  const saveGuide = async () => {
+    const get = (id) => document.getElementById(id)?.value?.trim()||'';
+    const title = get('g-title');
+    if (!title) { Utils.toast('제목을 입력하세요', 'error'); return; }
+    const tags = get('g-tags').split(',').map(t=>t.trim()).filter(Boolean);
+    const isActive = document.getElementById('g-active')?.checked ?? true;
+    const data = { title, description: get('g-desc'), imageUrl: get('g-img'),
+      type: get('g-type'), duration: get('g-duration'), tags, isActive,
+      regionId: _editingGuideRegion };
+    Utils.loading(true);
+    const res = _editingGuideId
+      ? await API.put(`/api/guides/${_editingGuideId}`, data)
+      : await API.post('/api/guides', data);
+    Utils.loading(false);
+    if (res.success) {
+      document.getElementById('guide-modal').classList.add('hidden');
+      Utils.toast(_editingGuideId ? '수정되었습니다.' : '추가되었습니다.', 'success');
+      travelGuidesPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else Utils.toast(res.message||'저장 실패', 'error');
+  };
+
+  const deleteGuide = (guideId) => {
+    Utils.confirm('이 여행 가이드를 삭제하시겠습니까?', async () => {
+      Utils.loading(true);
+      const res = await API.delete(`/api/guides/${guideId}`);
+      Utils.loading(false);
+      Utils.closeModal();
+      if (res.success) {
+        Utils.toast('삭제되었습니다.', 'success');
+        travelGuidesPage().then(html => { document.getElementById('app').innerHTML = html; });
+      } else Utils.toast('삭제 실패', 'error');
+    });
+  };
+
+  // ── 파트너(숙박/식당) 관리 ──────────────────────────────────
+  const partnersPage = async () => {
+    _adminState.currentSection = 'partners';
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const regRes = await API.get('/api/regions');
+    const allRegions = regRes.data || [];
+    const regions = user.role === 'regional' && user.regionId
+      ? allRegions.filter(r => r.id === user.regionId)
+      : allRegions;
+    const activeRegionId = _adminState.selectedRegion || regions[0]?.id || '';
+    const pRes = await API.get(`/api/guides/partners/all${activeRegionId ? '?regionId='+activeRegionId : ''}`);
+    const partners = pRes.data || [];
+    const regionTabs = regions.map(r => `
+      <button onclick="AdminModule.selectPartnerRegion('${r.id}')"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors ${r.id===activeRegionId?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+        ${r.name}
+      </button>`).join('');
+    const typeIcon = { hotel:'🏨', pension:'🏡', restaurant:'🍽️', cafe:'☕' };
+    const typeLabel = { hotel:'숙박', pension:'펜션', restaurant:'식당', cafe:'카페' };
+    const rows = partners.map(p => `
+      <tr class="hover:bg-gray-50 border-b border-gray-100">
+        <td class="px-4 py-3 text-center">${typeIcon[p.type]||'🏢'}</td>
+        <td class="px-4 py-3 text-sm font-medium">${p.name}</td>
+        <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">${typeLabel[p.type]||p.type}</span></td>
+        <td class="px-4 py-3 text-sm text-gray-500 text-xs">${p.discountInfo||'-'}</td>
+        <td class="px-4 py-3 text-sm text-gray-500 text-xs">${p.phone||'-'}</td>
+        <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${p.isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${p.isActive?'활성':'비활성'}</span></td>
+        <td class="px-4 py-3 text-center whitespace-nowrap">
+          <button onclick="AdminModule.editPartner('${p.id}')" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
+          <button onclick="AdminModule.deletePartner('${p.id}')" class="text-red-500 hover:underline text-xs">삭제</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="7" class="py-8 text-center text-gray-400">등록된 파트너가 없습니다</td></tr>';
+    return renderAdminLayout('partners', `
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">파트너 관리 (숙박·식당·카페)</h2>
+        <button onclick="AdminModule.addPartner('${activeRegionId}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ 파트너 추가</button>
+      </div>
+      ${user.role !== 'regional' ? `<div class="flex gap-2 mb-4 flex-wrap">${regionTabs}</div>` : ''}
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full">
+          <thead class="bg-gray-50"><tr>
+            ${['유형','업체명','분류','할인혜택','전화','상태','관리'].map(h=>`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <!-- 파트너 추가/수정 모달 -->
+      <div id="partner-modal" class="modal-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-screen overflow-y-auto" onclick="event.stopPropagation()">
+          <h3 id="partner-modal-title" class="text-lg font-bold mb-4">파트너 추가</h3>
+          <div class="space-y-3">
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">업체명 *</label>
+              <input id="p-name" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="예: 통영 한산마리나호텔"></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-700 mb-1 block">분류</label>
+                <select id="p-type" class="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="hotel">🏨 숙박</option>
+                  <option value="pension">🏡 펜션</option>
+                  <option value="restaurant">🍽️ 식당</option>
+                  <option value="cafe">☕ 카페</option>
+                </select></div>
+              <div><label class="text-xs font-medium text-gray-700 mb-1 block">전화번호</label>
+                <input id="p-phone" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="0xx-xxx-xxxx"></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">설명</label>
+              <textarea id="p-desc" class="w-full border rounded-lg px-3 py-2 text-sm h-16"></textarea></div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">주소</label>
+              <input id="p-address" class="w-full border rounded-lg px-3 py-2 text-sm"></div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">예약 URL</label>
+              <input id="p-url" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="https://..."></div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">대표 이미지 URL</label>
+              <input id="p-img" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="https://..."></div>
+            <div><label class="text-xs font-medium text-gray-700 mb-1 block">🎁 할인 혜택 (수륙양용투어 예약자 대상)</label>
+              <input id="p-discount" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="예: 탑승권 제시 시 10% 할인"></div>
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="p-active" checked class="rounded">
+              <label class="text-sm text-gray-700" for="p-active">활성화</label>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button onclick="AdminModule.savePartner()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700">저장</button>
+            <button onclick="document.getElementById('partner-modal').classList.add('hidden')" class="flex-1 border py-2 rounded-lg text-sm hover:bg-gray-50">취소</button>
+          </div>
+        </div>
+      </div>`, '파트너 관리');
+  };
+
+  let _editingPartnerId = null;
+  let _editingPartnerRegion = null;
+
+  const selectPartnerRegion = (regionId) => {
+    _adminState.selectedRegion = regionId;
+    partnersPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  const addPartner = (regionId) => {
+    _editingPartnerId = null;
+    _editingPartnerRegion = regionId;
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||''; };
+    document.getElementById('partner-modal-title').textContent = '파트너 추가';
+    ['p-name','p-phone','p-desc','p-address','p-url','p-img','p-discount'].forEach(id => set(id,''));
+    set('p-type','hotel');
+    const activeEl = document.getElementById('p-active'); if(activeEl) activeEl.checked = true;
+    document.getElementById('partner-modal').classList.remove('hidden');
+  };
+
+  const editPartner = async (partnerId) => {
+    const res = await API.get('/api/guides/partners/all');
+    const p = (res.data||[]).find(x => x.id === partnerId);
+    if (!p) return;
+    _editingPartnerId = partnerId;
+    _editingPartnerRegion = p.regionId;
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val??''; };
+    document.getElementById('partner-modal-title').textContent = '파트너 수정';
+    set('p-name', p.name); set('p-type', p.type); set('p-phone', p.phone);
+    set('p-desc', p.description); set('p-address', p.address);
+    set('p-url', p.url); set('p-img', p.imageUrl); set('p-discount', p.discountInfo);
+    const activeEl = document.getElementById('p-active'); if(activeEl) activeEl.checked = p.isActive;
+    document.getElementById('partner-modal').classList.remove('hidden');
+  };
+
+  const savePartner = async () => {
+    const get = (id) => document.getElementById(id)?.value?.trim()||'';
+    const name = get('p-name');
+    if (!name) { Utils.toast('업체명을 입력하세요', 'error'); return; }
+    const isActive = document.getElementById('p-active')?.checked ?? true;
+    const data = { name, type: get('p-type'), phone: get('p-phone'),
+      description: get('p-desc'), address: get('p-address'),
+      url: get('p-url'), imageUrl: get('p-img'), discountInfo: get('p-discount'),
+      isActive, regionId: _editingPartnerRegion };
+    Utils.loading(true);
+    const res = _editingPartnerId
+      ? await API.put(`/api/guides/partners/${_editingPartnerId}`, data)
+      : await API.post('/api/guides/partners', data);
+    Utils.loading(false);
+    if (res.success) {
+      document.getElementById('partner-modal').classList.add('hidden');
+      Utils.toast(_editingPartnerId ? '수정되었습니다.' : '추가되었습니다.', 'success');
+      partnersPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else Utils.toast(res.message||'저장 실패', 'error');
+  };
+
+  const deletePartner = (partnerId) => {
+    Utils.confirm('이 파트너를 삭제하시겠습니까?', async () => {
+      Utils.loading(true);
+      const res = await API.delete(`/api/guides/partners/${partnerId}`);
+      Utils.loading(false);
+      Utils.closeModal();
+      if (res.success) {
+        Utils.toast('삭제되었습니다.', 'success');
+        partnersPage().then(html => { document.getElementById('app').innerHTML = html; });
+      } else Utils.toast('삭제 실패', 'error');
+    });
+  };
+
+const backupPage = async () => {
     _adminState.currentSection = 'backup';
     const content = `
       <div class="space-y-4">
@@ -4801,6 +5109,8 @@ const AdminModule = (() => {
       'backup': () => backupPage(),
       'stats-admin': () => statsAdminPage(),
       'tourism': () => tourismManagePage(),
+      'travel-guides': () => travelGuidesPage(),
+      'partners': () => partnersPage(),
       'reports': () => statsAdminPage(), // /admin/reports → statsAdminPage
     };
     return pageMap[section] ? pageMap[section]() : hqDashboard();
@@ -4813,6 +5123,9 @@ const AdminModule = (() => {
     seatsPage, reservationsPage, wristbandsPage, popupsPage, termsPage, seoManagePage,
     regionsPage, settlementPage, adminsPage, settingsAdminPage, backupPage, statsAdminPage,
     tourismManagePage,
+    travelGuidesPage, partnersPage,
+    selectGuideRegion, addGuide, editGuide, saveGuide, deleteGuide,
+    selectPartnerRegion, addPartner, editPartner, savePartner, deletePartner,
     // 액션
     doLogin, logout, navigate, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, approveFare, fillLogin,
     addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal,
