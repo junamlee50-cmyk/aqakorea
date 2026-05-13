@@ -70,6 +70,7 @@
       return html;
     });
 
+    Router.add('/guide/:guideId', async (params) => CustomerPages.guideDetail(params));
     Router.add('/content', SeoModule.contentListPage);
 
     Router.add('/content/:slug', async (params) => {

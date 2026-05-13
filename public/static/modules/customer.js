@@ -2584,7 +2584,7 @@ const _renderGuideGrid = (guides) => {
     return;
   }
   grid.innerHTML = guides.map(g => `
-  <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group cursor-pointer">
+  <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group cursor-pointer" onclick="Router.go('/guide/'+g.id)">
     <div class="h-44 overflow-hidden relative">
       <img src="${g.imageUrl||'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600'}"
         alt="${g.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy"
@@ -2627,6 +2627,154 @@ const _loadGuides = async (filterType) => {
 };
 
 // 전역 노출 (onclick에서 호출)
+// ── 여행 가이드 상세 페이지 ────────────────────────────────
+const guideDetailPage = async (params) => {
+  const guideId = params?.guideId || params?.id || '';
+  const res = await API.get(`/api/guides/${guideId}/detail`);
+  if (!res.success || !res.data) {
+    return CustomerPages._404 ? CustomerPages._404() : '<div class="p-10 text-center text-gray-500">가이드를 찾을 수 없습니다.</div>';
+  }
+  const { guide, itinerary, partners, attractions } = res.data;
+  const typeLabel = { daytrip:'당일치기', overnight:'1박2일', package:'패키지' };
+  const typeColor = guide.type === 'overnight' ? 'bg-purple-600' : 'bg-cyan-500';
+  const regionShort = (id) => {
+    const m = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+    if (m[id]) return m[id];
+    if (id.includes('목포')) return '목포';
+    return id;
+  };
+  const partnerTypeIcon = { hotel:'🏨', pension:'🏡', restaurant:'🍽️', cafe:'☕' };
+  const attrTypeIcon = { sightseeing:'🗺️', museum:'🏛️', food:'🍴', activity:'🎯' };
+
+  setTimeout(() => Navbar.init(), 100);
+
+  return `
+${Navbar.render('home')}
+<div class="min-h-screen bg-gray-50" style="padding-top:64px">
+
+  <!-- 히어로 -->
+  <div class="relative h-72 md:h-96 overflow-hidden">
+    <img src="${guide.imageUrl || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200'}"
+      alt="${guide.title}" class="w-full h-full object-cover"
+      onerror="this.src='https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200'">
+    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+    <div class="absolute bottom-6 left-6 right-6">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-xs font-bold bg-white/20 backdrop-blur text-white px-2 py-0.5 rounded-full">${regionShort(guide.regionId)}</span>
+        <span class="text-xs font-bold text-white px-2 py-0.5 rounded-full ${typeColor}">${typeLabel[guide.type] || guide.type}</span>
+        <span class="text-xs text-white/80">⏱ ${guide.duration}</span>
+      </div>
+      <h1 class="text-2xl md:text-3xl font-black text-white drop-shadow">${guide.title}</h1>
+      <p class="text-white/80 text-sm mt-1">${guide.description || ''}</p>
+    </div>
+    <button onclick="history.back()" class="absolute top-4 left-4 w-9 h-9 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white hover:bg-white/40 transition">
+      <i class="fas fa-arrow-left text-sm"></i>
+    </button>
+  </div>
+
+  <div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- 태그 -->
+    <div class="flex flex-wrap gap-2">
+      ${(guide.tags||[]).map(t => `<span class="px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded-full font-medium">#${t}</span>`).join('')}
+    </div>
+
+    <!-- 추천 일정 타임라인 -->
+    ${itinerary.length ? `
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="text-lg font-black text-navy-800 mb-6 flex items-center gap-2">
+        <span class="w-7 h-7 bg-cyan-100 text-cyan-600 rounded-lg flex items-center justify-center text-sm">📅</span>
+        추천 여행 일정
+      </h2>
+      <div class="relative">
+        <div class="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-400 to-blue-200"></div>
+        <div class="space-y-5">
+          ${itinerary.map((item, idx) => `
+          <div class="flex gap-4 relative">
+            <div class="w-12 h-12 rounded-full bg-white border-2 border-cyan-400 flex items-center justify-center text-xl flex-shrink-0 z-10 shadow-sm">${item.icon}</div>
+            <div class="flex-1 pt-1 pb-4 ${idx < itinerary.length-1 ? 'border-b border-gray-50' : ''}">
+              <div class="text-xs font-bold text-cyan-600 mb-0.5">${item.timeLabel}</div>
+              <div class="font-bold text-navy-800">${item.title}</div>
+              <div class="text-gray-500 text-sm mt-0.5">${item.description || ''}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>` : ''}
+
+    <!-- 주변 관광지 -->
+    ${attractions.length ? `
+    <div>
+      <h2 class="text-lg font-black text-navy-800 mb-4 flex items-center gap-2">
+        <span class="w-7 h-7 bg-orange-100 text-orange-500 rounded-lg flex items-center justify-center text-sm">🗺️</span>
+        ${regionShort(guide.regionId)} 주요 관광지
+      </h2>
+      <div class="grid md:grid-cols-3 gap-4">
+        ${attractions.map(a => `
+        <div class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+          <div class="h-36 overflow-hidden">
+            <img src="${a.imageUrl || ''}" alt="${a.name}"
+              class="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+              onerror="this.parentElement.innerHTML='<div class=\"h-36 bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center text-4xl\">${attrTypeIcon[a.type]||'📍'}</div>'">
+          </div>
+          <div class="p-4">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-navy-800 text-sm">${a.name}</span>
+              <span class="text-xs text-gray-400">${attrTypeIcon[a.type]||'📍'}</span>
+            </div>
+            <p class="text-gray-500 text-xs leading-relaxed mb-2">${a.description || ''}</p>
+            ${a.admission ? `<div class="text-xs text-emerald-600 font-medium">💰 ${a.admission}</div>` : ''}
+            ${a.tip ? `<div class="mt-1.5 text-xs bg-amber-50 text-amber-700 rounded-lg px-2 py-1">💡 ${a.tip}</div>` : ''}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- 연계 파트너 (숙박·식당) -->
+    ${partners.length ? `
+    <div>
+      <h2 class="text-lg font-black text-navy-800 mb-4 flex items-center gap-2">
+        <span class="w-7 h-7 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center text-sm">🤝</span>
+        제휴 숙박 · 식당 (수륙양용투어 예약자 할인)
+      </h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        ${partners.map(p => `
+        <div class="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all border border-gray-100">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-2xl flex-shrink-0">${partnerTypeIcon[p.type]||'🏢'}</div>
+            <div class="flex-1 min-w-0">
+              <div class="font-bold text-navy-800 text-sm">${p.name}</div>
+              <div class="text-gray-500 text-xs mt-0.5 mb-2">${p.description || ''}</div>
+              ${p.discountInfo ? `<div class="inline-flex items-center gap-1 bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-lg">🎁 ${p.discountInfo}</div>` : ''}
+              <div class="flex items-center gap-3 mt-2">
+                ${p.phone ? `<a href="tel:${p.phone}" class="text-xs text-blue-600 flex items-center gap-1"><i class="fas fa-phone text-xs"></i> ${p.phone}</a>` : ''}
+                ${p.url ? `<a href="${p.url}" target="_blank" rel="noopener" class="text-xs text-cyan-600 flex items-center gap-1"><i class="fas fa-external-link-alt text-xs"></i> 예약하기</a>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- 예약 CTA -->
+    <div class="bg-gradient-to-r from-navy-800 to-blue-700 rounded-2xl p-8 text-center text-white">
+      <div class="text-2xl mb-2">🚌</div>
+      <h3 class="text-xl font-black mb-2">${regionShort(guide.regionId)} 수륙양용버스 지금 예약하기</h3>
+      <p class="text-white/70 text-sm mb-5">온라인 예약 시 현장보다 빠른 탑승 가능</p>
+      <button onclick="Router.go('/reservation/${guide.regionId}')"
+        class="bg-white text-navy-800 font-black px-8 py-3 rounded-xl hover:bg-cyan-50 transition-colors text-sm">
+        예약하러 가기 →
+      </button>
+    </div>
+
+  </div>
+</div>
+${Footer.render()}`;
+};
+
+// CustomerPages에 guideDetail 추가
+CustomerPages.guideDetail = guideDetailPage;
+
 window.CustomerModule = {
   filterGuides: (type) => {
     _loadGuides(type).catch(e => console.error('[guide]', e));
