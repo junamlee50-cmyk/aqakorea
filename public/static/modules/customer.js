@@ -129,6 +129,36 @@ ${Navbar.render('home')}
       </p>
     </div>
 
+    <!-- 로고 + CI 전달 메시지 -->
+    <div class="flex flex-col md:flex-row items-center gap-10 mb-20 bg-gradient-to-br from-slate-50 to-blue-50 rounded-3xl p-8 md:p-12">
+      <div class="flex-shrink-0 text-center">
+        <img src="/static/logo_symbol.png" alt="Aqua Drive Shield 로고" class="w-56 md:w-72 mx-auto drop-shadow-xl">
+        <div class="mt-3 text-xs text-gray-400 font-medium tracking-wider">Innovative Logo Concept<br><span class="text-navy-700 font-bold text-sm">Aqua Drive Shield</span></div>
+      </div>
+      <div class="flex-1">
+        <div class="inline-block bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full mb-4">CI가 전달하는 메시지</div>
+        <p class="text-gray-600 text-base leading-relaxed mb-5">
+          이 CI는 단순한 관광 로고가 아니라,<br>
+          <strong class="text-navy-900 text-lg">"수상과 육상을 연결하는 안전하고 혁신적인 미래형 모빌리티 기업"</strong><br>
+          이라는 메시지를 담고 있습니다.
+        </p>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex items-center gap-2 bg-white rounded-xl px-4 py-3 shadow-sm">
+            <span class="text-xl">🛡️</span><span class="text-sm font-bold text-navy-800">안전하게</span>
+          </div>
+          <div class="flex items-center gap-2 bg-white rounded-xl px-4 py-3 shadow-sm">
+            <span class="text-xl">💡</span><span class="text-sm font-bold text-navy-800">혁신적으로</span>
+          </div>
+          <div class="flex items-center gap-2 bg-white rounded-xl px-4 py-3 shadow-sm">
+            <span class="text-xl">🌊</span><span class="text-sm font-bold text-navy-800">물과 육지를 하나로 연결</span>
+          </div>
+          <div class="flex items-center gap-2 bg-white rounded-xl px-4 py-3 shadow-sm">
+            <span class="text-xl">🇰🇷</span><span class="text-sm font-bold text-navy-800">대한민국 대표 수륙양용 브랜드</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 브랜드명 의미 -->
     <div class="grid md:grid-cols-3 gap-6 mb-16">
       <div class="rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow">
@@ -160,29 +190,69 @@ ${Navbar.render('home')}
       </div>
     </div>
 
-    <!-- 로고 심볼 의미 -->
-    <div class="bg-gradient-to-br from-slate-50 to-blue-50 rounded-3xl p-8 md:p-12 mb-16">
-      <h3 class="text-xl font-black text-navy-900 text-center mb-8">심볼 로고가 담은 4가지 의미</h3>
-      <div class="grid md:grid-cols-4 gap-6">
-        <div class="text-center">
-          <div class="w-14 h-14 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🛡️</div>
-          <div class="font-bold text-navy-800 text-sm mb-2">방패 (Shield)</div>
-          <p class="text-gray-500 text-xs leading-relaxed">안전성·신뢰성·보호를 상징. 승객의 안전한 이동과 기업의 책임감을 표현합니다.</p>
+    <!-- 로고 심볼 의미 (상세) -->
+    <div class="mb-16">
+      <h3 class="text-2xl font-black text-navy-900 text-center mb-2">심볼 로고가 담은 4가지 의미</h3>
+      <p class="text-gray-400 text-center text-sm mb-10">각 요소가 전달하는 브랜드 가치</p>
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- 방패 -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">🛡️</div>
+            <div>
+              <div class="font-black text-navy-800">방패 (Shield)</div>
+              <div class="text-xs text-blue-500 font-medium">안전성 · 신뢰성 · 보호</div>
+            </div>
+          </div>
+          <ul class="space-y-1.5">
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-blue-400 mt-0.5">•</span>안전성, 신뢰성, 보호를 상징</li>
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-blue-400 mt-0.5">•</span>승객의 안전한 이동과 기업의 책임감을 표현</li>
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-blue-400 mt-0.5">•</span>수륙양용 운송수단이 갖춰야 할 <strong>안전한 기술력</strong>을 강조</li>
+          </ul>
         </div>
-        <div class="text-center">
-          <div class="w-14 h-14 bg-cyan-100 text-cyan-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🌊</div>
-          <div class="font-bold text-navy-800 text-sm mb-2">파도 (Wave)</div>
-          <p class="text-gray-500 text-xs leading-relaxed">물길·해양·역동성을 상징. 수상 이동 기술과 친환경적 이미지를 담았습니다.</p>
+        <!-- 파도 -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-cyan-100 text-cyan-700 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">🌊</div>
+            <div>
+              <div class="font-black text-navy-800">파도 (Wave)</div>
+              <div class="text-xs text-cyan-500 font-medium">물길 · 해양 · 역동성</div>
+            </div>
+          </div>
+          <ul class="space-y-1.5">
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-cyan-400 mt-0.5">•</span>물길, 해양, 역동성, 자유로운 이동을 상징</li>
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-cyan-400 mt-0.5">•</span>수상 이동 기술과 친환경적 이미지를 표현</li>
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-cyan-400 mt-0.5">•</span>"아쿠아"의 정체성을 가장 직관적으로 보여주는 요소</li>
+          </ul>
         </div>
-        <div class="text-center">
-          <div class="w-14 h-14 bg-green-100 text-green-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🛣️</div>
-          <div class="font-bold text-navy-800 text-sm mb-2">도로 (Road)</div>
-          <p class="text-gray-500 text-xs leading-relaxed">육상 운행·연결성·확장성을 의미. 수상과 육상을 하나로 잇는 구조를 표현합니다.</p>
+        <!-- 도로 -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-green-100 text-green-700 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">🛣️</div>
+            <div>
+              <div class="font-black text-navy-800">도로 (Road)</div>
+              <div class="text-xs text-green-500 font-medium">육상 운행 · 연결성 · 확장성</div>
+            </div>
+          </div>
+          <ul class="space-y-1.5">
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-green-400 mt-0.5">•</span>육상 운행, 연결성, 확장성을 의미</li>
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-green-400 mt-0.5">•</span>수상과 육상을 하나로 연결하는 사업 구조를 표현</li>
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-green-400 mt-0.5">•</span>관광, 교통, 레저를 잇는 <strong>통합 이동 플랫폼</strong>의 의미 포함</li>
+          </ul>
         </div>
-        <div class="text-center">
-          <div class="w-14 h-14 bg-purple-100 text-purple-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🚌</div>
-          <div class="font-bold text-navy-800 text-sm mb-2">차량 (Mobility)</div>
-          <p class="text-gray-500 text-xs leading-relaxed">수륙양용 차량·혁신성을 상징. 단순 관광을 넘어선 미래형 운송수단입니다.</p>
+        <!-- 차량 -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-purple-100 text-purple-700 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">🚌</div>
+            <div>
+              <div class="font-black text-navy-800">차량/모빌리티 형상</div>
+              <div class="text-xs text-purple-500 font-medium">혁신성 · 미래형 운송</div>
+            </div>
+          </div>
+          <ul class="space-y-1.5">
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-purple-400 mt-0.5">•</span>수륙양용 차량, 미래형 운송수단, 혁신성을 상징</li>
+            <li class="flex items-start gap-2 text-sm text-gray-600"><span class="text-purple-400 mt-0.5">•</span>단순 관광이 아니라 <strong>기술 기반의 이동 산업</strong>임을 보여줌</li>
+          </ul>
         </div>
       </div>
     </div>
