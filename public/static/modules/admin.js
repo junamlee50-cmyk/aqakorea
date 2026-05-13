@@ -2227,7 +2227,13 @@ const AdminModule = (() => {
     const approvals = isSuper
       ? _allApprovals.filter(a => a.status !== 'approved' && a.status !== 'rejected')
       : _allApprovals.filter(a => a.region_id === activeRegionId);
-    const fareMode = Settings.get('fareChangeMode') || 'approval';
+    // fareChangeMode를 서버에서 읽어와서 전역에 캐시
+    let fareMode;
+    try {
+      const fmRes = await API.get('/api/settings/fareChangeMode');
+      fareMode = fmRes.success ? (fmRes.data || 'approval') : (Settings.get('fareChangeMode') || 'approval');
+    } catch(e) { fareMode = Settings.get('fareChangeMode') || 'approval'; }
+    window._fareChangeMode = fareMode; // addFare/saveFare에서 사용
 
     // 지역관리자: 즉시적용 권한 여부 확인
     const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
@@ -2427,8 +2433,10 @@ const AdminModule = (() => {
     _adminState.selectedRegion = regionId;
     faresPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
-  const setFareMode = (mode) => {
+  const setFareMode = async (mode) => {
     Settings.set('fareChangeMode', mode);
+    // 서버에도 저장 (지역관리자들이 동일하게 인식하도록)
+    await API.put('/api/settings/fareChangeMode', { value: mode }).catch(()=>{});
     faresPage().then(html => { document.getElementById('app').innerHTML = html; });
     Utils.toast(`요금 변경 방식이 "${mode==='approval'?'HQ 승인 후 적용':'즉시 자동 적용'}"으로 변경되었습니다.`, 'info');
   };
@@ -2456,7 +2464,7 @@ const AdminModule = (() => {
     const isSuper = user.role === 'super';
     const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
     const hasInstant = isSuper || instantPerm[regionId];
-    const fareMode = Settings.get('fareChangeMode') || 'approval';
+    const fareMode = window._fareChangeMode || Settings.get('fareChangeMode') || 'approval';
     document.getElementById('fare-modal-title').textContent = '요금 추가';
     ['f-label','f-price','f-discount','f-reason','f-effective','f-effective-to'].forEach(id => {
       const el = document.getElementById(id); if(el) el.value = '';
@@ -2496,6 +2504,10 @@ const AdminModule = (() => {
     document.getElementById('f-label').value = f.label || '';
     document.getElementById('f-price').value = f.price || 0;
     document.getElementById('f-discount').value = f.discountPrice || '';
+    // oldPrice를 hidden input에 보관
+    let hiddenOld = document.getElementById('f-old-price');
+    if (!hiddenOld) { hiddenOld = document.createElement('input'); hiddenOld.type='hidden'; hiddenOld.id='f-old-price'; document.getElementById('fare-modal').appendChild(hiddenOld); }
+    hiddenOld.value = f.price || 0;
   };
 
   const saveFare = async () => {
@@ -2511,7 +2523,7 @@ const AdminModule = (() => {
     const isSuper = user.role === 'super';
     const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
     const hasInstant = isSuper || instantPerm[_editingFareRegion];
-    const fareMode = Settings.get('fareChangeMode') || 'approval';
+    const fareMode = window._fareChangeMode || Settings.get('fareChangeMode') || 'approval';
     const regionId = _editingFareRegion;
 
     const newFare = {
@@ -2543,7 +2555,7 @@ const AdminModule = (() => {
         fareId: newFare.id || ('fare-' + Date.now()),
         fareLabel: newFare.label,
         fareType: newFare.type,
-        oldPrice: _editingFareIdx !== null ? (await _getFares(regionId))[_editingFareIdx]?.price : null,
+        oldPrice: _editingFareIdx !== null ? (parseInt(document.getElementById('f-old-price')?.value)||null) : null,
         newPrice: newFare.price,
         discountPrice: newFare.discountPrice || null,
         reason: newFare.reason || '',

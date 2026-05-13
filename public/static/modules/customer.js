@@ -2608,10 +2608,9 @@ const _renderGuideGrid = (guides) => {
 };
 
 const _loadGuides = async (filterType) => {
-  if (!_guideData.length) {
-    const res = await API.get('/api/guides');
-    _guideData = res.data || [];
-  }
+  // 매번 서버에서 최신 가이드 목록을 가져옴 (캐시 없음)
+  const res = await API.get('/api/guides');
+  _guideData = res.data || [];
   const filtered = filterType === 'all' ? _guideData : _guideData.filter(g => g.type === filterType);
   _renderGuideGrid(filtered);
   // 탭 활성화
