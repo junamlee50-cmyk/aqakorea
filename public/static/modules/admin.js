@@ -134,7 +134,7 @@ const AdminModule = (() => {
             ` : `
               <div class="flex items-center gap-2 overflow-hidden">
                 <div class="flex items-center flex-shrink-0">
-                  <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:28px;width:auto;object-fit:contain;">
+                  <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:120px;height:auto;object-fit:contain;">
                 </div>
                 <div class="overflow-hidden">
                   <div class="text-white font-bold text-sm whitespace-nowrap" style="display:none;">아쿠아모빌리티</div>
@@ -237,7 +237,7 @@ const AdminModule = (() => {
         <div class="w-full max-w-md">
           <div class="text-center mb-8">
             <div class="flex justify-center mb-4">
-              <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:52px;width:auto;object-fit:contain;">
+              <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:180px;height:auto;object-fit:contain;">
             </div>
             <p class="text-gray-400 text-sm mt-1">통합 관리자 시스템 · Admin Portal</p>
           </div>
@@ -423,26 +423,42 @@ const AdminModule = (() => {
   // ── HQ 슈퍼 대시보드 ───────────────────────────────────────
   const hqDashboard = async () => {
     _adminState.currentSection = 'hq-dashboard';
-    const regions = window.REGIONS || [];
+    // DB에서 지역 및 통계 로드
+    const [regRes, statsRes] = await Promise.all([
+      API.get('/api/regions'),
+      API.get('/api/stats/overview'),
+    ]);
+    const regions = (regRes.success && regRes.data) ? regRes.data : [];
+    const stats = (statsRes.success && statsRes.data) ? statsRes.data : {};
+    // window.REGIONS도 업데이트 (다른 함수들이 사용)
+    window.REGIONS = regions;
     const activeRegions = regions.filter(r => r.status === 'active' || r.status === 'open');
     const today = new Date().toISOString().slice(0, 10);
+    const regionStats = stats.regionStats || [];
 
-    const regionRows = activeRegions.map(r => {
-      const todayRes = Math.floor(Math.random() * 200) + 50;
-      const revenue = todayRes * (r.fares?.[0]?.price || 30000) * 0.7;
+    const statusLabel = (s) => ({
+      open:'운영중', active:'운영중', preparing:'준비중', closed:'운영중단'
+    })[s] || s;
+    const statusColor = (s) => ({
+      open:'bg-green-100 text-green-700', active:'bg-green-100 text-green-700',
+      preparing:'bg-yellow-100 text-yellow-700', closed:'bg-red-100 text-red-700'
+    })[s] || 'bg-gray-100 text-gray-600';
+
+    const regionRows = regions.map(r => {
+      const rs = regionStats.find(s => s.id === r.id) || {};
       return `
         <tr class="hover:bg-gray-50">
           <td class="px-4 py-3">
             <div class="font-medium text-gray-800">${r.name}</div>
-            <div class="text-xs text-gray-500">${r.code}</div>
+            <div class="text-xs text-gray-500">${r.code || ''}</div>
           </td>
           <td class="px-4 py-3 text-center">
-            <span class="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">운영중</span>
+            <span class="px-2 py-1 rounded-full text-xs font-medium ${statusColor(r.status)}">${statusLabel(r.status)}</span>
           </td>
-          <td class="px-4 py-3 text-right font-medium">${todayRes.toLocaleString()}명</td>
-          <td class="px-4 py-3 text-right font-medium text-blue-600">₩${revenue.toLocaleString()}</td>
+          <td class="px-4 py-3 text-right font-medium">${(rs.reservations||0).toLocaleString()}건</td>
+          <td class="px-4 py-3 text-right font-medium text-blue-600">₩${(rs.revenue||0).toLocaleString()}</td>
           <td class="px-4 py-3 text-center">
-            <span class="text-xs ${r.onlineRatio >= 70 ? 'text-green-600' : 'text-orange-500'}">${r.onlineRatio}% / ${r.offlineRatio}%</span>
+            <span class="text-xs ${r.onlineRatio >= 70 ? 'text-green-600' : 'text-orange-500'}">${r.onlineRatio||70}% / ${r.offlineRatio||30}%</span>
           </td>
           <td class="px-4 py-3 text-center">
             <button onclick="AdminModule.navigate('region-dashboard')" class="text-blue-600 hover:underline text-xs">상세</button>
@@ -472,18 +488,15 @@ const AdminModule = (() => {
         </tr>`;
       }).join('');
 
-    const pendingScheduleCount = (() => {
-      const allSch = Settings.get('schedules') || {};
-      return Object.values(allSch).reduce((sum, arr) => sum + (arr||[]).filter(s=>s.status==='active').length, 0);
-    })();
+    const pendingScheduleCount = 0; // DB 기반 스케줄
 
     const content = `
       <div class="space-y-6">
         <!-- 상단 요약 카드 -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           ${statCard('fas fa-map-marker-alt', '운영 지역', `${activeRegions.length}개`, `전체 ${regions.length}개 중`, 'blue')}
-          ${statCard('fas fa-users', '오늘 총 예약', '1,247명', '전일 대비 +12%', 'green')}
-          ${statCard('fas fa-won-sign', '오늘 총 매출', '₩38,450,000', '결제 완료 기준', 'purple')}
+          ${statCard('fas fa-users', '오늘 총 예약', `${(stats.today?.reservations||0).toLocaleString()}건`, `이달 ${(stats.month?.reservations||0).toLocaleString()}건`, 'green')}
+          ${statCard('fas fa-won-sign', '오늘 총 매출', `₩${(stats.today?.revenue||0).toLocaleString()}`, `이달 누계 ₩${(stats.month?.revenue||0).toLocaleString()}`, 'purple')}
           ${statCard('fas fa-hourglass-half', '요금 승인 대기', `${fareApprovals.length}건`, fareApprovals.length > 0 ? '⚠ 즉시 처리 필요' : '대기 없음', fareApprovals.length > 0 ? 'orange' : 'gray')}
         </div>
 
@@ -934,7 +947,9 @@ const AdminModule = (() => {
   // ── 차량 관리 ──────────────────────────────────────────────
   const vehiclesPage = async () => {
     _adminState.currentSection = 'vehicles';
-    const vehicles = Settings.get('vehicles') || window.VEHICLES || [];
+    // DB API에서 차량 목록 로드
+    const vRes = await API.get('/api/vehicles');
+    const vehicles = (vRes.success && vRes.data) ? vRes.data : [];
 
     const rows = vehicles.map((v, i) => `
       <tr class="hover:bg-gray-50">
@@ -944,17 +959,17 @@ const AdminModule = (() => {
         </td>
         <td class="px-4 py-3 text-sm text-center">${v.type === 'amphibious' ? '🚌 수륙양용' : '🚐 일반'}</td>
         <td class="px-4 py-3 text-sm text-center">${v.capacity || 45}석</td>
-        <td class="px-4 py-3 text-sm text-center">${v.region || '통영'}</td>
+        <td class="px-4 py-3 text-sm text-center">${v.regionName || v.regionId || '-'}</td>
         <td class="px-4 py-3 text-sm text-center">
           <span class="px-2 py-0.5 rounded-full text-xs ${v.status==='active'?'bg-green-100 text-green-700':v.status==='maintenance'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-700'}">
             ${v.status==='active'?'운행중':v.status==='maintenance'?'정비중':'운행중단'}
           </span>
         </td>
-        <td class="px-4 py-3 text-sm text-center text-gray-500">${v.inspectionDate || '2025-12-31'}</td>
-        <td class="px-4 py-3 text-sm text-center text-gray-500">${v.insuranceDate || '2025-12-31'}</td>
+        <td class="px-4 py-3 text-sm text-center text-gray-500">${v.inspectionDue || '-'}</td>
+        <td class="px-4 py-3 text-sm text-center text-gray-500">${v.insuranceDue || '-'}</td>
         <td class="px-4 py-3 text-center">
-          <button onclick="AdminModule.editVehicle(${i})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
-          <button onclick="AdminModule.deleteVehicle(${i})" class="text-red-500 hover:underline text-xs">삭제</button>
+          <button onclick="AdminModule.editVehicle(${v.id})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
+          <button onclick="AdminModule.deleteVehicle(${v.id})" class="text-red-500 hover:underline text-xs">삭제</button>
         </td>
       </tr>
     `).join('') || '<tr><td colspan="8" class="text-center py-4 text-gray-500 text-sm">차량이 없습니다.</td></tr>';
@@ -1057,9 +1072,10 @@ const AdminModule = (() => {
     ['v-name','v-plate','v-capacity','v-memo'].forEach(id => { const el = document.getElementById(id); if(el) el.value = id==='v-capacity'?'45':''; });
     document.getElementById('vehicle-modal').classList.remove('hidden');
   };
-  const editVehicle = (idx) => {
-    const vehicles = Settings.get('vehicles') || window.VEHICLES || [];
-    const v = vehicles[idx]; if(!v) return;
+  const editVehicle = async (idx) => {
+    // idx = vehicle DB id
+    const vRes = await API.get(`/api/vehicles/${idx}`);
+    const v = vRes.data; if(!v) return;
     _editingVehicleIdx = idx;
     document.getElementById('vehicle-modal-title').textContent = '차량 수정';
     const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||''; };
@@ -1069,30 +1085,43 @@ const AdminModule = (() => {
     set('v-memo', v.memo||'');
     document.getElementById('vehicle-modal').classList.remove('hidden');
   };
-  const saveVehicle = () => {
+  const saveVehicle = async () => {
     const get = (id) => document.getElementById(id)?.value||'';
     const vData = {
       name: get('v-name'), plateNumber: get('v-plate'), type: get('v-type'),
-      capacity: parseInt(get('v-capacity'))||45, region: get('v-region'),
-      status: get('v-status'), inspectionDate: get('v-inspection'),
-      insuranceDate: get('v-insurance'), memo: get('v-memo'),
+      capacity: parseInt(get('v-capacity'))||45, regionId: get('v-region'),
+      status: get('v-status'), inspectionDue: get('v-inspection'),
+      insuranceDue: get('v-insurance'), notes: get('v-memo'),
     };
-    if (!vData.name || !vData.plateNumber) { Utils.toast('차량명과 번호판을 입력하세요', 'error'); return; }
-    let vehicles = Settings.get('vehicles') || JSON.parse(JSON.stringify(window.VEHICLES||[]));
-    if (_editingVehicleIdx !== null) vehicles[_editingVehicleIdx] = vData;
-    else vehicles.push(vData);
-    Settings.set('vehicles', vehicles);
-    closeVehicleModal();
-    Utils.toast('차량이 저장되었습니다.', 'success');
-    vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
+    if (!vData.name) { Utils.toast('차량명을 입력하세요', 'error'); return; }
+    Utils.loading(true);
+    let res;
+    if (_editingVehicleIdx !== null) {
+      res = await API.put(`/api/vehicles/${_editingVehicleIdx}`, vData);
+    } else {
+      res = await API.post('/api/vehicles', vData);
+    }
+    Utils.loading(false);
+    if (res.success) {
+      closeVehicleModal();
+      Utils.toast('차량이 저장되었습니다.', 'success');
+      vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      Utils.toast(res.message || '저장 중 오류가 발생했습니다.', 'error');
+    }
   };
   const deleteVehicle = (idx) => {
-    Utils.confirm('이 차량을 삭제하시겠습니까?', () => {
-      let vehicles = Settings.get('vehicles') || JSON.parse(JSON.stringify(window.VEHICLES||[]));
-      vehicles.splice(idx, 1);
-      Settings.set('vehicles', vehicles);
-      Utils.toast('삭제되었습니다.', 'success');
-      vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
+    Utils.confirm('이 차량을 삭제하시겠습니까?', async () => {
+      Utils.loading(true);
+      const res = await API.delete(`/api/vehicles/${idx}`);
+      Utils.loading(false);
+      Utils.closeModal();
+      if (res.success) {
+        Utils.toast('삭제되었습니다.', 'success');
+        vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
+      } else {
+        Utils.toast(res.message || '삭제 중 오류가 발생했습니다.', 'error');
+      }
     });
   };
   const closeVehicleModal = () => {
@@ -1129,10 +1158,14 @@ const AdminModule = (() => {
 
   const schedulesPage = async () => {
     _adminState.currentSection = 'schedules';
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
-    const activeRegionId = _adminState.selectedRegion || regions[0]?.id || 'tongyeong';
-    const allSchedules = Settings.get('schedules') || window.SCHEDULES || {};
-    const schedules = allSchedules[activeRegionId] || [];
+    // DB에서 지역 및 스케줄 로드
+    const regRes = await API.get('/api/regions');
+    const allRegions = (regRes.success && regRes.data) ? regRes.data : (window.REGIONS || []);
+    window.REGIONS = allRegions;
+    const regions = allRegions.filter(r => r.status !== 'hidden');
+    const activeRegionId = _adminState.selectedRegion || regions[0]?.id || 'buyeo';
+    const schRes = await API.get(`/api/schedules/${activeRegionId}`);
+    const schedules = (schRes.success && schRes.data) ? schRes.data : [];
     const vehicles = _getVehicles(activeRegionId);
 
     const regionTabs = regions.map(r=>`
@@ -1165,9 +1198,9 @@ const AdminModule = (() => {
           ${hasRes?'<span class="ml-1 text-xs text-orange-500" title="예약 있음">●</span>':''}
         </td>
         <td class="px-4 py-3 text-center whitespace-nowrap">
-          <button onclick="AdminModule.editSchedule('${activeRegionId}',${i})" class="text-blue-600 hover:underline text-xs mr-1">수정</button>
-          <button onclick="AdminModule.toggleScheduleStatus('${activeRegionId}',${i})" class="text-orange-500 hover:underline text-xs mr-1">${s.status==='active'?'운휴':'재개'}</button>
-          <button onclick="AdminModule.deleteSchedule('${activeRegionId}',${i})" class="text-red-500 hover:underline text-xs">삭제</button>
+          <button onclick="AdminModule.editSchedule('${activeRegionId}','${s.id||i}')" class="text-blue-600 hover:underline text-xs mr-1">수정</button>
+          <button onclick="AdminModule.toggleScheduleStatus('${activeRegionId}','${s.id||i}')" class="text-orange-500 hover:underline text-xs mr-1">${s.status==='active'?'운휴':'재개'}</button>
+          <button onclick="AdminModule.deleteSchedule('${activeRegionId}','${s.id||i}')" class="text-red-500 hover:underline text-xs">삭제</button>
         </td>
       </tr>`;
     }).join('') || '<tr><td colspan="10" class="text-center py-6 text-gray-400 text-sm">등록된 일정이 없습니다.</td></tr>';
@@ -1644,12 +1677,11 @@ const AdminModule = (() => {
     document.getElementById('schedule-modal').classList.remove('hidden');
   };
 
-  const editSchedule = (regionId, idx) => {
-    const allSchedules = Settings.get('schedules') || window.SCHEDULES || {};
-    const s = (allSchedules[regionId]||[])[idx];
+  const editSchedule = async (regionId, scheduleId) => {
+    const schRes = await API.get(`/api/schedules/${regionId}`);
+    const s = schRes.data?.find(sch => String(sch.id) === String(scheduleId));
     if (!s) return;
-    const sid = s.id || _makeScheduleId(regionId, s.time);
-    _editingScheduleIdx = idx;
+    _editingScheduleIdx = scheduleId;  // DB id 사용
     _editingScheduleRegion = regionId;
     document.getElementById('schedule-modal-title').textContent = '일정 수정';
     // 예약 있는 경우 경고 표시
@@ -1671,7 +1703,7 @@ const AdminModule = (() => {
     updateSeatPreview();
   };
 
-  const saveSchedule = () => {
+  const saveSchedule = async () => {
     const get = (id) => document.getElementById(id)?.value||'';
     const timeVal = get('s-time').trim();
     if (!timeVal || !_isValidTime(timeVal)) { Utils.toast('출발 시간을 올바른 형식(HH:mm)으로 입력하세요', 'error'); return; }
@@ -1680,15 +1712,7 @@ const AdminModule = (() => {
     const ratio = parseInt(get('s-online-ratio'))||70;
     if (ratio < 0 || ratio > 100) { Utils.toast('온라인 비율은 0~100 사이여야 합니다', 'error'); return; }
     const regionId = _editingScheduleRegion;
-    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-    if (!allSchedules[regionId]) allSchedules[regionId] = [];
-
-    // 중복 일정 검증 (동일 지역 + 동일 출발시간, 수정 시 자기 자신 제외)
-    const duplicate = allSchedules[regionId].find((s, i) => s.time === timeVal && i !== _editingScheduleIdx);
-    if (duplicate) { Utils.toast(`이미 ${timeVal} 출발 일정이 존재합니다. 중복 생성이 불가합니다.`, 'error'); return; }
-
     const sData = {
-      id: (_editingScheduleIdx !== null ? (allSchedules[regionId][_editingScheduleIdx]?.id || _makeScheduleId(regionId, timeVal)) : _makeScheduleId(regionId, timeVal)),
       time: timeVal,
       duration: parseInt(get('s-duration'))||70,
       vehicle: get('s-vehicle')||'',
@@ -1697,53 +1721,51 @@ const AdminModule = (() => {
       onlineSeats: Math.round(cap*ratio/100),
       offlineSeats: cap - Math.round(cap*ratio/100),
       operatingDays: days,
-      startDate: get('s-start-date'),
-      endDate: get('s-end-date'),
+      startDate: get('s-start-date') || null,
+      endDate: get('s-end-date') || null,
       status: 'active',
     };
-
+    Utils.loading(true);
+    let res;
     if (_editingScheduleIdx !== null) {
-      // 예약 있는 회차 시간 변경 시 추가 경고
-      const old = allSchedules[regionId][_editingScheduleIdx];
-      if (old.time !== sData.time && _hasReservations(regionId, old.id || _makeScheduleId(regionId, old.time))) {
-        if (!confirm(`경고: 이 회차에 예약이 있습니다!\n출발시간을 ${old.time} → ${sData.time}으로 변경하면 기존 예약자에게 별도 안내가 필요합니다.\n계속 진행하시겠습니까?`)) return;
-      }
-      allSchedules[regionId][_editingScheduleIdx] = sData;
+      res = await API.put(`/api/schedules/${regionId}/${_editingScheduleIdx}`, sData);
     } else {
-      allSchedules[regionId].push(sData);
+      res = await API.post(`/api/schedules/${regionId}`, sData);
     }
-    Settings.set('schedules', allSchedules);
-    document.getElementById('schedule-modal').classList.add('hidden');
-    Utils.toast('일정이 저장되었습니다.', 'success');
-    schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
-  };
-
-  const toggleScheduleStatus = (regionId, idx) => {
-    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-    if (!allSchedules[regionId]?.[idx]) return;
-    const s = allSchedules[regionId][idx];
-    const newStatus = s.status === 'active' ? 'suspended' : 'active';
-    allSchedules[regionId][idx].status = newStatus;
-    Settings.set('schedules', allSchedules);
-    Utils.toast(newStatus === 'active' ? '운영 재개되었습니다.' : '운휴 처리되었습니다.', 'info');
-    schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
-  };
-
-  const deleteSchedule = (regionId, idx) => {
-    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-    const s = allSchedules[regionId]?.[idx];
-    if (!s) return;
-    const sid = s.id || _makeScheduleId(regionId, s.time);
-    // 예약 있으면 삭제 불가 - 운휴 처리 유도
-    if (_hasReservations(regionId, sid)) {
-      Utils.toast('이 회차에 예약이 있어 삭제할 수 없습니다. "운휴" 처리를 이용하세요.', 'error');
-      return;
-    }
-    Utils.confirm('이 일정을 삭제하시겠습니까?', () => {
-      allSchedules[regionId].splice(idx, 1);
-      Settings.set('schedules', allSchedules);
-      Utils.toast('삭제되었습니다.', 'success');
+    Utils.loading(false);
+    if (res.success) {
+      document.getElementById('schedule-modal').classList.add('hidden');
+      Utils.toast('일정이 저장되었습니다.', 'success');
       schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      Utils.toast(res.message || '저장 중 오류가 발생했습니다.', 'error');
+    }
+  };
+  const toggleScheduleStatus = async (regionId, scheduleId) => {
+    // scheduleId = DB id
+    const schRes = await API.get(`/api/schedules/${regionId}`);
+    const sch = schRes.data?.find(s => s.id === scheduleId || String(s.id) === String(scheduleId));
+    if (!sch) return;
+    const newStatus = sch.status === 'active' ? 'suspended' : 'active';
+    const res = await API.put(`/api/schedules/${regionId}/${scheduleId}`, { status: newStatus });
+    if (res.success) {
+      Utils.toast(newStatus === 'active' ? '운영 재개되었습니다.' : '운휴 처리되었습니다.', 'info');
+      schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else Utils.toast('상태 변경 실패', 'error');
+  };
+
+  const deleteSchedule = (regionId, scheduleId) => {
+    Utils.confirm('이 일정을 삭제하시겠습니까?', async () => {
+      Utils.loading(true);
+      const res = await API.delete(`/api/schedules/${regionId}/${scheduleId}`);
+      Utils.loading(false);
+      Utils.closeModal();
+      if (res.success) {
+        Utils.toast('삭제되었습니다.', 'success');
+        schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
+      } else {
+        Utils.toast(res.message || '삭제 실패: ' + (res.error||''), 'error');
+      }
     });
   };
 
@@ -1808,7 +1830,7 @@ const AdminModule = (() => {
     document.getElementById('auto-schedule-modal').classList.remove('hidden');
   };
 
-  const previewAutoSchedule = () => {
+  const previewAutoSchedule = async () => {
     const first       = document.getElementById('auto-first')?.value;
     const last        = document.getElementById('auto-last')?.value;
     const duration    = parseInt(document.getElementById('auto-duration')?.value) || 45;
@@ -1860,7 +1882,9 @@ const AdminModule = (() => {
     const vehicleReadyAt = {}; // vName → 분 단위 가용 시간
     const rows = [];
     let conflicts = [];
-    const existSchedules = (Settings.get('schedules') || {})[_autoScheduleRegion] || [];
+    // 기존 스케줄은 비동기로 가져옴 (이 함수는 saveAutoSchedule에서 await로 호출됨)
+    const _existSchRes = await API.get(`/api/schedules/${_autoScheduleRegion}`);
+    const existSchedules = _existSchRes.data || [];
     const existTimes = new Set(existSchedules.map(s => s.time));
 
     for (let m = firstM, seq = 0; m <= lastM; m += interval, seq++) {
@@ -1935,7 +1959,7 @@ const AdminModule = (() => {
     wrap.dataset.rows = JSON.stringify(rows);
   };
 
-  const confirmAutoSchedule = () => {
+  const confirmAutoSchedule = async () => {
     const wrap = document.getElementById('auto-preview-wrap');
     if (!wrap || wrap.classList.contains('hidden')) {
       Utils.toast('먼저 미리보기를 확인하세요', 'warning'); return;
@@ -1947,43 +1971,38 @@ const AdminModule = (() => {
 
     const duration    = parseInt(document.getElementById('auto-duration')?.value) || 45;
     const maintenance = parseInt(document.getElementById('auto-maintenance')?.value) || 10;
-    const cap         = 38; // 항목2: 고정 38명 (40석-운전자1-가이드1)
+    const cap         = 38;
     const ratio       = parseInt(document.getElementById('auto-online-ratio')?.value) || 70;
     const startDate   = document.getElementById('auto-start-date')?.value || '';
     const endDate     = document.getElementById('auto-end-date')?.value || '';
     const days        = [...document.querySelectorAll('input[name="auto-days"]:checked')].map(c => c.value);
     const regionId    = _autoScheduleRegion;
 
-    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-    if (!allSchedules[regionId]) allSchedules[regionId] = [];
-    const existTimes = new Set(allSchedules[regionId].map(s => s.time));
+    // Fetch existing schedules from API to check for duplicates
+    const existRes = await API.get(`/api/schedules/${regionId}`);
+    const existTimes = new Set((existRes.data || []).map(s => s.time));
     let added = 0;
+    const promises = [];
 
     rows.forEach(r => {
       if (existTimes.has(r.depTime)) return; // 중복 스킵
-      allSchedules[regionId].push({
+      const onl = Math.round(cap * ratio / 100);
+      const off = cap - onl;
+      promises.push(API.post('/api/schedules', {
         id: _makeScheduleId(regionId, r.depTime),
+        regionId,
         time: r.depTime,
-        duration,
-        maintenance,
-        vehicle: r.vName,
-        capacity: cap,        // 38명 고정
-        totalSeats: 40,       // 차량 총 좌석
-        excludeSeats: 2,      // 운전자+가이드
-        onlineRatio: ratio,
-        onlineSeats: r.onl,
-        offlineSeats: r.off,
-        operatingDays: days,
-        startDate,
-        endDate,
+        capacity: cap,
+        onlineCapacity: onl,
+        offlineCapacity: off,
         status: 'active',
-      });
+        days: days.length ? days : ['mon','tue','wed','thu','fri','sat','sun'],
+      }));
+      existTimes.add(r.depTime);
       added++;
     });
 
-    // 시간순 정렬
-    allSchedules[regionId].sort((a,b) => _toMinutes(a.time) - _toMinutes(b.time));
-    Settings.set('schedules', allSchedules);
+    await Promise.all(promises);
     document.getElementById('auto-schedule-modal').classList.add('hidden');
     Utils.toast(`${added}개 회차가 생성되었습니다. (중복 ${rows.length - added}건 스킵)`, 'success');
     schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
@@ -1996,7 +2015,7 @@ const AdminModule = (() => {
   const addRecTime = () => {
     const wrap = document.getElementById('rec-times');
     if (!wrap) return;
-    const allSchedules = Settings.get('schedules') || window.SCHEDULES || {};
+    // allSchedules는 더 이상 localStorage 사용 안함
     // 시간 옵션 재생성
     let opts = '<option value="">시간 선택</option>';
     for (let h = 6; h <= 21; h++) for (let m of [0,30]) { const hh=String(h).padStart(2,'0'),mm=String(m).padStart(2,'0'); opts+=`<option value="${hh}:${mm}">${hh}:${mm}</option>`; }
@@ -2006,7 +2025,7 @@ const AdminModule = (() => {
     wrap.appendChild(div);
   };
 
-  const generateRecurring = () => {
+  const generateRecurring = async () => {
     const start = document.getElementById('rec-start')?.value;
     const end   = document.getElementById('rec-end')?.value;
     if (!start || !end) { Utils.toast('시작일과 종료일을 입력하세요', 'error'); return; }
@@ -2031,13 +2050,15 @@ const AdminModule = (() => {
     }
 
     const regionId = _editingScheduleRegion;
-    let allSchedules = Settings.get('schedules') || JSON.parse(JSON.stringify(window.SCHEDULES||{}));
-    if (!allSchedules[regionId]) allSchedules[regionId] = [];
-    const existTimes = new Set(allSchedules[regionId].map(s=>s.time));
+    // 기존 스케줄 API에서 로드
+    const _existSchRes2 = await API.get(`/api/schedules/${regionId}`);
+    const existSchList = _existSchRes2.data || [];
+    const existTimes = new Set(existSchList.map(s=>s.time));
     const onl = Math.round(cap*ratio/100);
     const off = cap - onl;
     const DAY_NAMES = ['일','월','화','수','목','금','토'];
     let added = 0;
+    const recurSchedules = [];
 
     // 날짜별 반복 생성
     let cur = new Date(start + 'T00:00:00');
@@ -2047,7 +2068,7 @@ const AdminModule = (() => {
       if (days.includes(dayName)) {
         times.forEach(t => {
           if (!existTimes.has(t)) {
-            allSchedules[regionId].push({ id:_makeScheduleId(regionId,t), time:t, duration:70, capacity:cap, onlineRatio:ratio, onlineSeats:onl, offlineSeats:off, operatingDays:days, startDate:start, endDate:end, status:'active' });
+            recurSchedules.push({ id:_makeScheduleId(regionId,t), time:t, duration:70, capacity:cap, onlineRatio:ratio, onlineSeats:onl, offlineSeats:off, operatingDays:days, startDate:start, endDate:end, status:'active' });
             existTimes.add(t);
             added++;
           }
@@ -2055,11 +2076,16 @@ const AdminModule = (() => {
       }
       cur.setDate(cur.getDate()+1);
     }
-    // 시간순 정렬
-    allSchedules[regionId].sort((a,b)=>_toMinutes(a.time)-_toMinutes(b.time));
-    Settings.set('schedules', allSchedules);
+    // API로 일괄 저장
+    Utils.loading(true);
+    let savedCount = 0;
+    for (const sch of recurSchedules) {
+      const r = await API.post(`/api/schedules/${regionId}`, sch);
+      if (r.success) savedCount++;
+    }
+    Utils.loading(false);
     document.getElementById('recurring-modal').classList.add('hidden');
-    Utils.toast(`반복 일정 ${added}개가 생성되었습니다.`, 'success');
+    Utils.toast(`반복 일정 ${savedCount}개가 생성되었습니다.`, 'success');
     schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
@@ -2068,21 +2094,19 @@ const AdminModule = (() => {
   const FARE_STORE_KEY = 'amk_fares';
   const FARE_APPROVAL_KEY = 'amk_fare_approvals';
 
-  // localStorage 기반 요금 데이터 로드 (지역관리자↔슈퍼관리자 공유)
-  const _getFares = (regionId) => {
-    const stored = JSON.parse(localStorage.getItem(FARE_STORE_KEY) || '{}');
-    if (stored[regionId]) return stored[regionId];
+  // API 기반 요금 데이터 로드
+  const _getFares = async (regionId) => {
+    const res = await API.get(`/api/fares/${regionId}`);
+    if (res.success && res.data) return res.data;
+    // fallback: region.fares
     const region = (window.REGIONS||[]).find(r=>r.id===regionId);
     return region?.fares || [];
   };
-  const _setFares = (regionId, fares) => {
-    const stored = JSON.parse(localStorage.getItem(FARE_STORE_KEY) || '{}');
-    stored[regionId] = fares;
-    localStorage.setItem(FARE_STORE_KEY, JSON.stringify(stored));
+  const _setFares = async (regionId, fares) => {
+    await API.put(`/api/fares/${regionId}`, { fares });
   };
-  // ★ 핵심 수정: localStorage 사용으로 지역관리자↔슈퍼관리자 실시간 공유
-  const _getFareApprovals = () => JSON.parse(localStorage.getItem(FARE_APPROVAL_KEY) || '[]');
-  const _setFareApprovals = (list) => localStorage.setItem(FARE_APPROVAL_KEY, JSON.stringify(list));
+  const _getFareApprovals = () => [];
+  const _setFareApprovals = (list) => {};
 
   // 요금 상태 레이블/색상
   const FARE_STATUS = {
@@ -2114,7 +2138,7 @@ const AdminModule = (() => {
 
     const allRegions = (window.REGIONS||[]).filter(r=>r.status!=='hidden');
     const region = allRegions.find(r=>r.id===activeRegionId) || { id: activeRegionId, name: activeRegionId, shortName: activeRegionId };
-    const fares = _getFares(activeRegionId);
+    const fares = await _getFares(activeRegionId);
     // ★ 슈퍼관리자: 전체 지역 승인대기 표시 / 지역관리자: 자기 지역만
     const approvals = isSuper
       ? _getFareApprovals().filter(a => a.status !== 'approved' && a.status !== 'rejected')
@@ -2369,8 +2393,8 @@ const AdminModule = (() => {
     document.getElementById('fare-modal').classList.remove('hidden');
   };
 
-  const editFare = (regionId, idx) => {
-    const fares = _getFares(regionId);
+  const editFare = async (regionId, idx) => {
+    const fares = await _getFares(regionId);
     const f = fares[idx]; if (!f) return;
     _editingFareRegion = regionId; _editingFareIdx = idx;
     document.getElementById('fare-modal-title').textContent = '요금 수정';
@@ -2389,7 +2413,7 @@ const AdminModule = (() => {
     document.getElementById('f-discount').value = f.discountPrice || '';
   };
 
-  const saveFare = () => {
+  const saveFare = async () => {
     const get = (id) => document.getElementById(id)?.value || '';
     const label = get('f-label').trim();
     const price = parseInt(get('f-price')) || 0;
@@ -2418,13 +2442,13 @@ const AdminModule = (() => {
     if (hasInstant || fareMode === 'auto') {
       // 즉시 저장
       newFare.status = 'active';
-      const fares = _getFares(regionId);
+      const fares = await _getFares(regionId);
       if (_editingFareIdx !== null) {
         fares[_editingFareIdx] = { ...fares[_editingFareIdx], ...newFare };
       } else {
         fares.push(newFare);
       }
-      _setFares(regionId, fares);
+      await _setFares(regionId, fares);
       Utils.toast('요금이 즉시 저장되었습니다. 고객 예약화면에 반영됩니다.', 'success');
     } else {
       // ★ 승인 요청 - localStorage에 저장 → 슈퍼관리자 로그인 시 즉시 확인 가능
@@ -2448,17 +2472,17 @@ const AdminModule = (() => {
   };
 
   // 요금 활성/비활성 토글
-  const toggleFareStatus = (regionId, idx) => {
-    const fares = _getFares(regionId);
+  const toggleFareStatus = async (regionId, idx) => {
+    const fares = await _getFares(regionId);
     if (!fares[idx]) return;
     fares[idx].status = (fares[idx].status === 'active') ? 'inactive' : 'active';
-    _setFares(regionId, fares);
+    await _setFares(regionId, fares);
     Utils.toast(`요금이 ${fares[idx].status==='active'?'활성화':'비활성화'}되었습니다.`, 'success');
     faresPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
   // 요금 승인/반려 (슈퍼관리자) - localStorage 공유로 실시간 반영
-  const approvefare = (approvalIdx, isApprove) => {
+  const approvefare = async (approvalIdx, isApprove) => {
     const approvals = _getFareApprovals();
     const item = approvals[approvalIdx];
     if (!item) return;
@@ -2468,7 +2492,7 @@ const AdminModule = (() => {
 
     if (isApprove) {
       // 승인: 요금 목록에 실제 반영 (localStorage에 저장 → 고객화면에도 반영)
-      const fares = _getFares(item.regionId);
+      const fares = await _getFares(item.regionId);
       const fare = { ...item, status: 'active', approvedAt: processedAt, approvedBy: user.name || '슈퍼관리자' };
       delete fare.regionId; delete fare.editIdx; delete fare.requestedBy; delete fare.requestedAt;
       if (item.editIdx !== null && item.editIdx >= 0 && fares[item.editIdx]) {
@@ -2476,7 +2500,7 @@ const AdminModule = (() => {
       } else {
         fares.push(fare);
       }
-      _setFares(item.regionId, fares);
+      await _setFares(item.regionId, fares);
     }
 
     // 이력 저장 (승인/반려 모두)
@@ -2652,7 +2676,9 @@ const AdminModule = (() => {
   const _renderReservationRows = (list) => {
     const statusColors = { confirmed:'bg-green-100 text-green-700', cancelled:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', checkedin:'bg-blue-100 text-blue-700' };
     const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
-    if (!list.length) return '<tr><td colspan="10" class="text-center py-8 text-gray-400"><i class="fas fa-search mr-2"></i>검색 결과가 없습니다.</td></tr>';
+    const payColors = { paid:'bg-green-100 text-green-700', unpaid:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', refunded:'bg-gray-100 text-gray-600' };
+    const payLabels = { paid:'결제완료', unpaid:'미결제', pending:'결제대기', refunded:'환불' };
+    if (!list.length) return '<tr><td colspan="11" class="text-center py-8 text-gray-400"><i class="fas fa-search mr-2"></i>검색 결과가 없습니다.</td></tr>';
     return list.slice(0, 50).map(r => `
       <tr class="hover:bg-gray-50" id="res-row-${r.id}">
         <td class="px-3 py-2 text-xs font-mono text-blue-600 whitespace-nowrap">${r.id}</td>
@@ -2664,6 +2690,11 @@ const AdminModule = (() => {
         <td class="px-3 py-2 text-right text-sm font-medium whitespace-nowrap">₩${r.totalAmount.toLocaleString()}</td>
         <td class="px-3 py-2 text-center text-xs text-gray-500">${r.payMethod}</td>
         <td class="px-3 py-2 text-center">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${payColors[r.paymentStatus]||'bg-gray-100 text-gray-600'}">
+            ${payLabels[r.paymentStatus]||r.paymentStatus||'결제완료'}
+          </span>
+        </td>
+        <td class="px-3 py-2 text-center">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[r.status]||'bg-gray-100 text-gray-600'}">
             ${statusLabels[r.status]||r.status}
           </span>
@@ -2671,93 +2702,81 @@ const AdminModule = (() => {
         <td class="px-3 py-2 text-center whitespace-nowrap">
           <button onclick="AdminModule.viewReservation('${r.id}')" class="text-blue-600 hover:underline text-xs mr-1">상세</button>
           ${r.status !== 'cancelled'
-            ? `<button onclick="AdminModule.cancelReservation('${r.id}')" class="text-red-500 hover:underline text-xs">취소</button>`
+            ? `<button onclick="AdminModule.cancelReservation('${r.id}','${r._dbId||r.id}')" class="text-red-500 hover:underline text-xs">취소</button>`
             : `<span class="text-xs text-gray-400">${r.isRefunded?'환불완료':'환불전'}</span>`}
         </td>
       </tr>
     `).join('');
   };
 
-  // ── amk_reservations localStorage → admin용 정규화 헬퍼 ──────
-  const _loadRealReservations = () => {
-    // 1) 실제 고객 예약 (payment.js가 저장)
-    let stored = [];
-    try { stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
-    // 2) 정규화: demo 구조와 필드명 통일
+  // ── DB API 기반 예약 데이터 로드 ─────────────────────────────────
+  const _loadRealReservations = async (filters = {}) => {
     const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
-    stored = stored.map(r => ({
-      id:              r.id || r.reservationId || `AMK-${Date.now()}`,
-      regionId:        r.regionId || '',
-      regionName:      r.regionName || REGION_NAMES[r.regionId] || r.regionId || '-',
-      name:            r.name || '-',
-      date:            r.date || r.createdAt?.slice(0,10) || '-',
-      schedule:        r.schedule || r.time || '-',
-      totalPassengers: r.pax || r.totalPassengers || 1,
-      adultCnt:        r.adultCnt ?? (r.paxList ? r.paxList.filter(p=>/성인/i.test(p)).length : r.pax || 1),
-      childCnt:        r.childCnt ?? (r.paxList ? r.paxList.filter(p=>/소아|어린이/i.test(p)).length : 0),
-      totalAmount:     r.totalAmount || r.total || 0,
-      payMethod:       r.payMethod || '온라인결제',
-      source:          r.source || '온라인',
-      status:          r.status || 'confirmed',
-      isRefunded:      r.isRefunded || false,
-      createdAt:       r.createdAt || '',
-      phone:           r.phone || '',
-      email:           r.email || '',
-      memo:            r.memo || '',
-      _isReal:         true,  // 실제 예약 표시
-    }));
-    // 3) 더미 데이터와 병합 (실제 예약 ID 중복 제외)
-    const demo = _generateDemoReservations();
-    const realIds = new Set(stored.map(r => r.id));
-    const merged = [
-      ...stored,
-      ...demo.filter(r => !realIds.has(r.id)),
-    ];
-    // 4) 날짜 내림차순 정렬
-    merged.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id||'').localeCompare(a.id||''));
-    return merged;
+    try {
+      let url = '/api/reservations?limit=200';
+      if (filters.regionId) url += `&regionId=${filters.regionId}`;
+      if (filters.date) url += `&date=${filters.date}`;
+      if (filters.status) url += `&status=${filters.status}`;
+      if (filters.search) url += `&search=${encodeURIComponent(filters.search)}`;
+      const res = await API.get(url);
+      if (res.success && res.data) {
+        return res.data.map(r => ({
+          id: r.reservationNo || r.id,
+          regionId: r.regionId,
+          regionName: REGION_NAMES[r.regionId] || r.regionId || '-',
+          name: r.name || '-',
+          date: r.date || '-',
+          schedule: r.scheduleId || '-',
+          totalPassengers: r.pax || 1,
+          adultCnt: r.paxDetail?.find(p=>p.type==='adult')?.count || r.pax || 1,
+          childCnt: r.paxDetail?.find(p=>p.type==='child')?.count || 0,
+          totalAmount: r.totalPrice || 0,
+          payMethod: r.paymentMethod || '온라인결제',
+          paymentStatus: r.paymentStatus || 'paid',
+          source: r.channel || '온라인',
+          status: r.status || 'confirmed',
+          isRefunded: r.status === 'refunded' || r.paymentStatus === 'refunded',
+          createdAt: r.createdAt || '',
+          phone: r.phone || '',
+          email: r.email || '',
+          memo: r.notes || '',
+          _dbId: r.id,
+        }));
+      }
+    } catch(e) { console.error('reservations load error:', e); }
+    // 폴백: 더미
+    return _generateDemoReservations();
   };
 
   // 실제 필터링 실행 함수 (검색 버튼 onclick)
-  const filterReservations = () => {
+  const filterReservations = async () => {
     const user = _adminState.user || { role: 'super', regionId: null };
-    const allRes = _loadRealReservations();
-    // 권한별 기본 필터
-    let pool = (user.role === 'regional' && user.regionId)
-      ? allRes.filter(r => r.regionId === user.regionId)
-      : allRes;
-
-    // 필터 값 읽기
+    const filters = {};
+    if (user.role === 'regional' && user.regionId) filters.regionId = user.regionId;
     const fRegion = document.getElementById('res-filter-region')?.value || '';
     const fDate   = document.getElementById('res-filter-date')?.value || '';
     const fStatus = document.getElementById('res-filter-status')?.value || '';
-    const fKeyword= (document.getElementById('res-filter-keyword')?.value || '').trim().toLowerCase();
+    const fKeyword= (document.getElementById('res-filter-keyword')?.value || '').trim();
+    if (fRegion) filters.regionId = fRegion;
+    if (fDate) filters.date = fDate;
+    if (fStatus) filters.status = fStatus;
+    if (fKeyword) filters.search = fKeyword;
 
-    if (fRegion)  pool = pool.filter(r => r.regionId === fRegion);
-    if (fDate)    pool = pool.filter(r => r.date === fDate);
-    if (fStatus)  pool = pool.filter(r => r.status === fStatus);
-    if (fKeyword) pool = pool.filter(r =>
-      r.id.toLowerCase().includes(fKeyword) ||
-      r.name.toLowerCase().includes(fKeyword)
-    );
-
-    // 결과 카운트 업데이트
-    const countEl = document.getElementById('res-result-count');
-    if (countEl) countEl.textContent = `검색 결과 ${pool.length}건 (최대 50건 표시)`;
-
-    // 테이블 본문 교체
     const tbody = document.getElementById('res-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-400">검색 중...</td></tr>';
+
+    const pool = await _loadRealReservations(filters);
+    const countEl = document.getElementById('res-result-count');
+    if (countEl) countEl.textContent = `검색 결과 ${pool.length}건`;
     if (tbody) tbody.innerHTML = _renderReservationRows(pool);
   };
 
   const reservationsPage = async () => {
     _adminState.currentSection = 'reservations';
-    const allRes = _loadRealReservations();
     const user = _adminState.user || { role: 'super', regionId: null };
-    // 권한별 초기 데이터
-    const reservations = (user.role === 'regional' && user.regionId)
-      ? allRes.filter(r => r.regionId === user.regionId)
-      : allRes;
+    const filters = {};
+    if (user.role === 'regional' && user.regionId) filters.regionId = user.regionId;
+    const reservations = await _loadRealReservations(filters);
 
     // 통계 카드용 집계
     const totalRevenue  = reservations.filter(r=>r.status!=='cancelled').reduce((s,r)=>s+r.totalAmount,0);
@@ -2835,7 +2854,7 @@ const AdminModule = (() => {
             <table class="admin-table w-full">
               <thead>
                 <tr class="bg-gray-50">
-                  ${['예약번호','예약자','지역','날짜','회차','인원','금액','결제','상태','관리'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
+                  ${['예약번호','예약자','지역','날짜','회차','인원','금액','결제수단','결제상태','예약상태','관리'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
                 </tr>
               </thead>
               <tbody id="res-tbody" class="divide-y divide-gray-100">${_renderReservationRows(reservations)}</tbody>
@@ -2855,8 +2874,8 @@ const AdminModule = (() => {
     filterReservations();
   };
 
-  const viewReservation = (id) => {
-    const allRes = _loadRealReservations();
+  const viewReservation = async (id) => {
+    const allRes = await _loadRealReservations();
     const r = allRes.find(x => x.id === id);
     if (!r) { Utils.toast('예약 정보를 찾을 수 없습니다.', 'error'); return; }
     const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
@@ -2905,18 +2924,11 @@ const AdminModule = (() => {
     );
   };
 
-  const cancelReservation = (id) => {
-    Utils.confirm(`예약 ${id}를 취소하시겠습니까?\n취소 후에는 환불 정책에 따라 처리됩니다.`, () => {
-      // localStorage amk_reservations 실제 데이터 취소 처리
-      try {
-        const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
-        const idx = stored.findIndex(r => (r.id || r.reservationId) === id);
-        if (idx >= 0) {
-          stored[idx].status = 'cancelled';
-          stored[idx].isRefunded = false;
-          localStorage.setItem('amk_reservations', JSON.stringify(stored));
-        }
-      } catch(e) {}
+  const cancelReservation = (id, dbId) => {
+    Utils.confirm(`예약 ${id}를 취소하시겠습니까?\n취소 후에는 환불 정책에 따라 처리됩니다.`, async () => {
+      // API 취소 처리
+      const targetId = dbId || id;
+      const res = await API.put(`/api/reservations/${targetId}`, { status: 'cancelled' });
       // UI 업데이트
       const row = document.getElementById(`res-row-${id}`);
       if (row) {
@@ -3705,7 +3717,9 @@ const AdminModule = (() => {
   // ── 새 지역 추가 ───────────────────────────────────────────
   const regionsPage = async () => {
     _adminState.currentSection = 'regions';
-    const regions = window.REGIONS || [];
+    // DB에서 지역 목록 로드
+    const regRes = await API.get('/api/regions');
+    const regions = (regRes.success && regRes.data) ? regRes.data : (window.REGIONS || []);
 
     const regionCards = regions.map((r, i) => `
       <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 ${r.status==='active'?'border-green-500':r.status==='preparing'?'border-yellow-400':'border-gray-300'}">
@@ -3721,8 +3735,9 @@ const AdminModule = (() => {
         ${r.company ? `<p class="text-xs text-gray-600 mb-1"><i class="fas fa-building mr-1"></i>${r.company.name}</p>` : ''}
         ${r.pgMerchant ? `<p class="text-xs text-gray-600 mb-3"><i class="fas fa-credit-card mr-1"></i>${r.pgMerchant.pgName} - <code class="bg-gray-100 px-1 rounded">${r.pgMerchant.merchantId}</code></p>` : ''}
         <div class="flex gap-2 flex-wrap">
-          <button onclick="AdminModule.editRegion(${i})" class="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs hover:bg-blue-100">수정</button>
-          ${r.status==='active' ? `<button onclick="AdminModule.suspendRegion(${i})" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs hover:bg-red-100">운영 중단</button>` : `<button onclick="AdminModule.activateRegion(${i})" class="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs hover:bg-green-100">운영 시작</button>`}
+          <button onclick="AdminModule.editRegion('${r.id}')" class="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs hover:bg-blue-100">수정</button>
+          ${r.status==='open' ? `<button onclick="AdminModule.suspendRegion('${r.id}')" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs hover:bg-red-100">운영 중단</button>` : `<button onclick="AdminModule.activateRegion('${r.id}')" class="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs hover:bg-green-100">운영 시작</button>`}
+          <button onclick="AdminModule.deleteRegion('${r.id}','${r.name}')" class="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs hover:bg-red-100">삭제</button>
         </div>
       </div>
     `).join('');
@@ -3790,9 +3805,59 @@ const AdminModule = (() => {
   };
 
   const showAddRegionModal = () => { document.getElementById('region-modal').classList.remove('hidden'); };
-  const editRegion = (idx) => { Utils.toast(`지역 ${idx} 수정 (구현 중)`, 'info'); };
-  const suspendRegion = (idx) => { Utils.confirm('이 지역 운영을 중단하시겠습니까?', () => Utils.toast('운영이 중단되었습니다.', 'success')); };
-  const activateRegion = (idx) => { Utils.confirm('이 지역 운영을 시작하시겠습니까?', () => Utils.toast('운영이 시작되었습니다.', 'success')); };
+  const editRegion = async (regionId) => {
+    const res = await API.get(`/api/regions/${regionId}`);
+    if (!res.success) { Utils.toast('지역 정보를 불러올 수 없습니다', 'error'); return; }
+    const r = res.data;
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold text-lg">${r.name} 수정</h3></div>
+      <div class="modal-body space-y-3">
+        <div><label class="text-xs text-gray-600">지역명</label><input id="edit-reg-name" value="${r.name||''}" class="w-full border rounded-lg px-3 py-2 text-sm mt-1"></div>
+        <div><label class="text-xs text-gray-600">상태</label><select id="edit-reg-status" class="w-full border rounded-lg px-3 py-2 text-sm mt-1"><option value="open" ${r.status==='open'?'selected':''}>운영중</option><option value="preparing" ${r.status==='preparing'?'selected':''}>준비중</option><option value="closed" ${r.status==='closed'?'selected':''}>운영중단</option></select></div>
+        <div><label class="text-xs text-gray-600">위치</label><input id="edit-reg-location" value="${r.location||''}" class="w-full border rounded-lg px-3 py-2 text-sm mt-1"></div>
+        <div><label class="text-xs text-gray-600">고객센터</label><input id="edit-reg-phone" value="${r.customerService||''}" class="w-full border rounded-lg px-3 py-2 text-sm mt-1"></div>
+        <div><label class="text-xs text-gray-600">탑승 장소</label><input id="edit-reg-boarding" value="${r.boardingPlace||''}" class="w-full border rounded-lg px-3 py-2 text-sm mt-1"></div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="Utils.closeModal()" class="btn-outline px-4 py-2 text-sm">취소</button>
+        <button onclick="AdminModule._saveEditRegion('${r.id}')" class="btn-primary px-4 py-2 text-sm">저장</button>
+      </div>`);
+  };
+  const _saveEditRegion = async (regionId) => {
+    const data = {
+      name: document.getElementById('edit-reg-name')?.value,
+      status: document.getElementById('edit-reg-status')?.value,
+      location: document.getElementById('edit-reg-location')?.value,
+      customerService: document.getElementById('edit-reg-phone')?.value,
+      boardingPlace: document.getElementById('edit-reg-boarding')?.value,
+    };
+    Utils.loading(true);
+    const res = await API.put(`/api/regions/${regionId}`, data);
+    Utils.loading(false);
+    Utils.closeModal();
+    if (res.success) {
+      Utils.toast('지역 정보가 저장되었습니다', 'success');
+      regionsPage().then(html=>{document.getElementById('app').innerHTML=html;});
+    } else { Utils.toast('저장 실패: ' + res.error, 'error'); }
+  };
+  const suspendRegion = (regionId) => { Utils.confirm('이 지역 운영을 중단하시겠습니까?', async () => {
+    const res = await API.put(`/api/regions/${regionId}`, { status: 'closed' });
+    Utils.closeModal();
+    if (res.success) { Utils.toast('운영이 중단되었습니다.', 'success'); regionsPage().then(html=>{document.getElementById('app').innerHTML=html;}); }
+    else Utils.toast('실패: ' + res.error, 'error');
+  }); };
+  const activateRegion = (regionId) => { Utils.confirm('이 지역 운영을 시작하시겠습니까?', async () => {
+    const res = await API.put(`/api/regions/${regionId}`, { status: 'open' });
+    Utils.closeModal();
+    if (res.success) { Utils.toast('운영이 시작되었습니다.', 'success'); regionsPage().then(html=>{document.getElementById('app').innerHTML=html;}); }
+    else Utils.toast('실패: ' + res.error, 'error');
+  }); };
+  const deleteRegion = (regionId, regionName) => { Utils.confirm(`"${regionName}" 지역을 삭제하시겠습니까? 관련 스케줄도 함께 삭제됩니다.`, async () => {
+    const res = await API.delete(`/api/regions/${regionId}`);
+    Utils.closeModal();
+    if (res.success) { Utils.toast('지역이 삭제되었습니다', 'success'); regionsPage().then(html=>{document.getElementById('app').innerHTML=html;}); }
+    else Utils.toast('삭제 실패: ' + res.error, 'error');
+  }); };
   // 지역명 → 자동 코드 생성 (AMK-001 형식)
   const _autoGenRegionCode = (name) => {
     const codeEl = document.getElementById('reg-code');
@@ -3807,20 +3872,31 @@ const AdminModule = (() => {
     codeEl.value = `AMK-${seqStr}`;
   };
 
-  const saveNewRegion = () => {
+  const saveNewRegion = async () => {
     const get = (id) => document.getElementById(id)?.value||'';
     const name = get('reg-name').trim();
     if (!name) { Utils.toast('지역명을 입력하세요', 'error'); return; }
-    // 코드가 없으면 자동 생성
     const codeEl = document.getElementById('reg-code');
     if (codeEl && !codeEl.value) { _autoGenRegionCode(name); }
     const code = get('reg-code') || `AMK-${String((window.REGIONS||[]).length+1).padStart(3,'0')}`;
-    // 추가 카운터 증가
-    const cnt = parseInt(localStorage.getItem('amk_region_added_count') || '0', 10);
-    localStorage.setItem('amk_region_added_count', String(cnt + 1));
-    Utils.toast(`"${name}" (${code}) 지역이 추가되었습니다. SEO 설정을 구성하세요.`, 'success');
-    document.getElementById('region-modal').classList.add('hidden');
-    regionsPage().then(html=>{document.getElementById('app').innerHTML=html;});
+    const data = {
+      name, code,
+      location: get('reg-location'),
+      customerService: get('reg-phone'),
+      onlineRatio: parseInt(get('reg-online-ratio'))||70,
+      offlineRatio: 100 - (parseInt(get('reg-online-ratio'))||70),
+      company: { name: get('reg-company-name'), bizNo: get('reg-biz-no'), representative: get('reg-rep'), bankAccount: get('reg-bank') },
+      pgMerchant: { pgName: get('reg-pg-name'), merchantId: get('reg-merchant-id'), testMode: true },
+      status: 'preparing',
+    };
+    Utils.loading(true);
+    const res = await API.post('/api/regions', data);
+    Utils.loading(false);
+    if (res.success) {
+      Utils.toast(`"${name}" 지역이 추가되었습니다`, 'success');
+      document.getElementById('region-modal')?.classList.add('hidden');
+      regionsPage().then(html=>{document.getElementById('app').innerHTML=html;});
+    } else { Utils.toast('추가 실패: ' + res.error, 'error'); }
   };
 
   // ── 정산 관리 ──────────────────────────────────────────────
@@ -4681,7 +4757,7 @@ const AdminModule = (() => {
     addNotice, editNotice, saveNotice, hideNotice, deleteNotice, closeNoticeModal,
     showTermsTab, saveTerms, previewTerms,
     selectSeoRegion, saveSeoSettings,
-    showAddRegionModal, editRegion, suspendRegion, activateRegion, saveNewRegion, _autoGenRegionCode,
+    showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, filterSettlement,
     addAdmin, resetPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,

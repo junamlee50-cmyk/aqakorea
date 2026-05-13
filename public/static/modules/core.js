@@ -32,7 +32,7 @@ const Store = (() => {
 
 // ── API 클라이언트 ───────────────────────────────────────────
 const API = {
-  base: '',
+  base: '',  // Caddy가 /api/* → 백엔드(3001)로 프록시
   async get(path) {
     try {
       const r = await fetch(this.base + path);
@@ -48,6 +48,18 @@ const API = {
   async put(path, body) {
     try {
       const r = await fetch(this.base + path, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      return await r.json();
+    } catch(e) { return { success: false, error: e.message }; }
+  },
+  async delete(path) {
+    try {
+      const r = await fetch(this.base + path, { method:'DELETE', headers:{'Content-Type':'application/json'} });
+      return await r.json();
+    } catch(e) { return { success: false, error: e.message }; }
+  },
+  async patch(path, body) {
+    try {
+      const r = await fetch(this.base + path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
       return await r.json();
     } catch(e) { return { success: false, error: e.message }; }
   },
@@ -157,15 +169,23 @@ const Utils = {
   },
   closeModal: () => { document.querySelector('.modal-overlay')?.remove(); },
   // 확인 다이얼로그
-  confirm: (msg, onYes) => {
-    const m = Utils.modal(`
-      <div class="modal-header"><h3 class="font-bold text-lg">확인</h3></div>
-      <div class="modal-body"><p class="text-gray-700">${msg}</p></div>
+  confirm: (msg, onYes, opts={}) => {
+    const title = opts.title || '확인';
+    const confirmText = opts.confirmText || '확인';
+    const cancelText = opts.cancelText !== undefined ? opts.cancelText : '취소';
+    const cancelBtn = cancelText
+      ? `<button onclick="Utils.closeModal()" class="btn-outline px-6 py-2 text-sm">${cancelText}</button>`
+      : '';
+    const uid = 'confirm-yes-' + Date.now();
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold text-lg">${title}</h3></div>
+      <div class="modal-body"><div class="text-gray-700">${msg}</div></div>
       <div class="modal-footer">
-        <button onclick="Utils.closeModal()" class="btn-outline px-6 py-2 text-sm">취소</button>
-        <button id="confirm-yes" class="btn-primary px-6 py-2 text-sm">확인</button>
+        ${cancelBtn}
+        <button id="${uid}" class="btn-primary px-6 py-2 text-sm">${confirmText}</button>
       </div>`);
-    document.getElementById('confirm-yes').onclick = () => { Utils.closeModal(); onYes(); };
+    const btn = document.getElementById(uid);
+    if (btn) btn.onclick = () => { Utils.closeModal(); if (onYes) onYes(); };
   },
   // 로딩
   loading: (show) => {
@@ -438,7 +458,7 @@ const Navbar = {
   <nav class="navbar" id="main-navbar">
     <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
       <a href="/" data-link class="nav-logo">
-        <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:36px;width:auto;object-fit:contain;">
+        <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:140px;height:auto;object-fit:contain;">
       </a>
       <div class="hidden md:flex items-center gap-6">
         <a href="/" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors ${active==='home'?'text-cyan-400':''}">홈</a>
@@ -488,7 +508,7 @@ const Footer = {
       <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div class="md:col-span-2">
           <div class="flex items-center gap-3 mb-4">
-            <img src="/static/logo.svg" alt="Aqua Mobility Korea" style="height:40px;width:auto;object-fit:contain;">
+            <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:160px;height:auto;object-fit:contain;">
           </div>
           <p class="text-white/60 text-sm leading-relaxed mb-4">전국 수륙양용투어 통합 예약·결제·운영 플랫폼<br>통영 · 부여 · 합천 수륙양용버스 투어</p>
           <div class="flex gap-3">

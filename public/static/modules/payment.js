@@ -223,46 +223,11 @@ ${Footer.render()}`;
     const res = await API.post('/api/reservations', { ...cart, channel: 'online' });
     Utils.loading(false);
     if (res.success) {
-      Store.set('lastReservation', res.data);
+      // reservationNo를 reservationId로 통일
+      const reservationData = { ...res.data, reservationId: res.data.reservationNo || res.data.id };
+      Store.set('lastReservation', reservationData);
 
-      // ★ 핫픽스: amk_reservations localStorage에 예약 저장 → 예약확인 조회 연동
-      try {
-        const regRes = await API.get(`/api/regions/${cart.regionId}`);
-        const region = regRes.data || {};
-        const scheduleTime = PaymentModule._getScheduleTime(cart.scheduleId, cart.regionId);
-        const record = {
-          reservationId:    res.data.reservationId,
-          id:               res.data.reservationId,
-          regionId:         cart.regionId,
-          regionName:       region.name || cart.regionId,
-          boardingPlace:    region.boardingPlace || '-',
-          parkingInfo:      region.parkingInfo || '-',
-          customerService:  region.customerService || '-',
-          date:             cart.date,
-          scheduleId:       cart.scheduleId,
-          schedule:         scheduleTime,
-          time:             scheduleTime,
-          pax:              cart.pax,
-          paxList:          cart.paxList || [],
-          total:            cart.total,
-          totalAmount:      cart.total,
-          name:             cart.name,
-          phone:            cart.phone,
-          normalized_phone: (cart.phone || '').replace(/[^0-9]/g, ''),
-          email:            cart.email || '',
-          source:           cart.source || '',
-          status:           'confirmed',
-          payStatus:        'paid',
-          createdAt:        new Date().toISOString(),
-          qrCode:           res.data.qrCode || `AMK-${res.data.reservationId}-${Date.now()}`,
-        };
-        const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
-        // 중복 방지: 같은 reservationId가 있으면 덮어쓰기
-        const idx = stored.findIndex(r => r.reservationId === record.reservationId || r.id === record.reservationId);
-        if (idx >= 0) stored[idx] = record;
-        else stored.unshift(record);
-        localStorage.setItem('amk_reservations', JSON.stringify(stored));
-      } catch(e) { /* 저장 실패 시에도 완료 화면은 정상 이동 */ }
+      // DB에 저장됨 — localStorage 불필요
 
       Router.go('/payment/complete');
     }
@@ -358,7 +323,7 @@ ${Navbar.render()}
     <!-- 보조 버튼 2개 -->
     <div class="grid grid-cols-2 gap-3">
       <button onclick="Utils.print()" class="btn-outline py-3 text-sm"><i class="fas fa-print mr-2"></i>탑승권 인쇄</button>
-      <button onclick="Utils.copy('\${reservation.reservationId}');Utils.toast('예약번호가 복사되었습니다','success')"
+      <button onclick="Utils.copy('\${reservation.reservationId}')"
         class="btn-outline py-3 text-sm"><i class="fas fa-copy mr-2"></i>예약번호 복사</button>
     </div>
     <!-- 홈 + 고객센터 -->

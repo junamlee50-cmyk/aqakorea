@@ -8,13 +8,40 @@ const FieldModule = {
   dashboard: async () => {
     const cart = Store.get('user');
     const regionId = cart?.region || 'buyeo';
-    const [schRes, regRes] = await Promise.all([
+    const today = Utils.today();
+    const [schRes, regRes, availRes] = await Promise.all([
       API.get(`/api/schedules/${regionId}`),
       API.get(`/api/regions/${regionId}`),
+      API.get(`/api/reservations/availability/${regionId}/${today}`),
     ]);
-    const schedules = schRes.data || [];
+    const rawSchedules = schRes.data || [];
+    // Merge availability data into schedules so seat counts are real
+    const availMap = {};
+    (availRes.data || []).forEach(a => { availMap[a.scheduleId] = a; });
+    const schedules = rawSchedules.map(s => {
+      const av = availMap[s.id] || {};
+      const booked = av.booked || 0;
+      const capacity = s.capacity || av.capacity || 0;
+      const onlineCapacity = s.onlineCapacity || av.onlineCapacity || 0;
+      const offlineCapacity = s.offlineCapacity || (capacity - onlineCapacity);
+      // Estimate split proportionally
+      const onlineBooked = Math.min(booked, onlineCapacity);
+      const offlineBooked = Math.max(0, booked - onlineBooked);
+      return {
+        ...s,
+        capacity,
+        onlineCapacity,
+        offlineCapacity,
+        booked,
+        bookedOnline: onlineBooked,
+        bookedOffline: offlineBooked,
+        onlineAvailable: Math.max(0, onlineCapacity - onlineBooked),
+        offlineAvailable: Math.max(0, offlineCapacity - offlineBooked),
+        available: av.available != null ? av.available : (capacity - booked),
+        isFull: av.isFull || false,
+      };
+    });
     const region = regRes.data || {};
-    const today = Utils.today();
 
     setTimeout(() => FieldModule.initRealtime(), 200);
     return `
@@ -56,12 +83,12 @@ const FieldModule = {
         <div class="bg-white/10 rounded-xl p-3 flex items-center justify-between">
           <div class="text-white font-bold text-lg">${s.time}</div>
           <div class="flex gap-3 text-xs text-center">
-            <div><div class="text-cyan-400 font-bold">${s.online-s.onlineBooked}</div><div class="text-white/40">온라인잔여</div></div>
-            <div><div class="text-green-400 font-bold">${s.offline-s.offlineBooked}</div><div class="text-white/40">현장잔여</div></div>
-            <div><div class="text-white font-bold">${s.onlineBooked+s.offlineBooked}</div><div class="text-white/40">예약완료</div></div>
+            <div><div class="text-cyan-400 font-bold">${s.onlineAvailable != null ? s.onlineAvailable : s.onlineCapacity || 0}</div><div class="text-white/40">온라인잔여</div></div>
+            <div><div class="text-green-400 font-bold">${s.offlineAvailable != null ? s.offlineAvailable : s.offlineCapacity || 0}</div><div class="text-white/40">현장잔여</div></div>
+            <div><div class="text-white font-bold">${s.bookedOnline + s.bookedOffline || 0}</div><div class="text-white/40">예약완료</div></div>
           </div>
-          <span class="badge ${s.status==='soldout'?'badge-red':s.onlineBooked>=s.online?'badge-yellow':'badge-green'} text-xs">
-            ${s.status==='soldout'?'매진':s.onlineBooked>=s.online?'온라인마감':'운행중'}
+          <span class="badge ${s.isFull?'badge-red':s.status==='soldout'?'badge-red':'badge-green'} text-xs">
+            ${s.isFull||s.status==='soldout'?'매진':'운행중'}
           </span>
         </div>`).join('')}
       </div>
@@ -388,7 +415,27 @@ const FieldModule = {
   },
 
   // ── 현장 발권 (복합결제 지원) ────────────────────────────────
-  showFieldSale: () => {
+  showFieldSale: async () => {
+    // API에서 현재 지역 스케줄 로드
+    const cart = Store.get('user');
+    const regionId = cart?.region || 'buyeo';
+    const schRes = await API.get(`/api/schedules/${regionId}`);
+    const schedules = (schRes.data || []).filter(s => s.status !== 'suspended');
+    const fareRes = await API.get(`/api/fares/${regionId}`);
+    const fares = fareRes.data || [
+      {id:'adult', label:'성인', price:30000},
+      {id:'youth', label:'청소년', price:25000},
+      {id:'child', label:'어린이', price:20000},
+      {id:'senior', label:'경로', price:25000},
+      {id:'free', label:'무료/초대권', price:0},
+    ];
+    const roundOptions = schedules.map(s => {
+      const remain = (s.offlineCapacity||s.offline||0) - (s.bookedOffline||s.offlineBooked||0);
+      const soldout = remain <= 0;
+      return `<option value="${s.id}" data-time="${s.time}" data-region="${regionId}" ${soldout?'disabled':''}>
+        ${s.time} ${soldout?'(매진)':'(현장잔여 '+remain+'석)'}
+      </option>`;
+    }).join('') || '<option>등록된 회차 없음</option>';
     Utils.modal(`
       <div class="modal-header">
         <h3 class="font-bold text-navy-800 flex items-center gap-2"><i class="fas fa-cash-register text-cyan-500"></i>현장 발권</h3>
@@ -399,8 +446,7 @@ const FieldModule = {
           <div class="form-group">
             <label class="form-label required">회차 선택</label>
             <select class="form-select" id="fs-round">
-              <option>09:30 (잔여 3석)</option><option>11:30 (매진)</option>
-              <option>13:30 (잔여 9석)</option><option>15:30 (잔여 14석)</option>
+              ${roundOptions}
             </select>
           </div>
           <div class="form-group">
@@ -443,22 +489,16 @@ const FieldModule = {
 
         <div class="font-medium text-navy-800 text-sm mb-2">인원 선택</div>
         <div class="space-y-2 mb-4" id="fs-fares">
-          ${[
-            {id:'adult', label:'성인',   price:30000},
-            {id:'youth', label:'청소년', price:25000},
-            {id:'child', label:'어린이', price:20000},
-            {id:'senior',label:'경로',   price:25000},
-            {id:'free',  label:'무료/초대권', price:0},
-          ].map(f=>`
+          ${fares.map(f=>`
           <div class="flex items-center justify-between py-2 border-b border-gray-100">
             <div>
-              <span class="font-medium text-sm">${f.label}</span>
-              <span class="text-gray-400 text-xs ml-2">${Utils.money(f.price)}</span>
+              <span class="font-medium text-sm">${f.label||f.name}</span>
+              <span class="text-gray-400 text-xs ml-2">${Utils.money(f.price||f.amount||0)}</span>
             </div>
             <div class="fare-counter">
-              <button class="counter-btn w-8 h-8 text-sm" onclick="FieldModule.changeFSFare('${f.id}','${f.price}',-1)">−</button>
+              <button class="counter-btn w-8 h-8 text-sm" onclick="FieldModule.changeFSFare('${f.id}','${f.price||f.amount||0}',-1)">−</button>
               <span class="counter-num text-base" id="fs-cnt-${f.id}">0</span>
-              <button class="counter-btn w-8 h-8 text-sm" onclick="FieldModule.changeFSFare('${f.id}','${f.price}',1)">+</button>
+              <button class="counter-btn w-8 h-8 text-sm" onclick="FieldModule.changeFSFare('${f.id}','${f.price||f.amount||0}',1)">+</button>
             </div>
           </div>`).join('')}
         </div>
@@ -565,7 +605,12 @@ const FieldModule = {
     const method  = document.getElementById('fs-payment')?.value || 'cash';
     const name    = document.getElementById('fs-name')?.value?.trim() || '현장판매';
     const phone   = document.getElementById('fs-phone')?.value?.trim() || '-';
-    const round   = document.getElementById('fs-round')?.value || '-';
+    const roundEl = document.getElementById('fs-round');
+    const round   = roundEl?.value || '';
+    const roundTime = roundEl?.options[roundEl?.selectedIndex]?.dataset?.time || round || '-';
+    const today   = Utils.today ? Utils.today() : new Date().toISOString().slice(0,10);
+
+    if (!round) { Utils.toast('회차를 선택해주세요', 'warning'); return; }
 
     // 복합결제 검증
     let cashAmt = 0, cardAmt = 0;
@@ -595,63 +640,40 @@ const FieldModule = {
 
     const regionId = Store.get('user')?.region || 'buyeo';
     const res = await API.post('/api/reservations', {
-      regionId, channel: 'onsite', total, pax,
+      regionId,
+      scheduleId: round,
+      date: today,
+      time: roundTime,
+      channel: 'onsite',
+      type: 'onsite',
+      paymentStatus: 'paid',
+      totalAmount: total,
+      adultCount: pax,
+      childCount: 0,
+      infantCount: 0,
+      seniorCount: 0,
       name, phone,
+      paymentMethod: method === 'mixed' ? 'mixed' : method,
       payMethod: payLabel,
       payment_splits: method === 'mixed' ? { cash: cashAmt, card: cardAmt } : null,
     });
     Utils.loading(false);
 
     if (res.success) {
-      // ★ amk_onsite_tickets + amk_reservations 양쪽에 저장
-      const regionNames = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
-      const record = {
-        id:             res.data.reservationId,
-        reservationId:  res.data.reservationId,
-        regionId,
-        regionName:     regionNames[regionId] || regionId,
-        name,
-        phone,
-        date:           Utils.today(),
-        schedule:       round,
-        time:           round,
-        pax,
-        paxList,
-        totalAmount:    total,
-        total,
-        payMethod:      payLabel,
-        payment_splits: method === 'mixed' ? { cash: cashAmt, card: cardAmt } : null,
-        channel:        'onsite',
-        status:         'confirmed',
-        createdAt:      new Date().toISOString(),
-        source:         '현장발권',
-      };
-      // amk_onsite_tickets
-      try {
-        const onsiteStored = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]');
-        onsiteStored.unshift(record);
-        localStorage.setItem('amk_onsite_tickets', JSON.stringify(onsiteStored));
-      } catch(e) {}
-      // amk_reservations (관리자 예약관리 연동)
-      try {
-        const resStored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
-        const idx = resStored.findIndex(r => r.id === record.id || r.reservationId === record.id);
-        if (idx >= 0) resStored[idx] = record;
-        else resStored.unshift(record);
-        localStorage.setItem('amk_reservations', JSON.stringify(resStored));
-      } catch(e) {}
-
-      // 성공 메시지
+      // DB에 저장됨 — localStorage 불필요
+      const reservationNo = res.data.reservationNo || res.data.id;
       const splitMsg = method === 'mixed'
         ? ` (현금 ${Utils.money(cashAmt)} + 카드 ${Utils.money(cardAmt)})`
         : ` (${payLabel})`;
       Utils.toast(
-        `현장발권 완료! ${Utils.money(total)} ${pax}명${splitMsg}\n예약번호: ${res.data.reservationId}`,
+        `현장발권 완료! ${Utils.money(total)} ${pax}명${splitMsg} / 예약번호: ${reservationNo}`,
         'success', 6000
       );
-      setTimeout(() => FieldModule.showWristbandIssue(res.data.reservationId), 500);
+      setTimeout(() => FieldModule.showWristbandIssue(reservationNo), 500);
     } else {
-      Utils.toast('현장발권 처리 중 오류가 발생했습니다.', 'error');
+      const errMsg = res.error || res.message || '알 수 없는 오류';
+      console.error('[현장발권 오류]', res);
+      Utils.toast(`현장발권 처리 중 오류가 발생했습니다: ${errMsg}`, 'error', 5000);
     }
   },
 
@@ -799,7 +821,7 @@ const FieldModule = {
   // ── 지역 선택 ────────────────────────────────────────────────
   showRegionSelect: async () => {
     const res = await API.get('/api/regions');
-    const regions = (res.data || []).filter(r => r.status === 'active');
+    const regions = (res.data || []).filter(r => r.status === 'active' || r.status === 'open');
     Utils.modal(`
       <div class="modal-header">
         <h3 class="font-bold text-navy-800">지역 선택</h3>

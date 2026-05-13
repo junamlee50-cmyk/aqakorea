@@ -293,17 +293,17 @@
 
   // ── 전역 데이터 로드 ───────────────────────────────────────
   const loadGlobalData = async () => {
-    // 서버 주입 데이터 우선 사용
-    if (PAGE.regions) {
-      Store.set('regions', PAGE.regions);
-    } else if (window.REGIONS) {
-      Store.set('regions', window.REGIONS);
-    }
-
-    // Settings에서 관리자가 저장한 지역/차량/일정 오버라이드 적용
-    const savedRegions = Settings.get('regions');
-    if (savedRegions) {
-      Store.set('regions', savedRegions);
+    // DB API에서 지역 데이터 로드 (window.REGIONS 전역 데이터 설정)
+    try {
+      const regRes = await API.get('/api/regions');
+      if (regRes.success && regRes.data && regRes.data.length > 0) {
+        window.REGIONS = regRes.data;
+        Store.set('regions', regRes.data);
+      }
+    } catch(e) {
+      // 폴백: 서버 주입 데이터 또는 window.REGIONS
+      if (PAGE.regions) { window.REGIONS = PAGE.regions; Store.set('regions', PAGE.regions); }
+      else if (window.REGIONS) { Store.set('regions', window.REGIONS); }
     }
 
     // SEO 설정 초기화

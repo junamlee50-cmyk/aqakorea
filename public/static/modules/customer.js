@@ -304,24 +304,9 @@ ${Footer.render()}
     if (region.status === 'hidden') return CustomerPages._404();
     if (region.status === 'preparing') return CustomerPages._preparingPage(region);
 
-    // ★ 스케줄 병합 로직: API 데이터를 기본값으로 사용하고, localStorage에 관리자가
-    //   수정/추가한 회차가 있으면 해당 회차를 덮어쓰는 방식으로 병합
-    //   (기기별 localStorage 분리로 인해 앱/모바일에서도 API 기본 회차가 표시되도록 보장)
+    // API로부터 스케줄 로드 (DB 직접 조회)
     const apiSchedules = schRes.data || [];
-    const lsMerged = (() => {
-      try {
-        const s = JSON.parse(localStorage.getItem('amk_settings') || '{}');
-        const lsSch = (s.schedules || {})[regionId];
-        if (!lsSch || lsSch.length === 0) return apiSchedules;
-        // localStorage 회차를 기준으로 API 회차와 병합
-        // localStorage에 없는 API 회차는 그대로 포함 (시간 기준 중복 제거)
-        const lsTimes = new Set(lsSch.map(s => s.time));
-        const apiOnly = apiSchedules.filter(s => !lsTimes.has(s.time));
-        return [...lsSch, ...apiOnly].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-      } catch(e) {}
-      return apiSchedules;
-    })();
-    let rawSchedules = lsMerged;
+    let rawSchedules = [...apiSchedules];
 
     // ★ 오늘 날짜 기준 운영/예약가능 상태 필터링
     // status: 'active'(관리자 저장값) 또는 'available'(API 기본값) 모두 허용
@@ -360,26 +345,7 @@ ${Footer.render()}
       };
     });
 
-    // ★ localStorage 저장 요금 우선 참조
-    // 우선순위: amk_settings.fares → amk_fares → region.fares (API 기본값)
-    const savedFares = (() => {
-      try {
-        // 1순위: amk_settings 내 fares 키 (관리자 설정 통합 저장소)
-        const settings = JSON.parse(localStorage.getItem('amk_settings') || '{}');
-        const fromSettings = (settings.fares || {})[regionId];
-        if (fromSettings && fromSettings.length > 0) {
-          const active = fromSettings.filter(f => f.status === 'active' || !f.status);
-          if (active.length > 0) return active;
-        }
-        // 2순위: amk_fares 별도 키 (구 버전 호환)
-        const fareStore = JSON.parse(localStorage.getItem('amk_fares') || '{}');
-        if (fareStore[regionId] && fareStore[regionId].length > 0) {
-          return fareStore[regionId].filter(f => f.status === 'active' || !f.status);
-        }
-      } catch(e) {}
-      return null;
-    })();
-    if (savedFares && savedFares.length > 0) region.fares = savedFares;
+    // 요금은 API(region.fares)에서 직접 사용
 
     setTimeout(() => { Navbar.init(); CustomerPages.initRegionPage(region, schedules); }, 100);
     return `
@@ -709,7 +675,7 @@ ${Navbar.render('reservation')}
           ${(() => {
             // ★ localStorage amk_tourism_contents 기반 (관리자 관광정보관리와 동일 저장소)
             try {
-              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const allContents = [];
               const list = allContents.filter(t =>
                 t.regionId === regionId &&
                 t.visible !== false &&
@@ -763,7 +729,7 @@ ${regionId === 'buyeo' ? `
         <div data-tab-content="buyeo-주변관광지" data-tab-content-group="buyeo-content">
           ${(() => {
             try {
-              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const allContents = [];
               const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'attraction');
               if (list.length > 0) {
                 return `<div class="grid md:grid-cols-2 gap-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
@@ -788,7 +754,7 @@ ${regionId === 'buyeo' ? `
         <div data-tab-content="buyeo-맛집추천" data-tab-content-group="buyeo-content" class="hidden">
           ${(() => {
             try {
-              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const allContents = [];
               const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'restaurant');
               if (list.length > 0) {
                 return `<div class="grid md:grid-cols-2 gap-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
@@ -814,7 +780,7 @@ ${regionId === 'buyeo' ? `
         <div data-tab-content="buyeo-카페·디저트" data-tab-content-group="buyeo-content" class="hidden">
           ${(() => {
             try {
-              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const allContents = [];
               const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'cafe');
               if (list.length > 0) {
                 return `<div class="grid md:grid-cols-2 gap-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
@@ -840,7 +806,7 @@ ${regionId === 'buyeo' ? `
         <div data-tab-content="buyeo-추천코스" data-tab-content-group="buyeo-content" class="hidden">
           ${(() => {
             try {
-              const allContents = JSON.parse(localStorage.getItem('amk_tourism_contents') || '[]');
+              const allContents = [];
               const list = allContents.filter(t => t.regionId === 'buyeo' && t.visible !== false && t.type === 'course');
               if (list.length > 0) {
                 return `<div class="space-y-4">${list.sort((a,b)=>(a.order||99)-(b.order||99)).map(p=>`
@@ -1270,7 +1236,27 @@ ${Footer.render()}`;
 
     let found = null;
     try {
-      // localStorage amk_reservations에서 예약번호로 직접 조회
+      // DB API로 직접 조회
+      const apiRes = await API.get(`/api/reservations/check/${encodeURIComponent(reservationId)}`);
+      if (apiRes.success && apiRes.data) {
+        const r = apiRes.data; const st = r.status || 'confirmed';
+        found = {
+          id: r.reservationNo || r.id,
+          regionName: r.regionName || r.regionId || '-',
+          boardingPlace: r.boardingPlace || '-',
+          date: r.date || '-',
+          schedule: r.scheduleTime || r.scheduleId || '-',
+          pax: r.pax || 1,
+          totalAmount: r.totalPrice || 0,
+          name: r.name || '-', phone: r.phone || '-', status: st,
+          statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+          cancelable: ['confirmed'].includes(st),
+          wristband: ['confirmed','checkedin'].includes(st), qr: true,
+        };
+      }
+    } catch(e) {}
+    // localStorage 폴백
+    if (!found) try {
       const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
       const raw = stored.find(r => (r.reservationId === reservationId || r.id === reservationId));
       if (raw) {
@@ -1549,8 +1535,81 @@ ${Footer.render()}`;
     try {
       let found = null;
 
-      // 1) localStorage AMK 예약 데이터 우선 조회
+      // 1) DB API 직접 조회 (주요 경로)
       try {
+        const statusLabelMap = {
+          confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
+          payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
+          payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
+          checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
+          cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
+          refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
+          noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
+        };
+        if (mode === 'primary' && resId) {
+          // 예약번호로 직접 조회
+          const apiRes = await API.get(`/api/reservations/check/${encodeURIComponent(resId)}`);
+          if (apiRes.success && apiRes.data) {
+            const r = apiRes.data;
+            // 휴대폰 번호 매칭
+            const dbPhone = (r.phone || '').replace(/[^0-9]/g, '');
+            const inPhone = phone.replace(/[^0-9]/g, '');
+            if (dbPhone === inPhone || dbPhone.slice(-4) === inPhone.slice(-4)) {
+              const st = r.status || 'confirmed';
+              found = {
+                id: r.reservationNo || r.id,
+                regionName: r.regionName || r.regionId || '-',
+                boardingPlace: r.boardingPlace || '-',
+                parkingInfo: r.parkingInfo || '-',
+                customerService: r.customerService || '1588-0000',
+                date: r.date || '-',
+                schedule: r.scheduleTime || r.scheduleId || '-',
+                pax: r.pax || 1,
+                paxDetail: r.paxDetail || [],
+                totalAmount: r.totalPrice || 0,
+                name: r.name || '-',
+                phone: r.phone || '-',
+                status: st,
+                statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+                cancelable: ['confirmed','payment_done','payment_pending'].includes(st),
+                wristband: ['confirmed','payment_done','checkedin'].includes(st),
+                qr: ['confirmed','payment_done','checkedin'].includes(st),
+              };
+            }
+          }
+        } else if (mode === 'alt') {
+          // 휴대폰번호로 조회
+          let url = `/api/reservations?limit=50`;
+          if (altDate) url += `&date=${altDate}`;
+          const apiRes = await API.get(url);
+          if (apiRes.success && apiRes.data) {
+            const inPhone = phone.replace(/[^0-9]/g, '');
+            const matched = apiRes.data.filter(r => {
+              const dbPhone = (r.phone || '').replace(/[^0-9]/g, '');
+              return dbPhone === inPhone || dbPhone.slice(-4) === inPhone.slice(-4);
+            });
+            if (matched.length === 1) {
+              const r = matched[0]; const st = r.status || 'confirmed';
+              found = {
+                id: r.reservationNo || r.id, regionName: r.regionId || '-',
+                boardingPlace: '-', date: r.date || '-',
+                schedule: r.scheduleId || '-', pax: r.pax || 1,
+                totalAmount: r.totalPrice || 0, name: r.name || '-',
+                phone: r.phone || '-', status: st,
+                statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+                cancelable: ['confirmed'].includes(st), wristband: ['confirmed'].includes(st), qr: true,
+              };
+            } else if (matched.length > 1) {
+              const items = matched.map(r => ({ id: r.reservationNo || r.id, date: r.date, regionName: r.regionId, name: r.name, status: r.status }));
+              CustomerPages._renderAltMultiResult(el, items, statusLabelMap);
+              return;
+            }
+          }
+        }
+      } catch(apiErr) { console.warn('API 조회 실패:', apiErr); }
+
+      // 2) localStorage 폴백 (오프라인 등)
+      if (!found) try {
         const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
         if (stored.length > 0) {
           const statusLabelMap = {
