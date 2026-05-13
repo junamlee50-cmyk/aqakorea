@@ -116,6 +116,116 @@ ${Navbar.render('home')}
   </div>
 </section>
 
+<!-- 브랜드 스토리 섹션 (CI 기반) -->
+<section class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-4">
+    <!-- 섹션 헤더 -->
+    <div class="text-center mb-16">
+      <span class="inline-block bg-cyan-50 text-cyan-600 text-xs font-bold px-4 py-1.5 rounded-full mb-4 tracking-wider">BRAND STORY</span>
+      <h2 class="text-3xl md:text-4xl font-black text-navy-900 mb-4">물과 육지를 잇는 새로운 이동의 시작</h2>
+      <p class="text-gray-500 max-w-2xl mx-auto text-base leading-relaxed">
+        아쿠아모빌리티코리아는 물과 육지를 연결하는 미래형 수륙양용 모빌리티 브랜드로,<br>
+        <strong class="text-navy-800">안전 · 혁신 · 친환경</strong> 가치를 담은 통합 이동 플랫폼입니다.
+      </p>
+    </div>
+
+    <!-- 브랜드명 의미 -->
+    <div class="grid md:grid-cols-3 gap-6 mb-16">
+      <div class="rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+        <div class="bg-gradient-to-br from-cyan-400 to-blue-500 p-6 text-white text-center">
+          <div class="text-4xl mb-2">🌊</div>
+          <div class="text-2xl font-black tracking-wide">Aqua</div>
+        </div>
+        <div class="bg-white p-5">
+          <p class="text-gray-600 text-sm leading-relaxed">물, 수상, 해양을 의미합니다. 바다와 강을 자유롭게 누비는 수상 이동의 정수를 담았습니다.</p>
+        </div>
+      </div>
+      <div class="rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+        <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 text-white text-center">
+          <div class="text-4xl mb-2">🚌</div>
+          <div class="text-2xl font-black tracking-wide">Mobility</div>
+        </div>
+        <div class="bg-white p-5">
+          <p class="text-gray-600 text-sm leading-relaxed">이동, 운송, 모빌리티 기술을 의미합니다. 첨단 기술로 만들어가는 미래형 교통수단입니다.</p>
+        </div>
+      </div>
+      <div class="rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+        <div class="bg-gradient-to-br from-indigo-500 to-blue-900 p-6 text-white text-center">
+          <div class="text-4xl mb-2">🇰🇷</div>
+          <div class="text-2xl font-black tracking-wide">Korea</div>
+        </div>
+        <div class="bg-white p-5">
+          <p class="text-gray-600 text-sm leading-relaxed">대한민국을 대표하는 기업이라는 정체성입니다. K-관광의 새로운 기준을 제시합니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 로고 심볼 의미 -->
+    <div class="bg-gradient-to-br from-slate-50 to-blue-50 rounded-3xl p-8 md:p-12 mb-16">
+      <h3 class="text-xl font-black text-navy-900 text-center mb-8">심볼 로고가 담은 4가지 의미</h3>
+      <div class="grid md:grid-cols-4 gap-6">
+        <div class="text-center">
+          <div class="w-14 h-14 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🛡️</div>
+          <div class="font-bold text-navy-800 text-sm mb-2">방패 (Shield)</div>
+          <p class="text-gray-500 text-xs leading-relaxed">안전성·신뢰성·보호를 상징. 승객의 안전한 이동과 기업의 책임감을 표현합니다.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-14 h-14 bg-cyan-100 text-cyan-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🌊</div>
+          <div class="font-bold text-navy-800 text-sm mb-2">파도 (Wave)</div>
+          <p class="text-gray-500 text-xs leading-relaxed">물길·해양·역동성을 상징. 수상 이동 기술과 친환경적 이미지를 담았습니다.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-14 h-14 bg-green-100 text-green-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🛣️</div>
+          <div class="font-bold text-navy-800 text-sm mb-2">도로 (Road)</div>
+          <p class="text-gray-500 text-xs leading-relaxed">육상 운행·연결성·확장성을 의미. 수상과 육상을 하나로 잇는 구조를 표현합니다.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-14 h-14 bg-purple-100 text-purple-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">🚌</div>
+          <div class="font-bold text-navy-800 text-sm mb-2">차량 (Mobility)</div>
+          <p class="text-gray-500 text-xs leading-relaxed">수륙양용 차량·혁신성을 상징. 단순 관광을 넘어선 미래형 운송수단입니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 색상 의미 -->
+    <div class="grid md:grid-cols-3 gap-6 mb-16">
+      <div class="flex items-start gap-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div class="w-12 h-12 rounded-xl flex-shrink-0" style="background:#0f2a5e"></div>
+        <div>
+          <div class="text-xs text-gray-400 mb-0.5">딥 네이비</div>
+          <div class="font-bold text-navy-800 text-sm mb-1">신뢰 · 전문성 · 안정성</div>
+          <p class="text-gray-500 text-xs leading-relaxed">공공사업·관광사업·모빌리티 사업에 적합한 기업 이미지를 전달합니다.</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div class="w-12 h-12 rounded-xl flex-shrink-0" style="background:#06b6d4"></div>
+        <div>
+          <div class="text-xs text-gray-400 mb-0.5">블루/시안</div>
+          <div class="font-bold text-navy-800 text-sm mb-1">물 · 첨단기술 · 미래성</div>
+          <p class="text-gray-500 text-xs leading-relaxed">수상 관광과 스마트 모빌리티의 청량하고 미래적인 느낌을 표현합니다.</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div class="w-12 h-12 rounded-xl flex-shrink-0" style="background:#22c55e"></div>
+        <div>
+          <div class="text-xs text-gray-400 mb-0.5">그린</div>
+          <div class="font-bold text-navy-800 text-sm mb-1">친환경 · 지속가능성</div>
+          <p class="text-gray-500 text-xs leading-relaxed">관광과 자연환경을 연결하는 브랜드 철학을 담고 있습니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 브랜드 메시지 -->
+    <div class="text-center bg-gradient-to-r from-cyan-600 to-blue-700 rounded-3xl p-10 text-white">
+      <div class="text-4xl mb-4">🌊</div>
+      <blockquote class="text-2xl md:text-3xl font-black leading-relaxed mb-4">
+        "안전하게, 혁신적으로,<br>물과 길을 하나로"
+      </blockquote>
+      <p class="text-white/70 text-sm">대한민국 수륙양용 모빌리티의 새로운 기준, 아쿠아모빌리티코리아</p>
+    </div>
+  </div>
+</section>
+
 <!-- 서비스 특징 -->
 <section class="bg-gradient-to-br from-navy-900 to-ocean-800 py-16">
   <div class="max-w-6xl mx-auto px-4">
