@@ -220,7 +220,7 @@ ${Footer.render()}`;
   completePayment: async (regionId) => {
     const cart = Store.get('cart');
     Utils.loading(true);
-    const res = await API.post('/api/reservations', { ...cart, channel: 'online' });
+    const res = await API.post('/api/reservations', { ...cart, totalAmount: cart.total, channel: 'online' });
     Utils.loading(false);
     if (res.success) {
       // reservationNo를 reservationId로 통일

@@ -1296,7 +1296,7 @@ ${Footer.render()}
     for (const id of requiredAgrees) {
       if (!document.getElementById(id)?.checked) { Utils.toast('필수 동의 항목을 확인해주세요', 'warning'); return; }
     }
-    Store.set('cart', { regionId, date: s.date, scheduleId: s.scheduleId, paxList, pax, total, name, phone, email: document.getElementById('inp-email')?.value, source: s.source });
+    Store.set('cart', { regionId, date: s.date, scheduleId: s.scheduleId, paxList, pax, total, totalAmount: total, name, phone, email: document.getElementById('inp-email')?.value, source: s.source });
     Router.go('/payment');
   },
 
