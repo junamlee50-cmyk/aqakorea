@@ -20,8 +20,8 @@ const AdminModule = (() => {
   // ── 데모 계정 목록 ──────────────────────────────────────────
   const DEMO_ACCOUNTS = [
     { id:'admin',      pw:'admin1234',  name:'본사 슈퍼관리자', role:'super',      regionId:null },
-    { id:'tongyeong',  pw:'tong1234',   name:'통영지역관리자',  role:'regional',   regionId:'tongyeong' },
-    { id:'buyeo',      pw:'buye1234',   name:'부여지역관리자',  role:'regional',   regionId:'buyeo' },
+    { id:'tongyeong',  pw:'tong1234',   name:'통영지역관리자',  role:'regional',   regionId:'tongyeong', regionName:'통영해양관광' },
+    { id:'buyeo',      pw:'buye1234',   name:'부여지역관리자',  role:'regional',   regionId:'buyeo',      regionName:'부여수륙양용투어' },
     { id:'hapcheon',   pw:'hapc1234',   name:'합천지역관리자',  role:'regional',   regionId:'hapcheon' },
     { id:'field01',    pw:'field1234',  name:'현장매표소',      role:'staff',      regionId:'tongyeong' },
     { id:'account',    pw:'acct1234',   name:'회계담당자',      role:'accountant', regionId:null },
@@ -133,11 +133,11 @@ const AdminModule = (() => {
               </button>
             ` : `
               <div class="flex items-center gap-2 overflow-hidden">
-                <div class="flex items-center flex-shrink-0">
-                  <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:120px;height:auto;object-fit:contain;">
+                <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:3px;border:1px solid rgba(255,255,255,0.25);flex-shrink:0">
+                  <img src="/static/logo_emblem.png" alt="CI" style="width:32px;height:32px;object-fit:contain;display:block">
                 </div>
                 <div class="overflow-hidden">
-                  <div class="text-white font-bold text-sm whitespace-nowrap" style="display:none;">아쿠아모빌리티</div>
+                  <div class="whitespace-nowrap" style="font-size:12px;font-weight:800;color:#fff;letter-spacing:0.3px">AQUA MOBILITY <span style="font-weight:500;opacity:0.75;font-size:10px">KOREA</span></div>
                   <div class="text-gray-400 text-xs whitespace-nowrap">${ROLE_LABELS[user.role] || '관리자'}</div>
                 </div>
               </div>
@@ -236,10 +236,11 @@ const AdminModule = (() => {
       <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
         <div class="w-full max-w-md">
           <div class="text-center mb-8">
-            <div class="flex justify-center mb-4">
-              <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:180px;height:auto;object-fit:contain;">
+            <div class="flex justify-center mb-3">
+              <img src="/static/logo_emblem.png" alt="Aqua Mobility Korea" style="width:90px;height:auto;object-fit:contain;">
             </div>
-            <p class="text-gray-400 text-sm mt-1">통합 관리자 시스템 · Admin Portal</p>
+            <div class="text-white font-bold text-xl tracking-wide mb-1">AQUA MOBILITY KOREA</div>
+            <p class="text-gray-400 text-sm">통합 관리자 시스템 · Admin Portal</p>
           </div>
           <div class="bg-white rounded-2xl shadow-2xl p-8">
             <div class="flex items-center gap-2 mb-6">
@@ -344,7 +345,7 @@ const AdminModule = (() => {
     // 로그인 성공
     sessionStorage.setItem('amk_fail_count', '0');
     _adminState.loggedIn = true;
-    _adminState.user = { id: account.id, name: account.name, role: account.role, regionId: account.regionId };
+    _adminState.user = { id: account.id, name: account.name, role: account.role, regionId: account.regionId, regionName: account.regionName || account.regionId || '' };
     _adminState.selectedRegion = account.regionId || null;
     Store.set('adminUser', _adminState.user);
     Store.set('adminLoginTime', Date.now());
@@ -437,7 +438,7 @@ const AdminModule = (() => {
     const regionStats = stats.regionStats || [];
 
     const statusLabel = (s) => ({
-      open:'운영중', active:'운영중', preparing:'준비중', closed:'운영중단'
+      open:'운영중', active:'운영중', preparing:'준비중', closed:'운영중단', hidden:'숨김'
     })[s] || s;
     const statusColor = (s) => ({
       open:'bg-green-100 text-green-700', active:'bg-green-100 text-green-700',
@@ -947,9 +948,13 @@ const AdminModule = (() => {
   // ── 차량 관리 ──────────────────────────────────────────────
   const vehiclesPage = async () => {
     _adminState.currentSection = 'vehicles';
-    // DB API에서 차량 목록 로드
+    const user = _adminState.user || { role: 'super', regionId: null };
     const vRes = await API.get('/api/vehicles');
-    const vehicles = (vRes.success && vRes.data) ? vRes.data : [];
+    let vehicles = (vRes.success && vRes.data) ? vRes.data : [];
+    // 지역관리자는 본인 지역 차량만 표시
+    if (user.role === 'regional' && user.regionId) {
+      vehicles = vehicles.filter(v => v.regionId === user.regionId);
+    }
 
     const rows = vehicles.map((v, i) => `
       <tr class="hover:bg-gray-50">
@@ -968,8 +973,8 @@ const AdminModule = (() => {
         <td class="px-4 py-3 text-sm text-center text-gray-500">${v.inspectionDue || '-'}</td>
         <td class="px-4 py-3 text-sm text-center text-gray-500">${v.insuranceDue || '-'}</td>
         <td class="px-4 py-3 text-center">
-          <button onclick="AdminModule.editVehicle(${v.id})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
-          <button onclick="AdminModule.deleteVehicle(${v.id})" class="text-red-500 hover:underline text-xs">삭제</button>
+          <button onclick="AdminModule.editVehicle('${v.id}')" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
+          <button onclick="AdminModule.deleteVehicle('${v.id}')" class="text-red-500 hover:underline text-xs">삭제</button>
         </td>
       </tr>
     `).join('') || '<tr><td colspan="8" class="text-center py-4 text-gray-500 text-sm">차량이 없습니다.</td></tr>';
@@ -1027,9 +1032,12 @@ const AdminModule = (() => {
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">배정 지역</label>
-                <select id="v-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                  ${(window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
-                </select>
+                ${user.role === 'regional' && user.regionId
+                  ? `<input type="hidden" id="v-region" value="${user.regionId}">
+                     <div class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600">${user.regionName || user.regionId}</div>`
+                  : `<select id="v-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                      ${(window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+                    </select>`}
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">상태</label>
@@ -1067,9 +1075,13 @@ const AdminModule = (() => {
 
   let _editingVehicleIdx = null;
   const addVehicle = () => {
+    const user = _adminState.user || { role: 'super', regionId: null };
     _editingVehicleIdx = null;
     document.getElementById('vehicle-modal-title').textContent = '차량 추가';
     ['v-name','v-plate','v-capacity','v-memo'].forEach(id => { const el = document.getElementById(id); if(el) el.value = id==='v-capacity'?'45':''; });
+    // 지역관리자: 지역 기본값 세팅
+    const vRegEl = document.getElementById('v-region');
+    if (vRegEl && user.role === 'regional' && user.regionId) vRegEl.value = user.regionId;
     document.getElementById('vehicle-modal').classList.remove('hidden');
   };
   const editVehicle = async (idx) => {
@@ -1081,8 +1093,8 @@ const AdminModule = (() => {
     const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||''; };
     set('v-name', v.name); set('v-plate', v.plateNumber); set('v-capacity', v.capacity||45);
     set('v-type', v.type||'amphibious'); set('v-status', v.status||'active');
-    set('v-inspection', v.inspectionDate||''); set('v-insurance', v.insuranceDate||'');
-    set('v-memo', v.memo||'');
+    set('v-region', v.regionId||''); set('v-inspection', v.inspectionDue||v.inspectionDate||'');
+    set('v-insurance', v.insuranceDue||v.insuranceDate||''); set('v-memo', v.notes||v.memo||'');
     document.getElementById('vehicle-modal').classList.remove('hidden');
   };
   const saveVehicle = async () => {
@@ -1158,12 +1170,18 @@ const AdminModule = (() => {
 
   const schedulesPage = async () => {
     _adminState.currentSection = 'schedules';
+    const user = _adminState.user || { role: 'super', regionId: null };
     // DB에서 지역 및 스케줄 로드
     const regRes = await API.get('/api/regions');
     const allRegions = (regRes.success && regRes.data) ? regRes.data : (window.REGIONS || []);
     window.REGIONS = allRegions;
-    const regions = allRegions.filter(r => r.status !== 'hidden');
-    const activeRegionId = _adminState.selectedRegion || regions[0]?.id || 'buyeo';
+    // 지역관리자: 본인 지역만 표시
+    const regions = user.role === 'regional' && user.regionId
+      ? allRegions.filter(r => r.id === user.regionId)
+      : allRegions.filter(r => r.status !== 'hidden');
+    const activeRegionId = (user.role === 'regional' && user.regionId)
+      ? user.regionId
+      : (_adminState.selectedRegion || regions[0]?.id || 'buyeo');
     const schRes = await API.get(`/api/schedules/${activeRegionId}`);
     const schedules = (schRes.success && schRes.data) ? schRes.data : [];
     const vehicles = _getVehicles(activeRegionId);
@@ -1175,24 +1193,33 @@ const AdminModule = (() => {
       </button>
     `).join('');
 
+    const _dayKor = { mon:'월', tue:'화', wed:'수', thu:'목', fri:'금', sat:'토', sun:'일' };
     const scheduleRows = schedules.map((s, i) => {
       const sid = s.id || _makeScheduleId(activeRegionId, s.time);
       const hasRes = _hasReservations(activeRegionId, sid);
-      const endTime = s.time ? _addMinutes(s.time, s.duration||70) : '-';
+      const dur = s.duration || 45;
+      const endTime = s.time ? _addMinutes(s.time, dur) : '-';
       const statusClass = s.status==='active'?'bg-green-100 text-green-700':s.status==='suspended'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-500';
       const statusLabel = s.status==='active'?'운영':s.status==='suspended'?'운휴':'중단';
+      // 배정차량: vehicleId로 DB에서 이름 찾기
+      const assignedV = s.vehicleId
+        ? (vehicles.find(v=>v.id===s.vehicleId)?.name || s.vehicleId)
+        : '-';
+      // 운영요일: mon/tue... 형식이면 한글 변환
+      const rawDays = s.days || s.operatingDays || ['월','화','수','목','금','토','일'];
+      const displayDays = rawDays.map(d => _dayKor[d] || d).join('');
       return `
       <tr class="hover:bg-gray-50">
         <td class="px-4 py-3 font-medium text-sm text-center">${s.time || '-'}</td>
         <td class="px-4 py-3 text-sm text-center text-gray-500">${endTime}</td>
-        <td class="px-4 py-3 text-sm text-center">${s.duration || 70}분</td>
-        <td class="px-4 py-3 text-sm text-center">${s.vehicle || (vehicles[i%vehicles.length]?.name) || '-'}</td>
+        <td class="px-4 py-3 text-sm text-center">${dur}분</td>
+        <td class="px-4 py-3 text-sm text-center font-medium text-blue-700">${assignedV}</td>
         <td class="px-4 py-3 text-sm text-center">
           <span class="text-xs">${s.capacity || 38}명</span>
           <span class="text-xs text-gray-400 ml-1">(총 ${s.totalSeats||40}석)</span>
         </td>
-        <td class="px-4 py-3 text-sm text-center">${s.onlineSeats !== undefined ? s.onlineSeats : Math.ceil((s.capacity||38)*0.7)}석 / ${s.offlineSeats !== undefined ? s.offlineSeats : (s.capacity||38) - Math.ceil((s.capacity||38)*0.7)}석</td>
-        <td class="px-4 py-3 text-sm text-center text-xs">${(s.operatingDays||['월','화','수','목','금','토','일']).join('')}</td>
+        <td class="px-4 py-3 text-sm text-center">${s.onlineCapacity !== undefined ? s.onlineCapacity : Math.ceil((s.capacity||38)*0.7)}석 / ${s.offlineCapacity !== undefined ? s.offlineCapacity : (s.capacity||38) - Math.ceil((s.capacity||38)*0.7)}석</td>
+        <td class="px-4 py-3 text-sm text-center text-xs">${displayDays}</td>
         <td class="px-4 py-3 text-center">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${statusLabel}</span>
           ${hasRes?'<span class="ml-1 text-xs text-orange-500" title="예약 있음">●</span>':''}
@@ -1368,7 +1395,7 @@ const AdminModule = (() => {
           <!-- ② 자동 최적 모드 -->
           <div id="dispatch-auto-section" class="hidden bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 mb-4">
             <i class="fas fa-calculator mr-1"></i>
-            <strong>자동 최적 배차:</strong> 운행소요시간 + 재정비시간 ÷ 차량 수 → 5분 단위 올림 배차간격 자동 계산
+            <strong>자동 최적 배차:</strong> 운행소요시간 + 재정비시간 ÷ 차량 수 → 5분 단위 내림 배차간격 자동 계산
             <div id="auto-optimal-result" class="mt-2 font-bold text-green-700 hidden"></div>
           </div>
 
@@ -1419,11 +1446,11 @@ const AdminModule = (() => {
               </select>
             </div>
             <div id="dispatch-interval-auto" class="hidden">
-              <label class="block text-xs font-medium text-gray-700 mb-1">배차 간격 (자동 계산됨)</label>
-              <div id="auto-interval-display" class="w-full border border-green-300 bg-green-50 rounded-lg px-3 py-2 text-sm text-green-800 font-bold">
-                — 위 값 입력 후 자동 계산
-              </div>
-              <input id="auto-interval" type="hidden" value="30">
+              <label class="block text-xs font-medium text-gray-700 mb-1">배차 간격 (자동 계산 — 조정 가능)</label>
+              <div id="auto-interval-display" class="text-xs text-green-700 mb-1 font-medium">— 위 값 입력 후 자동 계산</div>
+              <select id="auto-interval" class="w-full border border-green-400 bg-green-50 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none font-bold text-green-800" onchange="AdminModule.previewAutoSchedule()">
+                ${[5,10,15,20,25,30,35,40,45,50,55,60].map(v=>`<option value="${v}"${v===30?' selected':''}>${v}분</option>`).join('')}
+              </select>
             </div>
 
             <!-- 정원 설정 -->
@@ -1680,25 +1707,33 @@ const AdminModule = (() => {
   const editSchedule = async (regionId, scheduleId) => {
     const schRes = await API.get(`/api/schedules/${regionId}`);
     const s = schRes.data?.find(sch => String(sch.id) === String(scheduleId));
-    if (!s) return;
-    _editingScheduleIdx = scheduleId;  // DB id 사용
+    if (!s) { Utils.toast('일정 정보를 불러올 수 없습니다', 'error'); return; }
+    _editingScheduleIdx = scheduleId;
     _editingScheduleRegion = regionId;
     document.getElementById('schedule-modal-title').textContent = '일정 수정';
     // 예약 있는 경우 경고 표시
     const warn = document.getElementById('sch-res-warn');
-    if (warn) { _hasReservations(regionId, sid) ? warn.classList.remove('hidden') : warn.classList.add('hidden'); }
-    const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||''; };
+    if (warn) { _hasReservations(regionId, scheduleId) ? warn.classList.remove('hidden') : warn.classList.add('hidden'); }
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.value = val??''; };
     set('s-time', s.time||'');
     set('s-time-select', s.time||'');
-    set('s-duration', s.duration||70);
+    set('s-duration', s.duration||45);
     set('s-capacity', s.capacity||38);
-    set('s-online-ratio', s.onlineRatio||70);
+    // onlineCapacity → 비율 역산 (없으면 70%)
+    const cap = s.capacity || 38;
+    const onlCap = s.onlineCapacity ?? Math.round(cap * 0.7);
+    const ratio = Math.round((onlCap / cap) * 100);
+    set('s-online-ratio', ratio);
     set('s-vehicle', s.vehicle||'');
     set('s-start-date', s.startDate||'');
     set('s-end-date', s.endDate||'');
-    // 운영요일 체크박스 설정
-    const days = s.operatingDays || ['월','화','수','목','금','토','일'];
-    document.querySelectorAll('input[name="s-days"]').forEach(cb => { cb.checked = days.includes(cb.value); });
+    // 운영요일: DB days 배열은 영문('mon'...) 또는 한글('월'...) 혼용 가능
+    const dayMap = { mon:'월', tue:'화', wed:'수', thu:'목', fri:'금', sat:'토', sun:'일' };
+    const rawDays = s.days || s.operatingDays || [];
+    const korDays = rawDays.map(d => dayMap[d] || d);
+    document.querySelectorAll('input[name="s-days"]').forEach(cb => {
+      cb.checked = korDays.length === 0 || korDays.includes(cb.value);
+    });
     document.getElementById('schedule-modal').classList.remove('hidden');
     updateSeatPreview();
   };
@@ -1712,15 +1747,15 @@ const AdminModule = (() => {
     const ratio = parseInt(get('s-online-ratio'))||70;
     if (ratio < 0 || ratio > 100) { Utils.toast('온라인 비율은 0~100 사이여야 합니다', 'error'); return; }
     const regionId = _editingScheduleRegion;
+    const dayMapRev = { '월':'mon','화':'tue','수':'wed','목':'thu','금':'fri','토':'sat','일':'sun' };
     const sData = {
       time: timeVal,
-      duration: parseInt(get('s-duration'))||70,
-      vehicle: get('s-vehicle')||'',
+      duration: parseInt(get('s-duration'))||45,
+      vehicleId: get('s-vehicle') || null,
       capacity: cap,
-      onlineRatio: ratio,
-      onlineSeats: Math.round(cap*ratio/100),
-      offlineSeats: cap - Math.round(cap*ratio/100),
-      operatingDays: days,
+      onlineCapacity: Math.round(cap*ratio/100),
+      offlineCapacity: cap - Math.round(cap*ratio/100),
+      days: days.map(d => dayMapRev[d] || d),
       startDate: get('s-start-date') || null,
       endDate: get('s-end-date') || null,
       status: 'active',
@@ -1806,9 +1841,12 @@ const AdminModule = (() => {
 
   // 최소 가능 배차간격 계산: ceil(ceil((duration+maintenance)/vehicles)/5)*5
   const _calcMinInterval = (duration, maintenance, vehicles) => {
-    const rotation = duration + maintenance;           // 1대 회전시간
-    const raw      = rotation / Math.max(vehicles, 1); // 대수로 나눔
-    return Math.ceil(Math.ceil(raw) / 5) * 5;          // 5분 단위 올림
+    // 최소 배차간격 = (운행소요시간 + 재정비시간) / 차량대수, 5분 단위 내림
+    // 예: 45분+10분=55분, 2대 → 55/2=27.5 → 5분 단위 내림 → 25분
+    // (27.5분 간격으로 2대 운영 시 55분 후 1대 돌아오므로 가능)
+    const rotation = duration + maintenance;
+    const raw      = rotation / Math.max(vehicles, 1);
+    return Math.max(5, Math.floor(raw / 5) * 5);  // 5분 단위 내림 (최소 5분)
   };
 
   const showAutoScheduleModal = (regionId) => {
@@ -1849,14 +1887,16 @@ const AdminModule = (() => {
     const minInterval = _calcMinInterval(duration, maintenance, vCountInput);
 
     if (_dispatchMode === 'auto') {
-      // 자동 최적: minInterval 자동 사용
-      interval = minInterval;
-      const hiddenEl = document.getElementById('auto-interval');
-      if (hiddenEl) hiddenEl.value = interval;
+      // 자동 최적: minInterval 감안해 select 기본값 설정 (수동 조정 가능)
+      const selectEl = document.getElementById('auto-interval');
+      // 현재 select 값이 minInterval보다 작으면 minInterval로 조정, 아니면 유지
+      const curVal = parseInt(selectEl?.value) || 30;
+      if (curVal < minInterval && selectEl) selectEl.value = minInterval;
+      interval = parseInt(selectEl?.value) || minInterval;
       const displayEl = document.getElementById('auto-interval-display');
       const resultEl  = document.getElementById('auto-optimal-result');
-      if (displayEl) displayEl.textContent = `${interval}분 (자동 계산: (${duration}+${maintenance})÷${vCountInput} → ${Math.ceil((duration+maintenance)/vCountInput)}분 → 5분 올림 → ${interval}분)`;
-      if (resultEl) { resultEl.textContent = `✅ 최소 가능 배차간격: ${interval}분 (회전시간 ${duration+maintenance}분 ÷ ${vCountInput}대)`; resultEl.classList.remove('hidden'); }
+      if (displayEl) displayEl.textContent = `✅ 최소 가능 배차간격: ${minInterval}분 ((${duration}+${maintenance})÷${vCountInput}대 = ${Math.floor((duration+maintenance)/vCountInput)}분 → 5분 내림)`;
+      if (resultEl) { resultEl.textContent = `현재 선택된 배차간격: ${interval}분 (최소 ${minInterval}분 이상 선택 가능)`; resultEl.classList.remove('hidden'); }
     } else {
       // 수동: 선택 값 사용, 불가능하면 경고
       interval = parseInt(document.getElementById('auto-interval')?.value) || 30;
@@ -1864,11 +1904,12 @@ const AdminModule = (() => {
         const warnEl  = document.getElementById('auto-conflict-warn');
         const warnMsg = document.getElementById('auto-conflict-msg');
         if (warnEl && warnMsg) {
-          warnMsg.textContent = `선택한 차량 수(${vCountInput}대), 운행 소요시간(${duration}분), 재정비시간(${maintenance}분) 기준으로 해당 배차간격(${interval}분)은 운영할 수 없습니다. 최소 가능 배차간격은 ${minInterval}분입니다.`;
+          warnMsg.textContent = `⚠️ 선택한 배차간격(${interval}분)이 최소 가능 간격(${minInterval}분)보다 짧습니다. 차량 충돌이 발생할 수 있습니다. 미리보기에서 충돌 여부를 확인하세요.`;
           warnEl.classList.remove('hidden');
         }
-        document.getElementById('auto-preview-wrap')?.classList.add('hidden');
-        return;
+        // 경고만 표시하고 미리보기는 계속 진행 (차단하지 않음)
+      } else {
+        document.getElementById('auto-conflict-warn')?.classList.add('hidden');
       }
     }
 
@@ -1917,7 +1958,10 @@ const AdminModule = (() => {
       vehicleReadyAt[assignedV] = _toMinutes(readyTime);
 
       const isDup = existTimes.has(depTime);
-      rows.push({ seq: seq+1, depTime, endTime, readyTime, vName: assignedV, onl, off, conflictFlag, isDup });
+      // assignedV는 차량 이름 → 실제 vehicle ID 찾기
+      const assignedVehicle = vehicles.find(v => (v.name||`${vehicles.indexOf(v)+1}호차`) === assignedV);
+      rows.push({ seq: seq+1, depTime, endTime, readyTime, vName: assignedV,
+        vehicleId: assignedVehicle?.id || null, onl, off, conflictFlag, isDup });
     }
 
     // 미리보기 테이블 렌더
@@ -1984,11 +2028,12 @@ const AdminModule = (() => {
     let added = 0;
     const promises = [];
 
+    const onl = Math.round(cap * ratio / 100);
+    const off = cap - onl;
+    const daysArr = days.length ? days : ['mon','tue','wed','thu','fri','sat','sun'];
+
     rows.forEach(r => {
-      if (existTimes.has(r.depTime)) return; // 중복 스킵
-      const onl = Math.round(cap * ratio / 100);
-      const off = cap - onl;
-      promises.push(API.post('/api/schedules', {
+      const schData = {
         id: _makeScheduleId(regionId, r.depTime),
         regionId,
         time: r.depTime,
@@ -1996,15 +2041,42 @@ const AdminModule = (() => {
         onlineCapacity: onl,
         offlineCapacity: off,
         status: 'active',
-        days: days.length ? days : ['mon','tue','wed','thu','fri','sat','sun'],
-      }));
-      existTimes.add(r.depTime);
+        days: daysArr,
+        duration: duration,
+        vehicleId: r.vehicleId || null,
+      };
+      if (existTimes.has(r.depTime)) {
+        // 이미 존재 → PUT으로 업데이트 (막차 변경 등 반영)
+        const existId = (existRes.data||[]).find(s=>s.time===r.depTime)?.id || schData.id;
+        promises.push(API.put(`/api/schedules/${regionId}/${existId}`, schData));
+      } else {
+        promises.push(API.post('/api/schedules', schData));
+        existTimes.add(r.depTime);
+      }
       added++;
     });
 
     await Promise.all(promises);
+
+    // 미리보기에 없는 기존 회차 제거 (막차 이후 시간 정리)
+    // 단, 예약이 있는 회차는 삭제하지 않고 운휴 처리
+    const newTimes = new Set(rows.map(r => r.depTime));
+    const toRemove = (existRes.data||[]).filter(s => !newTimes.has(s.time));
+    const removePromises = [];
+    for (const s of toRemove) {
+      const resCheck = await API.get(`/api/reservations?regionId=${regionId}&scheduleId=${s.id}`);
+      const hasRes = (resCheck.data||[]).some(r => r.status !== 'cancelled' && r.status !== 'refunded');
+      if (hasRes) {
+        // 예약 있음 → 삭제 대신 운휴 처리
+        removePromises.push(API.put(`/api/schedules/${regionId}/${s.id}`, { status: 'suspended' }));
+      } else {
+        removePromises.push(API.delete(`/api/schedules/${regionId}/${s.id}`));
+      }
+    }
+    await Promise.all(removePromises);
+
     document.getElementById('auto-schedule-modal').classList.add('hidden');
-    Utils.toast(`${added}개 회차가 생성되었습니다. (중복 ${rows.length - added}건 스킵)`, 'success');
+    Utils.toast(`${added}개 회차 생성/업데이트 완료${toRemove.length ? ` (범위 밖 ${toRemove.length}건 정리)` : ''}`, 'success');
     schedulesPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
@@ -3722,14 +3794,14 @@ const AdminModule = (() => {
     const regions = (regRes.success && regRes.data) ? regRes.data : (window.REGIONS || []);
 
     const regionCards = regions.map((r, i) => `
-      <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 ${r.status==='active'?'border-green-500':r.status==='preparing'?'border-yellow-400':'border-gray-300'}">
+      <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 ${r.status==='open'||r.status==='active'?'border-green-500':r.status==='preparing'?'border-yellow-400':'border-gray-300'}">
         <div class="flex justify-between items-start mb-3">
           <div>
             <h3 class="font-semibold text-gray-800">${r.name}</h3>
             <p class="text-xs text-gray-500">${r.code} · ${r.location||''}</p>
           </div>
-          <span class="px-2 py-1 rounded-full text-xs font-medium ${r.status==='active'?'bg-green-100 text-green-700':r.status==='preparing'?'bg-yellow-100 text-yellow-700':'bg-gray-100 text-gray-500'}">
-            ${r.status==='active'?'운영중':r.status==='preparing'?'준비중':'미운영'}
+          <span class="px-2 py-1 rounded-full text-xs font-medium ${r.status==='open'||r.status==='active'?'bg-green-100 text-green-700':r.status==='preparing'?'bg-yellow-100 text-yellow-700':r.status==='closed'?'bg-red-100 text-red-600':'bg-gray-100 text-gray-500'}">
+            ${r.status==='open'||r.status==='active'?'운영중':r.status==='preparing'?'준비중':r.status==='closed'?'운영중단':'미운영'}
           </span>
         </div>
         ${r.company ? `<p class="text-xs text-gray-600 mb-1"><i class="fas fa-building mr-1"></i>${r.company.name}</p>` : ''}

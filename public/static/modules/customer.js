@@ -26,7 +26,7 @@ ${Navbar.render('home')}
       <div class="slide-up">
         <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium mb-6 border border-white/20">
           <span class="w-2 h-2 bg-green-400 rounded-full pulse-anim"></span>
-          부여 예약가능 · 통영/합천 준비중
+          ${regions.filter(r=>r.status==='open').map(r=>r.name).join(' · ')} 예약가능${regions.filter(r=>r.status==='preparing').length ? ' · ' + regions.filter(r=>r.status==='preparing').map(r=>r.name).join('/') + ' 준비중' : ''}
         </div>
         <h1 class="text-4xl md:text-6xl font-black leading-tight mb-6">
           수륙양용버스로<br>
@@ -50,7 +50,7 @@ ${Navbar.render('home')}
           <div class="w-px h-8 bg-white/20"></div>
           <div><span class="text-white font-bold text-xl">4.9</span> ⭐ 만족도</div>
           <div class="w-px h-8 bg-white/20"></div>
-          <div><span class="text-white font-bold text-xl">3</span>개 지역 운행</div>
+          <div><span class="text-white font-bold text-xl">${regions.length}</span>개 지역 운행</div>
         </div>
       </div>
       <div class="hidden md:flex justify-center fade-in">

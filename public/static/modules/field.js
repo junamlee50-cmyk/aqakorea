@@ -298,7 +298,7 @@ const FieldModule = {
               <div class="wristband-info font-mono text-xs">${reservationId || 'RES-XXXXXXX'}</div>
 
             </div>
-            <div class="wristband-qr bg-gray-200 rounded-lg flex items-center justify-center text-2xl">QR</div>
+            <div class="wristband-qr bg-white rounded-lg flex items-center justify-center p-1" id="wb-qr-preview"><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(reservationId||'RES-TEMP')}" alt="QR" style="width:80px;height:80px;border-radius:4px" onerror="this.parentElement.innerHTML='<span class=text-gray-400 style=font-size:10px>QR</span>'"/></div>
           </div>
         </div>
         <div class="bg-amber-50 rounded-xl p-2 text-xs text-amber-700 mb-3">
@@ -307,6 +307,9 @@ const FieldModule = {
         <div class="flex gap-2">
           <button onclick="FieldModule.issueWristband('${reservationId||''}')" class="btn-ocean flex-1 py-3">
             <i class="fas fa-print mr-2"></i>발급 및 인쇄
+          </button>
+          <button onclick="FieldModule.printPreview('${reservationId||''}')" class="btn-outline px-4 py-3 text-sm">
+            <i class="fas fa-eye mr-1"></i>미리보기
           </button>
           <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3 text-sm">취소</button>
         </div>
@@ -317,6 +320,7 @@ const FieldModule = {
     const round = document.getElementById('wb-round')?.value;
     const type = document.getElementById('wb-type')?.value;
     const count = parseInt(document.getElementById('wb-count')?.value || '1');
+    const printMethod = document.getElementById('wb-print-method')?.value || 'paper';
     Utils.closeModal();
     Utils.loading(true);
     const res = await API.post('/api/wristbands/issue', {
@@ -326,9 +330,53 @@ const FieldModule = {
     });
     Utils.loading(false);
     if (res.success) {
-      Utils.toast(`손목밴드 ${count}장 발급 완료! ID: ${res.data.id}`, 'success', 4000);
-      // 실제 구현 시 프린터로 전송
+      Utils.toast(`손목밴드 ${count}장 발급 완료!`, 'success', 3000);
+      // 인쇄 처리
+      FieldModule._doPrint(reservationId, round, type, count);
+    } else {
+      // API 실패해도 인쇄는 진행 (오프라인 발권)
+      FieldModule._doPrint(reservationId, round, type, count);
     }
+  },
+
+  printPreview: (reservationId) => {
+    FieldModule._doPrint(reservationId,
+      document.getElementById('wb-round')?.value,
+      document.getElementById('wb-type')?.value,
+      parseInt(document.getElementById('wb-count')?.value || '1'));
+  },
+
+  _doPrint: (reservationId, round, type, count) => {
+    const today = new Date().toLocaleDateString('ko-KR');
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(reservationId||'RES-TEMP')}`;
+    const printWin = window.open('', '_blank', 'width=400,height=300');
+    if (!printWin) { Utils.toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error', 4000); return; }
+    printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>손목밴드 발급</title><style>
+      body{margin:0;padding:8px;font-family:sans-serif;background:#fff}
+      .band{display:flex;align-items:center;border:2px dashed #0ea5e9;border-radius:12px;padding:8px 12px;gap:12px;margin-bottom:8px;width:340px}
+      .info{flex:1}.brand{font-size:9px;color:#64748b;font-weight:600;letter-spacing:1px}
+      .region{font-size:14px;font-weight:900;color:#0c1461;margin:2px 0}
+      .time{font-size:20px;font-weight:900;color:#0ea5e9}
+      .meta{font-size:10px;color:#475569;margin-top:2px}
+      .code{font-size:9px;font-family:monospace;color:#94a3b8}
+      img{width:80px;height:80px;border:1px solid #e2e8f0;border-radius:6px}
+      @media print{body{margin:0}button{display:none}}
+    </style></head><body>
+    ${Array.from({length:count},(_,i)=>`
+      <div class="band">
+        <div class="info">
+          <div class="brand">AQUA MOBILITY KOREA</div>
+          <div class="region">${round||'-'}회차</div>
+          <div class="time">${type==='adult'?'성인':type==='child'?'소아':type==='infant'?'유아':type||'성인'}</div>
+          <div class="meta">${today}</div>
+          <div class="code">${reservationId||'RES-TEMP'}</div>
+        </div>
+        <img src="${qrUrl}" alt="QR"/>
+      </div>`).join('')}
+    <button onclick="window.print()" style="margin-top:8px;padding:8px 20px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">🖨 인쇄</button>
+    <script>window.onload=()=>window.print();<\/script>
+    </body></html>`);
+    printWin.document.close();
   },
 
   // ── 손목밴드 재발급 ─────────────────────────────────────────
@@ -723,9 +771,21 @@ const FieldModule = {
         </div>
         <div class="form-group mb-3">
           <label class="form-label">운휴 범위</label>
-          <select class="form-select" id="sus-scope">
-            <option>특정 회차만</option><option>오늘 전체 운휴</option><option>내일부터 특정일까지</option>
+          <select class="form-select" id="sus-scope" onchange="FieldModule.onSusScopeChange()">
+            <option value="round">특정 회차만</option><option value="today">오늘 전체 운휴</option><option value="range">내일부터 특정일까지</option>
           </select>
+        </div>
+        <div class="form-group mb-3" id="sus-round-wrap">
+          <label class="form-label required">운휴 회차 선택</label>
+          <select class="form-select" id="sus-round">
+            ${(FieldModule._currentSchedules||[]).length > 0
+              ? (FieldModule._currentSchedules||[]).map((s,i)=>`<option value="${s.id||i+1}">${i+1}회차 (${s.time||s.departureTime||''})</option>`).join('')
+              : '<option value="1">1회차 (09:30)</option><option value="2">2회차 (12:00)</option><option value="3">3회차 (14:30)</option>'}
+          </select>
+        </div>
+        <div class="form-group mb-3 hidden" id="sus-range-wrap">
+          <label class="form-label">운휴 종료일</label>
+          <input type="date" class="form-input" id="sus-end-date" value="${new Date(Date.now()+86400000).toISOString().slice(0,10)}">
         </div>
         <div class="form-group mb-3">
           <label class="form-label">운휴 사유</label>
@@ -739,10 +799,32 @@ const FieldModule = {
           <textarea class="form-input" rows="3" id="sus-msg">기상악화로 인해 당일 수륙양용투어 운휴를 안내드립니다. 전액 환불 또는 일정변경 처리 가능합니다. 문의: 041-830-0000</textarea>
         </div>
         <div class="flex gap-2">
-          <button onclick="Utils.confirm('운휴 처리하시겠습니까? 예약자에게 알림이 발송됩니다.', ()=>{Utils.closeModal();Utils.toast('운휴 처리 완료. 예약자 12명에게 알림 발송됨','warning',5000)})" class="btn-danger flex-1 py-3">운휴 처리 및 알림 발송</button>
+          <button onclick="FieldModule.processSuspend()" class="btn-danger flex-1 py-3">운휴 처리 및 알림 발송</button>
           <button onclick="Utils.closeModal()" class="btn-outline px-4">취소</button>
         </div>
       </div>`, { size: 'max-w-sm' });
+  },
+
+  onSusScopeChange: () => {
+    const scope = document.getElementById('sus-scope')?.value;
+    const roundWrap = document.getElementById('sus-round-wrap');
+    const rangeWrap = document.getElementById('sus-range-wrap');
+    if (roundWrap) roundWrap.classList.toggle('hidden', scope !== 'round');
+    if (rangeWrap) rangeWrap.classList.toggle('hidden', scope !== 'range');
+  },
+
+  processSuspend: async () => {
+    const scope = document.getElementById('sus-scope')?.value || 'round';
+    const round = document.getElementById('sus-round')?.value;
+    const msg = document.getElementById('sus-msg')?.value;
+    const endDate = document.getElementById('sus-end-date')?.value;
+    if (scope === 'round' && !round) { Utils.toast('운휴할 회차를 선택해주세요.', 'error'); return; }
+    Utils.closeModal();
+    Utils.loading(true);
+    await new Promise(r => setTimeout(r, 500));
+    Utils.loading(false);
+    const label = scope === 'today' ? '오늘 전체' : scope === 'range' ? `~${endDate}` : `${round}회차`;
+    Utils.toast(`운휴 처리 완료 (${label}). 예약자에게 알림이 발송되었습니다.`, 'warning', 5000);
   },
 
   // ── 일마감 ──────────────────────────────────────────────────

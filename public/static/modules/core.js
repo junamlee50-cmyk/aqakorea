@@ -457,8 +457,11 @@ const Navbar = {
   render: (active='') => `
   <nav class="navbar" id="main-navbar">
     <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
-      <a href="/" data-link class="nav-logo">
-        <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:140px;height:auto;object-fit:contain;">
+      <a href="/" data-link class="nav-logo flex items-center gap-2" style="text-decoration:none">
+        <div style="background:rgba(255,255,255,0.18);border-radius:8px;padding:3px 4px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.3);flex-shrink:0">
+          <img src="/static/logo_emblem.png" alt="CI" style="width:32px;height:32px;object-fit:contain;display:block">
+        </div>
+        <span style="font-size:14px;font-weight:800;color:#fff;letter-spacing:0.3px;white-space:nowrap;text-shadow:0 1px 6px rgba(0,0,0,0.5)">AQUA MOBILITY <span style='font-weight:600;opacity:0.85'>KOREA</span></span>
       </a>
       <div class="hidden md:flex items-center gap-6">
         <a href="/" data-link class="text-white/80 hover:text-white text-sm font-medium transition-colors ${active==='home'?'text-cyan-400':''}">홈</a>
@@ -508,7 +511,8 @@ const Footer = {
       <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div class="md:col-span-2">
           <div class="flex items-center gap-3 mb-4">
-            <img src="/static/logo.png" alt="Aqua Mobility Korea" style="width:160px;height:auto;object-fit:contain;">
+            <img src="/static/logo_emblem.png" alt="Aqua Mobility Korea" style="width:44px;height:auto;object-fit:contain;">
+            <span style="font-size:15px;font-weight:700;color:#fff;letter-spacing:0.5px">AQUA MOBILITY KOREA</span>
           </div>
           <p class="text-white/60 text-sm leading-relaxed mb-4">전국 수륙양용투어 통합 예약·결제·운영 플랫폼<br>통영 · 부여 · 합천 수륙양용버스 투어</p>
           <div class="flex gap-3">
