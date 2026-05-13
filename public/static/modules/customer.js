@@ -408,9 +408,9 @@ ${Navbar.render('home')}
     <button onclick="CustomerModule.filterGuides('all')" id="guide-tab-all"
       class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-navy-800 text-white border border-navy-800">전체</button>
     <button onclick="CustomerModule.filterGuides('daytrip')" id="guide-tab-daytrip"
-      class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-white text-gray-600 border border-gray-200 hover:border-navy-400">당일치기</button>
+      class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-white text-gray-600 border border-gray-200 hover:border-navy-400">🌅 당일치기</button>
     <button onclick="CustomerModule.filterGuides('overnight')" id="guide-tab-overnight"
-      class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-white text-gray-600 border border-gray-200 hover:border-navy-400">1박2일</button>
+      class="guide-tab-btn px-4 py-1.5 rounded-full text-sm font-bold bg-white text-gray-600 border border-gray-200 hover:border-navy-400">🌙 1박2일</button>
   </div>
   <div id="guide-grid" class="grid md:grid-cols-3 lg:grid-cols-4 gap-5">
     <div class="col-span-4 text-center py-10 text-gray-400">
@@ -2627,6 +2627,10 @@ const _loadGuides = async (filterType) => {
 };
 
 // 전역 노출 (onclick에서 호출)
-window.CustomerModule = { filterGuides: _loadGuides };
+window.CustomerModule = {
+  filterGuides: (type) => {
+    _loadGuides(type).catch(e => console.error('[guide]', e));
+  }
+};
 
 window.CustomerPages = CustomerPages;

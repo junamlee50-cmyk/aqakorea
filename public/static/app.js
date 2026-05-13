@@ -117,7 +117,9 @@
     Router.add('/admin/settings-admin', _adminGuard(AdminModule.settingsAdminPage));
     Router.add('/admin/backup',       _adminGuard(AdminModule.backupPage));
     Router.add('/admin/stats-admin',  _adminGuard(AdminModule.statsAdminPage));
-    Router.add('/admin/tourism',      _adminGuard(AdminModule.tourismManagePage));
+    Router.add('/admin/tourism',        _adminGuard(AdminModule.tourismManagePage));
+    Router.add('/admin/travel-guides',  _adminGuard(() => AdminModule.travelGuidesPage()));
+    Router.add('/admin/partners',       _adminGuard(() => AdminModule.partnersPage()));
     Router.add('/admin/reports',      _adminGuard(AdminModule.statsAdminPage));  // 보고서 → statsAdminPage
 
     // ── 예약 상세 (고객) ──────────────────────────────────
