@@ -2678,10 +2678,50 @@ const AdminModule = (() => {
     `).join('');
   };
 
+  // ── amk_reservations localStorage → admin용 정규화 헬퍼 ──────
+  const _loadRealReservations = () => {
+    // 1) 실제 고객 예약 (payment.js가 저장)
+    let stored = [];
+    try { stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
+    // 2) 정규화: demo 구조와 필드명 통일
+    const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+    stored = stored.map(r => ({
+      id:              r.id || r.reservationId || `AMK-${Date.now()}`,
+      regionId:        r.regionId || '',
+      regionName:      r.regionName || REGION_NAMES[r.regionId] || r.regionId || '-',
+      name:            r.name || '-',
+      date:            r.date || r.createdAt?.slice(0,10) || '-',
+      schedule:        r.schedule || r.time || '-',
+      totalPassengers: r.pax || r.totalPassengers || 1,
+      adultCnt:        r.adultCnt ?? (r.paxList ? r.paxList.filter(p=>/성인/i.test(p)).length : r.pax || 1),
+      childCnt:        r.childCnt ?? (r.paxList ? r.paxList.filter(p=>/소아|어린이/i.test(p)).length : 0),
+      totalAmount:     r.totalAmount || r.total || 0,
+      payMethod:       r.payMethod || '온라인결제',
+      source:          r.source || '온라인',
+      status:          r.status || 'confirmed',
+      isRefunded:      r.isRefunded || false,
+      createdAt:       r.createdAt || '',
+      phone:           r.phone || '',
+      email:           r.email || '',
+      memo:            r.memo || '',
+      _isReal:         true,  // 실제 예약 표시
+    }));
+    // 3) 더미 데이터와 병합 (실제 예약 ID 중복 제외)
+    const demo = _generateDemoReservations();
+    const realIds = new Set(stored.map(r => r.id));
+    const merged = [
+      ...stored,
+      ...demo.filter(r => !realIds.has(r.id)),
+    ];
+    // 4) 날짜 내림차순 정렬
+    merged.sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id||'').localeCompare(a.id||''));
+    return merged;
+  };
+
   // 실제 필터링 실행 함수 (검색 버튼 onclick)
   const filterReservations = () => {
     const user = _adminState.user || { role: 'super', regionId: null };
-    const allRes = _generateDemoReservations();
+    const allRes = _loadRealReservations();
     // 권한별 기본 필터
     let pool = (user.role === 'regional' && user.regionId)
       ? allRes.filter(r => r.regionId === user.regionId)
@@ -2712,7 +2752,7 @@ const AdminModule = (() => {
 
   const reservationsPage = async () => {
     _adminState.currentSection = 'reservations';
-    const allRes = _generateDemoReservations();
+    const allRes = _loadRealReservations();
     const user = _adminState.user || { role: 'super', regionId: null };
     // 권한별 초기 데이터
     const reservations = (user.role === 'regional' && user.regionId)
@@ -2816,7 +2856,7 @@ const AdminModule = (() => {
   };
 
   const viewReservation = (id) => {
-    const allRes = _generateDemoReservations();
+    const allRes = _loadRealReservations();
     const r = allRes.find(x => x.id === id);
     if (!r) { Utils.toast('예약 정보를 찾을 수 없습니다.', 'error'); return; }
     const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
@@ -2867,7 +2907,17 @@ const AdminModule = (() => {
 
   const cancelReservation = (id) => {
     Utils.confirm(`예약 ${id}를 취소하시겠습니까?\n취소 후에는 환불 정책에 따라 처리됩니다.`, () => {
-      // 실제로는 API 호출; 데모에서는 행 UI만 업데이트
+      // localStorage amk_reservations 실제 데이터 취소 처리
+      try {
+        const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
+        const idx = stored.findIndex(r => (r.id || r.reservationId) === id);
+        if (idx >= 0) {
+          stored[idx].status = 'cancelled';
+          stored[idx].isRefunded = false;
+          localStorage.setItem('amk_reservations', JSON.stringify(stored));
+        }
+      } catch(e) {}
+      // UI 업데이트
       const row = document.getElementById(`res-row-${id}`);
       if (row) {
         const statusCell = row.querySelector('td:nth-child(9)');
@@ -2881,7 +2931,7 @@ const AdminModule = (() => {
 
   const exportReservations = () => {
     const user = _adminState.user || { role: 'super', regionId: null };
-    const allRes = _generateDemoReservations();
+    const allRes = _loadRealReservations();
     const pool = (user.role === 'regional' && user.regionId)
       ? allRes.filter(r => r.regionId === user.regionId)
       : allRes;
@@ -3774,17 +3824,136 @@ const AdminModule = (() => {
   };
 
   // ── 정산 관리 ──────────────────────────────────────────────
+
+  // 정산 집계 헬퍼: amk_reservations → 날짜+지역 기준 집계
+  const _calcSettlementRows = (filterRegion, filterMonth) => {
+    const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+    // amk_reservations에서 실제 데이터 로드
+    let allRes = [];
+    try { allRes = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
+    // 현장발권 데이터도 포함
+    let onsiteRes = [];
+    try { onsiteRes = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]'); } catch(e) {}
+    const combined = [...allRes, ...onsiteRes];
+
+    // 월 필터
+    const monthPrefix = filterMonth || new Date().toISOString().slice(0,7);
+
+    // 필터링 (취소 제외, 월 필터, 지역 필터)
+    const filtered = combined.filter(r => {
+      const date = r.date || r.createdAt?.slice(0,10) || '';
+      if (!date.startsWith(monthPrefix)) return false;
+      if (r.status === 'cancelled') return false;
+      if (filterRegion && r.regionId !== filterRegion) return false;
+      return true;
+    });
+
+    // 날짜별 집계 Map
+    const byDate = {};
+    filtered.forEach(r => {
+      const date = r.date || r.createdAt?.slice(0,10) || '';
+      if (!date) return;
+      if (!byDate[date]) byDate[date] = { date, online:0, onsite:0, cash:0, card:0, count:0, regions: new Set() };
+      const amt = r.totalAmount || r.total || 0;
+      const isOnsite = r.channel === 'onsite' || r.payMethod === '현장현금' || r.payMethod === '현장카드' || r.payMethod === '복합결제' || onsiteRes.some(o => o.id === r.id);
+      if (isOnsite) {
+        byDate[date].onsite += amt;
+        const cashAmt = r.payment_splits?.cash || (r.payMethod === '현장현금' ? amt : 0);
+        const cardAmt = r.payment_splits?.card || (r.payMethod === '현장카드' ? amt : amt - cashAmt);
+        byDate[date].cash += cashAmt;
+        byDate[date].card += cardAmt;
+      } else {
+        byDate[date].online += amt;
+        byDate[date].card += amt; // 온라인은 전액 카드/전자결제
+      }
+      byDate[date].count++;
+      if (r.regionId) byDate[date].regions.add(REGION_NAMES[r.regionId] || r.regionId);
+    });
+
+    // 날짜 내림차순 정렬, 최근 30일 표시
+    const today = new Date();
+    const rows = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().slice(0,10);
+      if (!dateStr.startsWith(monthPrefix)) continue;
+      const agg = byDate[dateStr];
+      const online = agg ? agg.online : 0;
+      const onsite = agg ? agg.onsite : 0;
+      const total  = online + onsite;
+      const cash   = agg ? agg.cash : 0;
+      const card   = agg ? agg.card : 0;
+      const count  = agg ? agg.count : 0;
+      const regionLabel = agg && agg.regions.size > 0
+        ? [...agg.regions].join(', ')
+        : (filterRegion ? (REGION_NAMES[filterRegion] || filterRegion) : '전체');
+      const isClosed = i > 0;
+      rows.push(`
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 text-sm text-gray-600">${dateStr}</td>
+          <td class="px-3 py-2 text-sm text-center font-medium text-gray-700">${regionLabel}</td>
+          <td class="px-3 py-2 text-sm text-right">₩${online.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right">₩${onsite.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right font-semibold text-gray-800">₩${total.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right text-gray-600">₩${cash.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-right text-gray-600">₩${card.toLocaleString()}</td>
+          <td class="px-3 py-2 text-sm text-center text-gray-500">${count}건</td>
+          <td class="px-3 py-2 text-center">
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${isClosed?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'}">
+              ${isClosed?'마감완료':'마감전'}
+            </span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            ${!isClosed
+              ? `<button onclick="AdminModule.closeDay('${dateStr}')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">마감</button>`
+              : `<button onclick="AdminModule.viewSettlement('${dateStr}')" class="text-blue-600 hover:underline text-xs">상세</button>`}
+          </td>
+        </tr>`);
+    }
+    return rows.length ? rows.join('') : '<tr><td colspan="10" class="text-center py-8 text-gray-400">해당 기간 정산 데이터가 없습니다.</td></tr>';
+  };
+
+  // 정산 조회 버튼 핸들러
+  const filterSettlement = () => {
+    const user = _adminState.user || { role: 'super', regionId: null };
+    const fRegion = user.role === 'regional' ? user.regionId : (document.getElementById('stl-filter-region')?.value || '');
+    const fMonth  = document.getElementById('stl-filter-month')?.value || new Date().toISOString().slice(0,7);
+    const tbody = document.getElementById('stl-tbody');
+    if (tbody) tbody.innerHTML = _calcSettlementRows(fRegion, fMonth);
+    // 요약 카드도 갱신
+    _updateSettlementSummary(fRegion, fMonth);
+  };
+
+  // 정산 요약 카드 갱신
+  const _updateSettlementSummary = (filterRegion, filterMonth) => {
+    let allRes = [];
+    try { allRes = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
+    let onsiteRes = [];
+    try { onsiteRes = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]'); } catch(e) {}
+    const combined = [...allRes, ...onsiteRes].filter(r => r.status !== 'cancelled');
+    const monthPrefix = filterMonth || new Date().toISOString().slice(0,7);
+    const todayStr = new Date().toISOString().slice(0,10);
+    const monthData = combined.filter(r => {
+      const date = r.date || r.createdAt?.slice(0,10) || '';
+      return date.startsWith(monthPrefix) && (!filterRegion || r.regionId === filterRegion);
+    });
+    const todayData = monthData.filter(r => (r.date || r.createdAt?.slice(0,10) || '') === todayStr);
+    const monthTotal = monthData.reduce((s,r) => s+(r.totalAmount||r.total||0), 0);
+    const monthCount = monthData.length;
+    const todayCount = todayData.length;
+    const el = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
+    el('stl-sum-today', `${todayCount}건`);
+    el('stl-sum-month', `${monthCount}건`);
+    el('stl-sum-total', `₩${monthTotal.toLocaleString()}`);
+  };
+
   const settlementPage = async () => {
     _adminState.currentSection = 'settlement';
     const user = _adminState.user || { role: 'super', regionId: null };
 
-    // 권한별 접근 가능 지역 필터 (hidden 제외, active→open/preparing 통일)
+    // 권한별 접근 가능 지역 필터
     const allRegions = (window.REGIONS||[]).filter(r => r.status !== 'hidden');
-    const visibleRegions = (user.role === 'regional' && user.regionId)
-      ? allRegions.filter(r => r.id === user.regionId)
-      : allRegions;
-
-    // 지역명 매핑 (regionId → 한글명)
     const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
 
     // 지역 드롭다운 옵션
@@ -3795,56 +3964,46 @@ const AdminModule = (() => {
           ...allRegions.map(r=>`<option value="${r.id}">${r.name||REGION_NAMES[r.id]||r.id}</option>`)
         ].join('');
 
-    // 일일 정산 행 생성 (권한에 따른 지역명 동적 반영)
-    const settlementRows = [...Array(7)].map((_, i) => {
-      const date = new Date(); date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().slice(0,10);
-      const online  = Math.floor(Math.random()*5000000)+2000000;
-      const offline = Math.floor(Math.random()*2000000)+500000;
-      const total   = online + offline;
-      const cash    = Math.floor(offline*0.3);
-      const card    = total - cash;
-      const isClosed = i > 0;
+    // 초기 정산 행 (이번달 전체)
+    const initRegion = user.role === 'regional' ? user.regionId : '';
+    const initMonth  = new Date().toISOString().slice(0,7);
+    const settlementRows = _calcSettlementRows(initRegion, initMonth);
 
-      // 지역: regional은 자기 지역명, super는 첫 번째 visible 지역명 순환
-      const rowRegion = (user.role === 'regional' && user.regionId)
-        ? (REGION_NAMES[user.regionId] || user.regionId)
-        : (REGION_NAMES[visibleRegions[i % Math.max(visibleRegions.length,1)]?.id] || '전체');
-
-      return `
-        <tr class="hover:bg-gray-50">
-          <td class="px-3 py-2 text-sm text-gray-600">${dateStr}</td>
-          <td class="px-3 py-2 text-sm text-center font-medium text-gray-700">${rowRegion}</td>
-          <td class="px-3 py-2 text-sm text-right">₩${online.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right">₩${offline.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right font-semibold text-gray-800">₩${total.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right text-gray-600">₩${cash.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right text-gray-600">₩${card.toLocaleString()}</td>
-          <td class="px-3 py-2 text-center">
-            <span class="px-2 py-0.5 rounded-full text-xs font-medium
-              ${isClosed ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}">
-              ${isClosed ? '마감완료' : '마감전'}
-            </span>
-          </td>
-          <td class="px-3 py-2 text-center">
-            ${!isClosed
-              ? `<button onclick="AdminModule.closeDay('${dateStr}')"
-                   class="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700">마감</button>`
-              : `<button onclick="AdminModule.viewSettlement('${dateStr}')"
-                   class="text-blue-600 hover:underline text-xs">상세</button>`}
-          </td>
-        </tr>
-      `;
-    }).join('');
+    // 초기 요약 집계
+    let allResInit = [];
+    try { allResInit = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
+    let onsiteInit = [];
+    try { onsiteInit = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]'); } catch(e) {}
+    const combinedInit = [...allResInit, ...onsiteInit].filter(r => r.status !== 'cancelled');
+    const todayStr = new Date().toISOString().slice(0,10);
+    const monthData = combinedInit.filter(r => {
+      const date = r.date || r.createdAt?.slice(0,10) || '';
+      return date.startsWith(initMonth) && (!initRegion || r.regionId === initRegion);
+    });
+    const todayCount  = monthData.filter(r=>(r.date||r.createdAt?.slice(0,10)||'')===todayStr).length;
+    const monthCount  = monthData.length;
+    const monthTotal  = monthData.reduce((s,r)=>s+(r.totalAmount||r.total||0),0);
 
     const content = `
       <div class="space-y-6">
         <!-- 요약 카드 -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          ${statCard('fas fa-calendar-day', '오늘 정산 대기', '3건', '마감 전', 'orange')}
-          ${statCard('fas fa-check-circle', '이번달 완료', '28건', '₩127,450,000', 'green')}
-          ${statCard('fas fa-exclamation-triangle', '수정 요청', '1건', 'HQ 승인 필요', 'red')}
-          ${statCard('fas fa-calculator', '총 누적 정산', '152건', '₩634,200,000', 'blue')}
+          <div class="bg-white rounded-xl shadow-sm p-4">
+            <div class="text-xs text-gray-500 mb-1"><i class="fas fa-calendar-day mr-1 text-orange-400"></i>오늘 예약</div>
+            <div id="stl-sum-today" class="text-2xl font-bold text-gray-800">${todayCount}건</div>
+            <div class="text-xs text-gray-400 mt-1">마감 전</div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm p-4">
+            <div class="text-xs text-gray-500 mb-1"><i class="fas fa-check-circle mr-1 text-green-400"></i>이번달 예약</div>
+            <div id="stl-sum-month" class="text-2xl font-bold text-gray-800">${monthCount}건</div>
+            <div class="text-xs text-gray-400 mt-1">${initMonth}</div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm p-4">
+            <div class="text-xs text-gray-500 mb-1"><i class="fas fa-won-sign mr-1 text-blue-400"></i>이번달 매출</div>
+            <div id="stl-sum-total" class="text-xl font-bold text-gray-800">₩${monthTotal.toLocaleString()}</div>
+            <div class="text-xs text-gray-400 mt-1">취소 제외</div>
+          </div>
+          ${statCard('fas fa-calculator', '누적 정산', `${combinedInit.length}건`, '전체 기간', 'blue')}
         </div>
 
         ${user.role === 'regional' ? `
@@ -3856,15 +4015,19 @@ const AdminModule = (() => {
         <div class="bg-white rounded-xl shadow-sm p-6">
           <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
             <h2 class="font-semibold text-gray-800">일일 정산 내역</h2>
-            <div class="flex gap-2 flex-wrap">
+            <div class="flex gap-2 flex-wrap items-center">
               <select id="stl-filter-region"
                 class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 ${user.role === 'regional' ? 'disabled' : ''}>
                 ${regionOpts}
               </select>
               <input type="month" id="stl-filter-month"
-                value="${new Date().toISOString().slice(0,7)}"
+                value="${initMonth}"
                 class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <button onclick="AdminModule.filterSettlement()"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
+                <i class="fas fa-search"></i> 조회
+              </button>
               <button onclick="AdminModule.exportSettlement()"
                 class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2">
                 <i class="fas fa-download"></i> CSV
@@ -3875,12 +4038,12 @@ const AdminModule = (() => {
             <table class="admin-table w-full">
               <thead>
                 <tr class="bg-gray-50">
-                  ${['날짜','지역','온라인 매출','현장 매출','총 매출','현금','카드','상태','관리'].map(h=>
+                  ${['날짜','지역','온라인 매출','현장 매출','총 매출','현금','카드','건수','상태','관리'].map(h=>
                     `<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`
                   ).join('')}
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100">${settlementRows}</tbody>
+              <tbody id="stl-tbody" class="divide-y divide-gray-100">${settlementRows}</tbody>
             </table>
           </div>
         </div>
@@ -3896,29 +4059,75 @@ const AdminModule = (() => {
     );
   };
   const viewSettlement = (date) => {
-    Utils.toast(`${date} 정산 상세 조회 (구현 중)`, 'info');
+    // 해당 날짜 실제 예약 목록 표시
+    let allRes = [];
+    try { allRes = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
+    let onsiteRes = [];
+    try { onsiteRes = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]'); } catch(e) {}
+    const combined = [...allRes, ...onsiteRes].filter(r => {
+      const rDate = r.date || r.createdAt?.slice(0,10) || '';
+      return rDate === date && r.status !== 'cancelled';
+    });
+    if (!combined.length) {
+      Utils.toast(`${date} 정산 데이터가 없습니다.`, 'info');
+      return;
+    }
+    const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+    const total = combined.reduce((s,r)=>s+(r.totalAmount||r.total||0),0);
+    const rows = combined.map(r=>`
+      <div class="flex justify-between text-sm py-1 border-b border-gray-100">
+        <span class="font-mono text-xs text-blue-600">${r.id||r.reservationId||'-'}</span>
+        <span>${r.name||'-'}</span>
+        <span class="text-gray-500">${REGION_NAMES[r.regionId]||r.regionId||'-'}</span>
+        <span class="font-medium">₩${(r.totalAmount||r.total||0).toLocaleString()}</span>
+        <span class="text-gray-400 text-xs">${r.payMethod||'온라인'}</span>
+      </div>`).join('');
+    Utils.confirm(
+      `<div class="text-left">
+        <div class="font-bold text-base mb-3">${date} 정산 상세 (${combined.length}건)</div>
+        <div class="max-h-60 overflow-y-auto space-y-0.5">${rows}</div>
+        <div class="mt-3 pt-3 border-t flex justify-between font-bold">
+          <span>합계</span><span>₩${total.toLocaleString()}</span>
+        </div>
+      </div>`,
+      () => {},
+      { confirmText: '닫기', cancelText: null, title: '정산 상세' }
+    );
   };
   const exportSettlement = () => {
     const user = _adminState.user || { role: 'super', regionId: null };
     const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
-    const regionLabel = (user.role === 'regional' && user.regionId)
-      ? (REGION_NAMES[user.regionId] || user.regionId)
-      : '전체';
+    const fRegion = user.role === 'regional' ? user.regionId : (document.getElementById('stl-filter-region')?.value || '');
     const month = document.getElementById('stl-filter-month')?.value || new Date().toISOString().slice(0,7);
-    const rows = [
+    const regionLabel = fRegion ? (REGION_NAMES[fRegion] || fRegion) : '전체';
+
+    // 실제 데이터 기반 CSV
+    let allRes = [];
+    try { allRes = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
+    let onsiteRes = [];
+    try { onsiteRes = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]'); } catch(e) {}
+    const combined = [...allRes, ...onsiteRes].filter(r => {
+      const date = r.date || r.createdAt?.slice(0,10) || '';
+      return date.startsWith(month) && r.status !== 'cancelled' && (!fRegion || r.regionId === fRegion);
+    });
+
+    const csvRows = [
       ['아쿠아모빌리티코리아 정산 내역'],
       [`기간: ${month}`, `지역: ${regionLabel}`, `생성: ${new Date().toLocaleString('ko-KR')}`],
       [],
-      ['날짜','지역','온라인 매출','현장 매출','총 매출','현금','카드','상태'],
-      ...[...Array(7)].map((_,i)=>{
-        const d = new Date(); d.setDate(d.getDate()-i);
-        const on = Math.floor(Math.random()*5000000)+2000000;
-        const off= Math.floor(Math.random()*2000000)+500000;
-        const tot= on+off;
-        return [d.toISOString().slice(0,10), regionLabel, on, off, tot, Math.floor(off*0.3), tot-Math.floor(off*0.3), i>0?'마감완료':'마감전'];
-      }),
+      ['예약번호','예약자','지역','날짜','금액','결제방식','채널','상태'],
+      ...combined.map(r=>[
+        r.id||r.reservationId||'-',
+        r.name||'-',
+        REGION_NAMES[r.regionId]||r.regionId||'-',
+        r.date||r.createdAt?.slice(0,10)||'-',
+        r.totalAmount||r.total||0,
+        r.payMethod||'온라인',
+        r.channel||'online',
+        r.status||'-',
+      ]),
     ];
-    Utils.downloadCSV(rows, `settlement_${month.replace('-','_')}_${new Date().toISOString().slice(0,10)}.csv`);
+    Utils.downloadCSV(csvRows, `settlement_${month.replace('-','_')}_${new Date().toISOString().slice(0,10)}.csv`);
     Utils.toast('정산 내역 CSV가 다운로드됩니다.', 'success');
   };
 
@@ -4473,7 +4682,7 @@ const AdminModule = (() => {
     showTermsTab, saveTerms, previewTerms,
     selectSeoRegion, saveSeoSettings,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, saveNewRegion, _autoGenRegionCode,
-    closeDay, viewSettlement, exportSettlement,
+    closeDay, viewSettlement, exportSettlement, filterSettlement,
     addAdmin, resetPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,
     switchRegionDashboard,

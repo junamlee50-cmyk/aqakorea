@@ -387,7 +387,7 @@ const FieldModule = {
       </div>`, { size: 'max-w-xs' });
   },
 
-  // ── 현장 발권 ───────────────────────────────────────────────
+  // ── 현장 발권 (복합결제 지원) ────────────────────────────────
   showFieldSale: () => {
     Utils.modal(`
       <div class="modal-header">
@@ -405,9 +405,12 @@ const FieldModule = {
           </div>
           <div class="form-group">
             <label class="form-label required">결제수단</label>
-            <select class="form-select" id="fs-payment">
-              <option value="cash">현금</option><option value="card">카드</option>
-              <option value="transfer">계좌이체</option><option value="free">무료/초대권</option>
+            <select class="form-select" id="fs-payment" onchange="FieldModule.onPaymentMethodChange()">
+              <option value="cash">현금</option>
+              <option value="card">카드</option>
+              <option value="mixed">복합결제 (현금+카드)</option>
+              <option value="transfer">계좌이체</option>
+              <option value="free">무료/초대권</option>
             </select>
           </div>
           <div class="form-group">
@@ -419,15 +422,39 @@ const FieldModule = {
             <input type="tel" class="form-input" id="fs-phone" placeholder="010-XXXX-XXXX (선택)">
           </div>
         </div>
+
+        <!-- 복합결제 입력 (기본 숨김) -->
+        <div id="fs-mixed-area" class="hidden mb-4 bg-orange-50 border border-orange-200 rounded-xl p-3">
+          <div class="text-xs font-bold text-orange-700 mb-2"><i class="fas fa-coins mr-1"></i>복합결제 금액 입력</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="form-group mb-0">
+              <label class="form-label text-xs">현금 결제액 (₩)</label>
+              <input type="number" class="form-input text-sm" id="fs-cash-amt" placeholder="0"
+                oninput="FieldModule.onMixedAmtChange()" min="0">
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label text-xs">카드 결제액 (₩)</label>
+              <input type="number" class="form-input text-sm" id="fs-card-amt" placeholder="0"
+                oninput="FieldModule.onMixedAmtChange()" min="0" readonly style="background:#f3f4f6">
+            </div>
+          </div>
+          <div id="fs-mixed-hint" class="text-xs text-orange-600 mt-1.5"></div>
+        </div>
+
         <div class="font-medium text-navy-800 text-sm mb-2">인원 선택</div>
         <div class="space-y-2 mb-4" id="fs-fares">
           ${[
-            {id:'adult',label:'성인',price:30000},{id:'youth',label:'청소년',price:25000},
-            {id:'child',label:'어린이',price:20000},{id:'senior',label:'경로',price:25000},
-            {id:'free',label:'무료/초대권',price:0},
+            {id:'adult', label:'성인',   price:30000},
+            {id:'youth', label:'청소년', price:25000},
+            {id:'child', label:'어린이', price:20000},
+            {id:'senior',label:'경로',   price:25000},
+            {id:'free',  label:'무료/초대권', price:0},
           ].map(f=>`
           <div class="flex items-center justify-between py-2 border-b border-gray-100">
-            <div><span class="font-medium text-sm">${f.label}</span><span class="text-gray-400 text-xs ml-2">${Utils.money(f.price)}</span></div>
+            <div>
+              <span class="font-medium text-sm">${f.label}</span>
+              <span class="text-gray-400 text-xs ml-2">${Utils.money(f.price)}</span>
+            </div>
             <div class="fare-counter">
               <button class="counter-btn w-8 h-8 text-sm" onclick="FieldModule.changeFSFare('${f.id}','${f.price}',-1)">−</button>
               <span class="counter-num text-base" id="fs-cnt-${f.id}">0</span>
@@ -435,21 +462,81 @@ const FieldModule = {
             </div>
           </div>`).join('')}
         </div>
+
         <div class="summary-box p-4 mb-4">
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center mb-1">
             <span class="text-white/70">현장판매 금액</span>
             <span class="summary-total text-2xl" id="fs-total">₩0</span>
           </div>
+          <div id="fs-split-summary" class="hidden text-xs text-white/60 space-y-0.5 pt-2 border-t border-white/20 mt-2">
+            <div class="flex justify-between"><span>현금</span><span id="fs-split-cash">₩0</span></div>
+            <div class="flex justify-between"><span>카드</span><span id="fs-split-card">₩0</span></div>
+          </div>
         </div>
+
         <div class="flex gap-2">
-          <button onclick="FieldModule.processFieldSale()" class="btn-ocean flex-1 py-3 font-bold">결제 및 손목밴드 발급</button>
+          <button onclick="FieldModule.processFieldSale()" class="btn-ocean flex-1 py-3 font-bold">
+            <i class="fas fa-check-circle mr-1"></i>결제 및 손목밴드 발급
+          </button>
           <button onclick="Utils.closeModal()" class="btn-outline px-4">취소</button>
         </div>
       </div>`, { size: 'max-w-sm' });
     FieldModule._fsFares = {};
+    FieldModule._fsMixedCash = 0;
+    FieldModule._fsMixedCard = 0;
+  },
+
+  // 결제수단 변경 시 복합결제 UI 토글
+  onPaymentMethodChange: () => {
+    const method = document.getElementById('fs-payment')?.value;
+    const mixedArea    = document.getElementById('fs-mixed-area');
+    const splitSummary = document.getElementById('fs-split-summary');
+    if (method === 'mixed') {
+      mixedArea?.classList.remove('hidden');
+      splitSummary?.classList.remove('hidden');
+      // 현금 입력 포커스
+      setTimeout(() => document.getElementById('fs-cash-amt')?.focus(), 100);
+    } else {
+      mixedArea?.classList.add('hidden');
+      splitSummary?.classList.add('hidden');
+      FieldModule._fsMixedCash = 0;
+      FieldModule._fsMixedCard = 0;
+    }
+  },
+
+  // 복합결제 금액 입력 시 카드 잔액 자동계산
+  onMixedAmtChange: () => {
+    let total = 0;
+    Object.values(FieldModule._fsFares||{}).forEach(f => { total += f.count * f.price; });
+    const cashInput = document.getElementById('fs-cash-amt');
+    const cardInput = document.getElementById('fs-card-amt');
+    const hint      = document.getElementById('fs-mixed-hint');
+    const cash  = Math.max(0, parseInt(cashInput?.value||'0')||0);
+    const card  = Math.max(0, total - cash);
+    if (cardInput) cardInput.value = card > 0 ? card : 0;
+    FieldModule._fsMixedCash = cash;
+    FieldModule._fsMixedCard = card;
+    // 잔액 표시
+    if (hint) {
+      if (cash > total) {
+        hint.textContent = `⚠️ 현금이 합계(${Utils.money(total)})를 초과합니다`;
+        hint.className = 'text-xs text-red-600 mt-1.5';
+      } else {
+        hint.textContent = `현금 ${Utils.money(cash)} + 카드 ${Utils.money(card)} = 합계 ${Utils.money(total)}`;
+        hint.className = 'text-xs text-orange-600 mt-1.5';
+      }
+    }
+    // 요약 업데이트
+    const sc = document.getElementById('fs-split-cash');
+    const sk = document.getElementById('fs-split-card');
+    if (sc) sc.textContent = Utils.money(cash);
+    if (sk) sk.textContent = Utils.money(card);
   },
 
   _fsFares: {},
+  _fsMixedCash: 0,
+  _fsMixedCard: 0,
+
   changeFSFare: (id, price, delta) => {
     if (!FieldModule._fsFares[id]) FieldModule._fsFares[id] = { count: 0, price: parseInt(price) };
     FieldModule._fsFares[id].count = Math.max(0, FieldModule._fsFares[id].count + delta);
@@ -459,24 +546,112 @@ const FieldModule = {
     Object.values(FieldModule._fsFares).forEach(f => { total += f.count * f.price; });
     const t = document.getElementById('fs-total');
     if (t) t.textContent = '₩' + Utils.num(total);
+    // 복합결제 모드인 경우 카드 잔액 재계산
+    const method = document.getElementById('fs-payment')?.value;
+    if (method === 'mixed') FieldModule.onMixedAmtChange();
   },
 
   processFieldSale: async () => {
     let total = 0, pax = 0;
-    Object.values(FieldModule._fsFares).forEach(f => { total += f.count*f.price; pax += f.count; });
+    const paxList = [];
+    const FARE_LABELS = { adult:'성인', youth:'청소년', child:'어린이', senior:'경로', free:'무료' };
+    Object.entries(FieldModule._fsFares).forEach(([id,f]) => {
+      total += f.count * f.price;
+      pax   += f.count;
+      if (f.count > 0) paxList.push(`${FARE_LABELS[id]||id} ${f.count}명`);
+    });
     if (pax === 0) { Utils.toast('인원을 선택해주세요', 'warning'); return; }
+
+    const method  = document.getElementById('fs-payment')?.value || 'cash';
+    const name    = document.getElementById('fs-name')?.value?.trim() || '현장판매';
+    const phone   = document.getElementById('fs-phone')?.value?.trim() || '-';
+    const round   = document.getElementById('fs-round')?.value || '-';
+
+    // 복합결제 검증
+    let cashAmt = 0, cardAmt = 0;
+    if (method === 'mixed') {
+      cashAmt = FieldModule._fsMixedCash || 0;
+      cardAmt = FieldModule._fsMixedCard || 0;
+      if (cashAmt + cardAmt !== total) {
+        Utils.toast(`복합결제 금액 오류: 현금(${Utils.money(cashAmt)}) + 카드(${Utils.money(cardAmt)}) ≠ 합계(${Utils.money(total)})`, 'error');
+        return;
+      }
+      if (cashAmt < 0 || cardAmt < 0) {
+        Utils.toast('복합결제 금액은 0 이상이어야 합니다', 'error');
+        return;
+      }
+    } else if (method === 'cash') {
+      cashAmt = total;
+    } else {
+      cardAmt = total;
+    }
+
+    // 결제수단 레이블
+    const PAY_LABELS = { cash:'현장현금', card:'현장카드', mixed:'복합결제', transfer:'계좌이체', free:'무료/초대권' };
+    const payLabel = PAY_LABELS[method] || method;
+
     Utils.closeModal();
     Utils.loading(true);
+
+    const regionId = Store.get('user')?.region || 'buyeo';
     const res = await API.post('/api/reservations', {
-      regionId: Store.get('user')?.region || 'buyeo',
-      channel: 'field', total, pax,
-      name: document.getElementById('fs-name')?.value || '현장판매',
-      phone: document.getElementById('fs-phone')?.value || '-',
+      regionId, channel: 'onsite', total, pax,
+      name, phone,
+      payMethod: payLabel,
+      payment_splits: method === 'mixed' ? { cash: cashAmt, card: cardAmt } : null,
     });
     Utils.loading(false);
+
     if (res.success) {
-      Utils.toast(`현장판매 완료! ${Utils.money(total)} (${pax}명) 예약번호: ${res.data.reservationId}`, 'success', 5000);
+      // ★ amk_onsite_tickets + amk_reservations 양쪽에 저장
+      const regionNames = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
+      const record = {
+        id:             res.data.reservationId,
+        reservationId:  res.data.reservationId,
+        regionId,
+        regionName:     regionNames[regionId] || regionId,
+        name,
+        phone,
+        date:           Utils.today(),
+        schedule:       round,
+        time:           round,
+        pax,
+        paxList,
+        totalAmount:    total,
+        total,
+        payMethod:      payLabel,
+        payment_splits: method === 'mixed' ? { cash: cashAmt, card: cardAmt } : null,
+        channel:        'onsite',
+        status:         'confirmed',
+        createdAt:      new Date().toISOString(),
+        source:         '현장발권',
+      };
+      // amk_onsite_tickets
+      try {
+        const onsiteStored = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]');
+        onsiteStored.unshift(record);
+        localStorage.setItem('amk_onsite_tickets', JSON.stringify(onsiteStored));
+      } catch(e) {}
+      // amk_reservations (관리자 예약관리 연동)
+      try {
+        const resStored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
+        const idx = resStored.findIndex(r => r.id === record.id || r.reservationId === record.id);
+        if (idx >= 0) resStored[idx] = record;
+        else resStored.unshift(record);
+        localStorage.setItem('amk_reservations', JSON.stringify(resStored));
+      } catch(e) {}
+
+      // 성공 메시지
+      const splitMsg = method === 'mixed'
+        ? ` (현금 ${Utils.money(cashAmt)} + 카드 ${Utils.money(cardAmt)})`
+        : ` (${payLabel})`;
+      Utils.toast(
+        `현장발권 완료! ${Utils.money(total)} ${pax}명${splitMsg}\n예약번호: ${res.data.reservationId}`,
+        'success', 6000
+      );
       setTimeout(() => FieldModule.showWristbandIssue(res.data.reservationId), 500);
+    } else {
+      Utils.toast('현장발권 처리 중 오류가 발생했습니다.', 'error');
     }
   },
 
