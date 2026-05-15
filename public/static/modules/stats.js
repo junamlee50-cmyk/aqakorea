@@ -423,7 +423,7 @@ const StatsModule = (() => {
         <!-- 지역별 객단가 -->
         <div class="bg-white rounded-xl shadow-sm p-5">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-user-tag mr-2 text-purple-400"></i>지역별 평균 객단가</h3>
+            <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-user-tag mr-2 text-purple-400"></i>${isRegional ? '평균 객단가' : '지역별 평균 객단가'}</h3>
           </div>
           <div class="space-y-2">
             ${(isRegional ? regionStats.filter(r=>r.id===user.regionId) : regionStats).map(r=>`
@@ -462,7 +462,7 @@ const StatsModule = (() => {
                     <span class="px-1.5 py-0.5 rounded text-xs ${r.channel==='onsite'?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700'}">${r.channel==='onsite'?'현장':'온라인'}</span>
                   </td>
                   <td class="px-3 py-2 text-center">
-                    <span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-600':'bg-gray-100 text-gray-500'}">${r.status}</span>
+                    <span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'||r.status==='checkedin'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-600':r.status==='refunded'?'bg-orange-100 text-orange-600':'bg-gray-100 text-gray-500'}">${{confirmed:'확정',boarded:'탑승',checkedin:'탑승완료',cancelled:'취소',refunded:'환불',pending:'대기'}[r.status]||r.status}</span>
                   </td>
                 </tr>`).join('') : '<tr><td colspan="8" class="text-center py-6 text-gray-400 text-xs">예약 데이터 없음</td></tr>'}
             </tbody>
@@ -799,7 +799,7 @@ const StatsModule = (() => {
                   <td class="px-3 py-2 text-xs text-center">${r.scheduleId?.split('-').pop()||'-'}</td>
                   <td class="px-3 py-2 text-xs text-center">${r.pax||0}명</td>
                   <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
-                  <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-600':'bg-gray-100 text-gray-500'}">${r.status}</span></td>
+                  <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'||r.status==='checkedin'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-600':r.status==='refunded'?'bg-orange-100 text-orange-600':'bg-gray-100 text-gray-500'}">${{confirmed:'확정',boarded:'탑승',checkedin:'탑승완료',cancelled:'취소',refunded:'환불',pending:'대기'}[r.status]||r.status}</span></td>
                 </tr>`).join('') : '<tr><td colspan="8" class="text-center py-6 text-gray-400 text-xs">운행 데이터 없음</td></tr>'}
             </tbody>
           </table>
@@ -2190,7 +2190,7 @@ ${statsArea.innerHTML}
         <td class="px-3 py-2 text-xs text-center">${RNAMES[r.regionId]||r.regionId?.slice(0,4)||'-'}</td>
         <td class="px-3 py-2 text-xs text-center">${r.adults||0}/${r.children||0}</td>
         <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
-        <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}">${r.status}</span></td>
+        <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'||r.status==='checkedin'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-600':r.status==='refunded'?'bg-orange-100 text-orange-600':'bg-gray-100 text-gray-500'}">${{confirmed:'확정',boarded:'탑승',checkedin:'탑승완료',cancelled:'취소',refunded:'환불',pending:'대기'}[r.status]||r.status}</span></td>
       </tr>`).join('') || '<tr><td colspan="7" class="text-center py-4 text-gray-400 text-xs">예약 없음</td></tr>';
       tableHtml = `<div class="mb-3 text-sm text-gray-500">${rows.length}건 · 취소 제외</div>
         <table class="w-full text-sm"><thead class="bg-gray-50"><tr>
