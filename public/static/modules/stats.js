@@ -151,16 +151,50 @@ const StatsModule = (() => {
   `;
 
   // ── 매출 통계 탭 ───────────────────────────────────────────
-  const salesTab = () => {
-    const daily = genDailyData(30, 3500000);
-    const monthly = genMonthlyData(12, 80000000);
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active');
+  const salesTab = async () => {
+    // DB에서 실제 예약 데이터 로드
+    const user = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+    const isRegional = user.role === 'regional';
+    let apiUrl = '/api/reservations?limit=1000';
+    if (isRegional && user.regionId) apiUrl += `&regionId=${user.regionId}`;
+    let allRes = [];
+    try {
+      const res = await API.get(apiUrl);
+      allRes = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
+    } catch(e) { allRes = []; }
 
-    const regionRevenue = regions.map(r => ({
-      name: r.shortName || r.name,
-      online: randBetween(15000000, 45000000),
-      offline: randBetween(5000000, 15000000),
-    }));
+    // 일별 매출 집계 (최근 30일)
+    const today = new Date();
+    const daily = [...Array(30)].map((_,i) => {
+      const d = new Date(today); d.setDate(d.getDate()-(29-i));
+      const dateStr = d.toISOString().slice(0,10);
+      const dayRes = allRes.filter(r=>r.date===dateStr);
+      return { date: dateStr, value: dayRes.reduce((s,r)=>s+(r.totalPrice||0),0) };
+    });
+
+    // 월별 매출 집계
+    const curYear = today.getFullYear();
+    const monthly = [...Array(12)].map((_,i) => {
+      const monthStr = `${curYear}-${String(i+1).padStart(2,'0')}`;
+      const mRes = allRes.filter(r=>(r.date||'').startsWith(monthStr));
+      return { label: `${i+1}월`, value: mRes.reduce((s,r)=>s+(r.totalPrice||0),0) };
+    });
+
+    // 지역별 매출
+    const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
+    const regionRevenue = regions.map(r => {
+      const rRes = allRes.filter(rv=>rv.regionId===r.id);
+      return {
+        name: r.name?.slice(0,4)||r.id,
+        online: rRes.filter(rv=>rv.channel==='online').reduce((s,rv)=>s+(rv.totalPrice||0),0),
+        offline: rRes.filter(rv=>rv.channel==='onsite').reduce((s,rv)=>s+(rv.totalPrice||0),0),
+      };
+    });
+
+    const thisMonth = today.toISOString().slice(0,7);
+    const monthRes = allRes.filter(r=>(r.date||'').startsWith(thisMonth));
+    const totalSales = monthRes.reduce((s,r)=>s+(r.totalPrice||0),0);
+    const totalCount = allRes.length;
 
     setTimeout(() => {
       // 일별 매출 차트
@@ -252,16 +286,14 @@ const StatsModule = (() => {
       }
     }, 100);
 
-    const totalSales = daily.reduce((s, d) => s + d.value, 0);
-    const avgDaily = Math.round(totalSales / 30);
 
     return `
       <!-- KPI 카드 -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        ${statCard('fas fa-won-sign', '이번달 총 매출', `₩${Math.round(totalSales/1000000*4).toLocaleString()}M`, '목표 ₩500M', 'blue', 12)}
-        ${statCard('fas fa-calendar-day', '일 평균 매출', `₩${Math.round(avgDaily/10000).toLocaleString()}만`, '최근 30일 기준', 'green', 8)}
-        ${statCard('fas fa-chart-line', '전월 대비 성장률', '+12.3%', '3개월 연속 상승', 'purple', 12)}
-        ${statCard('fas fa-ticket-alt', '총 결제 건수', '4,821건', '취소 제외', 'orange', 5)}
+        ${statCard('fas fa-won-sign', '이번달 총 매출', `₩${totalSales.toLocaleString()}`, `${thisMonth}`, 'blue', 0)}
+        ${statCard('fas fa-calendar-day', '일 평균 매출', `₩${Math.round(totalSales/30).toLocaleString()}`, '최근 30일 기준', 'green', 0)}
+        ${statCard('fas fa-ticket-alt', '이번달 예약', `${monthRes.length}건`, '취소 제외', 'purple', 0)}
+        ${statCard('fas fa-ticket-alt', '총 결제 건수', `${totalCount}건`, '전체 기간', 'orange', 0)}
       </div>
 
       <!-- 차트 그리드 -->
@@ -1850,7 +1882,7 @@ const StatsModule = (() => {
     if (filterEl) filterEl.style.display = tabId === 'report' ? 'none' : '';
 
     const contentMap = {
-      sales: salesTab,
+      sales: () => salesTab(),
       passengers: passengersTab,
       operations: operationsTab,
       marketing: marketingTab,
@@ -1861,7 +1893,15 @@ const StatsModule = (() => {
 
     destroyAll();
     const el = document.getElementById('stats-content');
-    if (el && contentMap[tabId]) el.innerHTML = contentMap[tabId]();
+    if (el && contentMap[tabId]) {
+      const result = contentMap[tabId]();
+      if (result && typeof result.then === 'function') {
+        el.innerHTML = '<div class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i>데이터 로딩 중...</div>';
+        result.then(html => { if(el) el.innerHTML = html || ''; });
+      } else {
+        el.innerHTML = result || '';
+      }
+    }
   };
 
   const refreshCurrent = () => { switchTab(_currentTab); };
@@ -1869,7 +1909,8 @@ const StatsModule = (() => {
   // ── 메인 진입점 ────────────────────────────────────────────
   const page = async () => {
     _currentTab = 'sales';
-    const html = renderLayout(salesTab(), '통계/보고서');
+    const initSalesHtml = await salesTab();
+    const html = renderLayout(initSalesHtml, '통계/보고서');
     setTimeout(() => {
       switchTab('sales');
     }, 50);
