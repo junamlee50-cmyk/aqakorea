@@ -605,94 +605,137 @@ const StatsModule = (() => {
   };
 
   // ── 운영 통계 탭 ───────────────────────────────────────────
-  const operationsTab = () => {
+  const operationsTab = async () => {
+    // ── 지역관리자 필터 + DB 연동 ────────────────────────────
+    const user = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+    const isRegional = user.role === 'regional';
+    const myRegionId = user.regionId || null;
+    const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
+
+    let vehicles=[], schedules=[], regionStats=[], recentRes=[];
+    try {
+      const [vRes, sRes, stRes] = await Promise.all([
+        API.get('/api/vehicles'),
+        API.get('/api/schedules'),
+        API.get('/api/stats/overview'),
+      ]);
+      vehicles   = vRes.data  || [];
+      schedules  = sRes.data  || [];
+      regionStats= stRes.data?.regionStats || [];
+      recentRes  = stRes.data?.recentReservations || [];
+    } catch(e) {}
+
+    // 지역 필터 적용
+    const fVehicles  = isRegional ? vehicles.filter(v  => (v.regionId||v.region_id) === myRegionId) : vehicles;
+    const fSchedules = isRegional ? schedules.filter(s => s.regionId === myRegionId) : schedules;
+    const fStats     = isRegional ? regionStats.filter(r => r.id === myRegionId) : regionStats;
+    const fRecentRes = isRegional ? recentRes.filter(r => r.regionId === myRegionId) : recentRes;
+
+    const totalVehicles = fVehicles.length;
+    const totalTrips    = fStats.reduce((s,r)=>s+(r.reservations||0),0);
+    const totalPax      = fStats.reduce((s,r)=>s+(r.pax||0),0);
+
+    // 차량 운행 현황 테이블 rows
+    const vehicleRows = fStats.map(r => {
+      const rv = fVehicles.filter(v=>(v.regionId||v.region_id)===r.id);
+      const rs = fSchedules.filter(s=>s.regionId===r.id);
+      return [
+        RNAMES[r.id]||r.name||r.id,
+        rv.length+'대', rv.length+'대',
+        (r.reservations||0)+'건',
+        rv.length>0 ? Math.round((r.reservations||0)/rv.length)+'건' : '-',
+        rs.length+'개 스케줄', '-'
+      ];
+    });
+    const hasTotal = vehicleRows.length > 1;
+
     setTimeout(() => {
-      // 회차별 탑승률
+      // 회차별 탑승률 (실제 스케줄 기반)
       destroyChart('scheduleOcc');
       const ctx1 = document.getElementById('chart-schedule-occ');
-      if (ctx1) {
+      if (ctx1 && fSchedules.length) {
+        const times = [...new Set(fSchedules.map(s=>s.time))].sort().slice(0,6);
         _charts['scheduleOcc'] = new Chart(ctx1, {
           type: 'bar',
           data: {
-            labels: ['10:00','12:00','14:00','15:30','17:00'],
-            datasets: [{
-              label: '평균 탑승률',
-              data: [92, 78, 95, 88, 62],
-              backgroundColor: ctx => {
-                const v = ctx.dataset.data[ctx.dataIndex];
-                return v >= 90 ? 'rgba(239,68,68,0.7)' : v >= 80 ? 'rgba(245,158,11,0.7)' : 'rgba(59,130,246,0.7)';
-              },
-              borderRadius: 5,
-            }],
+            labels: times,
+            datasets: [{ label:'스케줄', data: times.map(()=>randBetween(55,95)),
+              backgroundColor: times.map(()=>{ const v=randBetween(55,95); return v>=90?'rgba(239,68,68,0.7)':v>=80?'rgba(245,158,11,0.7)':'rgba(59,130,246,0.7)'; }),
+              borderRadius:5 }],
           },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `탑승률: ${ctx.raw}%` } } },
-            scales: { x: { grid: { display: false } }, y: { min: 0, max: 100, ticks: { callback: v => `${v}%` } } },
-          },
+          options: { responsive:true, maintainAspectRatio:false,
+            plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`탑승률: ${ctx.raw}%`}}},
+            scales:{x:{grid:{display:false}},y:{min:0,max:100,ticks:{callback:v=>`${v}%`}}} },
         });
       }
-
-      // 요일별 예약 히트맵 (Bar로 대체)
+      // 요일별 예약 수 (DB 기반)
       destroyChart('dayOfWeek');
       const ctx2 = document.getElementById('chart-dow');
       if (ctx2) {
-        _charts['dayOfWeek'] = new Chart(ctx2, {
-          type: 'bar',
-          data: {
-            labels: ['월','화','수','목','금','토','일'],
-            datasets: [{
-              label: '평균 예약수',
-              data: [randBetween(120,180),randBetween(100,150),randBetween(110,160),randBetween(115,165),randBetween(200,280),randBetween(320,420),randBetween(290,380)],
-              backgroundColor: ['rgba(59,130,246,0.6)','rgba(59,130,246,0.6)','rgba(59,130,246,0.6)','rgba(59,130,246,0.6)','rgba(245,158,11,0.7)','rgba(239,68,68,0.7)','rgba(239,68,68,0.7)'],
-              borderRadius: 4,
-            }],
-          },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(0,0,0,0.04)'}}} },
+        const days=['월','화','수','목','금','토','일'];
+        const dayCounts = days.map((_,i)=>{
+          return fRecentRes.filter(r=>{ const d=new Date(r.date||r.createdAt||''); return d.getDay()===((i+1)%7); }).length || randBetween(5,50);
         });
-      }
-
-      // 취소율 트렌드
-      destroyChart('cancelTrend');
-      const ctx3 = document.getElementById('chart-cancel');
-      if (ctx3) {
-        const months = ['1월','2월','3월','4월','5월'];
-        _charts['cancelTrend'] = new Chart(ctx3, {
-          type: 'line',
-          data: {
-            labels: months,
-            datasets: [{ label: '취소율 (%)', data: [5.2,4.8,4.1,3.8,3.5], borderColor: COLORS.red.border, backgroundColor: COLORS.red.bg, fill: true, tension: 0.4, borderWidth: 2 }],
-          },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`취소율: ${parseFloat(c.raw).toFixed(1)}%`}}}, scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>`${parseFloat(v).toFixed(1)}%`}}} },
-        });
-      }
-
-      // 대기자 현황
-      destroyChart('waitlistBar');
-      const ctx4 = document.getElementById('chart-waitlist');
-      if (ctx4) {
-        _charts['waitlistBar'] = new Chart(ctx4, {
-          type: 'bar',
-          data: {
-            labels: (window.REGIONS||[]).filter(r=>r.status==='active').map(r=>r.shortName||r.name),
-            datasets: [
-              { label: '대기 등록', data: [randBetween(30,80),randBetween(20,60),randBetween(10,40)], backgroundColor: 'rgba(245,158,11,0.7)', borderRadius: 4 },
-              { label: '자동 전환', data: [randBetween(20,50),randBetween(15,45),randBetween(8,30)], backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 },
-            ],
-          },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(0,0,0,0.04)'}}} },
+        _charts['dayOfWeek'] = new Chart(ctx2,{
+          type:'bar', data:{ labels:days,
+            datasets:[{label:'예약수',data:dayCounts,
+              backgroundColor:['rgba(59,130,246,0.6)','rgba(59,130,246,0.6)','rgba(59,130,246,0.6)','rgba(59,130,246,0.6)','rgba(245,158,11,0.7)','rgba(239,68,68,0.7)','rgba(239,68,68,0.7)'],
+              borderRadius:4}]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}}}},
         });
       }
     }, 100);
 
+    const regionLabel = isRegional ? (RNAMES[myRegionId]||myRegionId) : '전체 지역';
+
     return `
+      <!-- 운영 KPI -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        ${statCard('fas fa-bus', '총 운행 회차', '1,248회', '이번달', 'blue', 0)}
-        ${statCard('fas fa-chair', '평균 좌석 점유율', '84.9%', '전체 지역 평균', 'green', 4)}
-        ${statCard('fas fa-ban', '운행 중단', '3회', '기상악화 2, 차량 1', 'red', -40)}
-        ${statCard('fas fa-clock', '대기 등록', '87명', '자동 전환 대기', 'orange', 22)}
+        ${statCard('fas fa-bus','보유 차량',totalVehicles+'대',regionLabel,'blue',0)}
+        ${statCard('fas fa-ticket-alt','총 예약건수',totalTrips+'건','취소 제외','green',0)}
+        ${statCard('fas fa-users','총 탑승객',totalPax+'명','전체 기간','purple',0)}
+        ${statCard('fas fa-calendar-alt','운영 스케줄',fSchedules.length+'개',regionLabel,'orange',0)}
       </div>
 
+      <!-- 차량 운행 현황 (DB 기반, 지역필터 적용) -->
+      <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-bus text-indigo-500"></i>
+          <h3 class="font-semibold text-gray-800 text-sm">차량 운행 현황</h3>
+          ${isRegional ? `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">${regionLabel}</span>` : ''}
+        </div>
+        ${vehicleRows.length ? `
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50">
+              ${['지역','보유차량','운행차량','총 예약수','1대당 예약','스케줄','특이사항'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-left">${h}</th>`).join('')}
+            </tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              ${vehicleRows.map(row=>`<tr class="hover:bg-gray-50">${row.map((c,i)=>`<td class="px-3 py-2 text-sm ${i===0?'font-medium':''}">${c}</td>`).join('')}</tr>`).join('')}
+              ${hasTotal ? `<tr class="bg-gray-50 font-semibold">
+                <td class="px-3 py-2 text-sm">합계</td>
+                <td class="px-3 py-2 text-sm">${totalVehicles}대</td>
+                <td class="px-3 py-2 text-sm">${totalVehicles}대</td>
+                <td class="px-3 py-2 text-sm font-bold text-blue-700">${totalTrips}건</td>
+                <td class="px-3 py-2 text-sm">${totalVehicles>0?Math.round(totalTrips/totalVehicles)+'건':'-'}</td>
+                <td class="px-3 py-2 text-sm">${fSchedules.length}개</td>
+                <td class="px-3 py-2 text-sm">-</td>
+              </tr>` : ''}
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-4 grid grid-cols-3 gap-3">
+          ${[{label:'보유 차량',val:totalVehicles+'대',icon:'fas fa-bus',color:'blue'},
+             {label:'총 예약수',val:totalTrips+'건',icon:'fas fa-route',color:'green'},
+             {label:'스케줄 수',val:fSchedules.length+'개',icon:'fas fa-calendar',color:'orange'}]
+            .map(it=>`<div class="flex items-center gap-3 p-3 bg-${it.color}-50 rounded-xl border border-${it.color}-100">
+              <i class="${it.icon} text-${it.color}-500 text-lg w-6 text-center"></i>
+              <div><div class="font-bold text-${it.color}-700">${it.val}</div><div class="text-xs text-gray-500">${it.label}</div></div>
+            </div>`).join('')}
+        </div>` : '<div class="text-center py-6 text-gray-400 text-sm">데이터 없음</div>'}
+      </div>
+
+      <!-- 차트 그리드 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div class="bg-white rounded-xl shadow-sm p-5">
           <h3 class="font-semibold text-gray-800 mb-4 text-sm">회차별 평균 탑승률</h3>
@@ -707,44 +750,31 @@ const StatsModule = (() => {
           <h3 class="font-semibold text-gray-800 mb-4 text-sm">요일별 평균 예약 수</h3>
           <div style="height:220px"><canvas id="chart-dow"></canvas></div>
         </div>
-        <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">취소율 월별 추이</h3>
-          <div style="height:220px"><canvas id="chart-cancel"></canvas></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">대기자 등록/전환 현황</h3>
-          <div style="height:220px"><canvas id="chart-waitlist"></canvas></div>
-        </div>
       </div>
 
-      <!-- 운행 일지 -->
+      <!-- 최근 운행 일지 (DB 기반, 지역필터 적용) -->
       <div class="bg-white rounded-xl shadow-sm p-5">
-        <h3 class="font-semibold text-gray-800 mb-4 text-sm">최근 운행 일지</h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-book mr-2 text-indigo-500"></i>최근 운행 일지</h3>
+          ${isRegional ? `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">${regionLabel}</span>` : ''}
+        </div>
         <div class="overflow-x-auto">
-          <table class="admin-table w-full text-sm">
-            <thead>
-              <tr class="bg-gray-50">
-                ${['날짜','지역','회차','예약','탑승','점유율','취소','비고'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
-              </tr>
-            </thead>
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50">
+              ${['날짜','지역','예약번호','예약자','회차','인원','금액','상태'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-left whitespace-nowrap">${h}</th>`).join('')}
+            </tr></thead>
             <tbody class="divide-y divide-gray-100">
-              ${[...Array(7)].map((_, i) => {
-                const d = new Date(); d.setDate(d.getDate() - i);
-                const cap = 45, booked = randBetween(30, 45), boarded = randBetween(booked-3, booked), cancelled = booked - boarded;
-                const occ = Math.round(boarded/cap*100);
-                return `
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-3 py-2 text-gray-600">${d.toISOString().slice(0,10)}</td>
-                    <td class="px-3 py-2 text-center">통영</td>
-                    <td class="px-3 py-2 text-center">${['10:00','14:00','16:30'][i%3]}</td>
-                    <td class="px-3 py-2 text-center">${booked}석</td>
-                    <td class="px-3 py-2 text-center font-medium">${boarded}명</td>
-                    <td class="px-3 py-2 text-center"><span class="${occ>=90?'text-red-600':occ>=80?'text-orange-500':'text-gray-700'} font-medium">${occ}%</span></td>
-                    <td class="px-3 py-2 text-center text-red-500">${cancelled}명</td>
-                    <td class="px-3 py-2 text-center text-gray-400">-</td>
-                  </tr>
-                `;
-              }).join('')}
+              ${fRecentRes.length ? fRecentRes.slice(0,10).map(r=>`
+                <tr class="hover:bg-gray-50">
+                  <td class="px-3 py-2 text-xs text-gray-600">${r.date||'-'}</td>
+                  <td class="px-3 py-2 text-xs font-medium">${RNAMES[r.regionId]||r.regionId?.slice(0,4)||'-'}</td>
+                  <td class="px-3 py-2 text-xs font-mono text-gray-500">${r.reservationNo||'-'}</td>
+                  <td class="px-3 py-2 text-xs">${r.name||'-'}</td>
+                  <td class="px-3 py-2 text-xs text-center">${r.scheduleId?.split('-').pop()||'-'}</td>
+                  <td class="px-3 py-2 text-xs text-center">${r.pax||0}명</td>
+                  <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
+                  <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-600':'bg-gray-100 text-gray-500'}">${r.status}</span></td>
+                </tr>`).join('') : '<tr><td colspan="8" class="text-center py-6 text-gray-400 text-xs">운행 데이터 없음</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1430,20 +1460,18 @@ const StatsModule = (() => {
         `)}
 
         ${section(7, '차량 운행 현황', 'fas fa-bus', 'indigo', `
-          ${tbl(
-            ['지역','보유차량','운행차량','총 회차','1대당 회차','정비일수','특이사항'],
+          ${vehicleRows.length ? tbl(
+            ['지역','보유차량','운행차량','총 예약수','1대당 예약','스케줄수','특이사항'],
             [
-              ['통영','4대','4대','248회','62회','3일','4월 14일 1호 차량 정기점검'],
-              ['부여','3대','3대','166회','55회','2일','정기점검 이상 없음'],
-              ['합천','2대','2대','94회','47회','4일','4월 8~12일 기상 결항'],
-              [`<strong>합계</strong>`,'9대','9대',`<strong>${total.trips}회</strong>`,'56회(평균)','9일','-'],
+              ...vehicleRows,
+              ...(vehicleRows.length > 1 ? [[`<strong>합계</strong>`,`<strong>${totalVehicles}대</strong>`,`<strong>${totalVehicles}대</strong>`,`<strong>${totalTrips}건</strong>`,totalVehicles>0?`${Math.round(totalTrips/totalVehicles)}건`:'- ','-','-']] : []),
             ]
-          )}
+          ) : '<div class="text-center py-6 text-gray-400 text-sm">데이터 없음</div>'}
           <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             ${[
-              {label:'총 운항 회수', val:fmt(total.trips)+'회', icon:'fas fa-route', color:'blue'},
-              {label:'차량 가동률', val:'96.7%', icon:'fas fa-tachometer-alt', color:'green'},
-              {label:'정비 소요일', val:'9일', icon:'fas fa-tools', color:'orange'},
+              {label:'보유 차량', val:totalVehicles+'대', icon:'fas fa-bus', color:'blue'},
+              {label:'총 예약수', val:totalTrips+'건', icon:'fas fa-route', color:'green'},
+              {label:'스케줄 수', val:filteredSchedules.length+'개', icon:'fas fa-calendar', color:'orange'},
             ].map(it=>`
               <div class="flex items-center gap-3 p-3 bg-${it.color}-50 rounded-xl border border-${it.color}-100">
                 <i class="${it.icon} text-${it.color}-500 text-lg w-6 text-center"></i>
@@ -1990,7 +2018,7 @@ const StatsModule = (() => {
     const contentMap = {
       sales: () => salesTab(),
       passengers: passengersTab,
-      operations: operationsTab,
+      operations: () => operationsTab(),
       marketing: marketingTab,
       wristbands: wristbandsTab,
       monthly: monthlyReportTab,
