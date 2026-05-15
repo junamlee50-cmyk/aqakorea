@@ -158,50 +158,69 @@ const StatsModule = (() => {
 
   // ── 매출 통계 탭 ───────────────────────────────────────────
   const salesTab = async () => {
-    // DB에서 실제 예약 데이터 로드
+    // ── DB /api/stats/overview 로 통합 데이터 로드 ──────────
     const user = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
     const isRegional = user.role === 'regional';
-    let apiUrl = '/api/reservations?limit=1000';
-    if (isRegional && user.regionId) apiUrl += `&regionId=${user.regionId}`;
-    let allRes = [];
+    let overview = {};
     try {
-      const res = await API.get(apiUrl);
-      allRes = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
-    } catch(e) { allRes = []; }
+      const res = await API.get('/api/stats/overview');
+      overview = res.data || {};
+    } catch(e) { overview = {}; }
 
-    // 일별 매출 집계 (최근 30일)
+    // 기본값
+    const RNAMES = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
     const today = new Date();
-    const daily = [...Array(30)].map((_,i) => {
-      const d = new Date(today); d.setDate(d.getDate()-(29-i));
-      const dateStr = d.toISOString().slice(0,10);
-      const dayRes = allRes.filter(r=>r.date===dateStr);
-      return { date: dateStr, value: dayRes.reduce((s,r)=>s+(r.totalPrice||0),0) };
-    });
-
-    // 월별 매출 집계
-    const curYear = today.getFullYear();
-    const monthly = [...Array(12)].map((_,i) => {
-      const monthStr = `${curYear}-${String(i+1).padStart(2,'0')}`;
-      const mRes = allRes.filter(r=>(r.date||'').startsWith(monthStr));
-      return { label: `${i+1}월`, value: mRes.reduce((s,r)=>s+(r.totalPrice||0),0) };
-    });
-
-    // 지역별 매출
-    const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
-    const regionRevenue = regions.map(r => {
-      const rRes = allRes.filter(rv=>rv.regionId===r.id);
-      return {
-        name: r.name?.slice(0,4)||r.id,
-        online: rRes.filter(rv=>rv.channel==='online').reduce((s,rv)=>s+(rv.totalPrice||0),0),
-        offline: rRes.filter(rv=>rv.channel==='onsite').reduce((s,rv)=>s+(rv.totalPrice||0),0),
-      };
-    });
-
     const thisMonth = today.toISOString().slice(0,7);
-    const monthRes = allRes.filter(r=>(r.date||'').startsWith(thisMonth));
-    const totalSales = monthRes.reduce((s,r)=>s+(r.totalPrice||0),0);
-    const totalCount = allRes.length;
+    const regionStats = overview.regionStats || [];
+    const dailyStats  = overview.dailyStats  || [];
+    const monthlyStats = overview.monthlyStats || [];
+    const cancelTrend  = overview.cancelTrend  || [];
+    const repeatCustomers = overview.repeatCustomers || [];
+    const recentRes   = overview.recentReservations || [];
 
+    const monthRevenue   = isRegional
+      ? (regionStats.find(r=>r.id===user.regionId)||{}).revenue || 0
+      : (overview.month?.revenue || 0);
+    const monthCount     = isRegional
+      ? (regionStats.find(r=>r.id===user.regionId)||{}).reservations || 0
+      : (overview.month?.reservations || 0);
+    const totalCount     = isRegional
+      ? (regionStats.find(r=>r.id===user.regionId)||{}).reservations || 0
+      : (overview.total?.reservations || 0);
+    const totalRevenue   = overview.total?.revenue || 0;
+    const prevMonthRev   = overview.prevMonth?.revenue || 0;
+    const cancelRate     = overview.cancelRate || 0;
+    const monthlyGoal    = overview.monthlyGoal || 0;
+    const growthRate     = prevMonthRev > 0
+      ? Math.round((monthRevenue - prevMonthRev) / prevMonthRev * 100)
+      : 0;
+    const goalPct        = monthlyGoal > 0
+      ? Math.min(100, Math.round(monthRevenue / monthlyGoal * 100))
+      : 0;
+
+    // 지역별 매출 차트용 데이터
+    const chartRegions = isRegional
+      ? regionStats.filter(r=>r.id===user.regionId)
+      : regionStats;
+
+    // 일별 매출 (최근 30일 채우기)
+    const dailyMap = {};
+    dailyStats.forEach(d => dailyMap[d.date] = d);
+    const daily30 = [...Array(30)].map((_,i) => {
+      const d = new Date(today); d.setDate(d.getDate()-(29-i));
+      const ds = d.toISOString().slice(0,10);
+      return { date: ds, value: dailyMap[ds]?.revenue || 0 };
+    });
+
+    // 월별 매출 (올해 12개월)
+    const monthMap = {};
+    monthlyStats.forEach(m => monthMap[m.month] = m);
+    const monthly12 = [...Array(12)].map((_,i) => {
+      const mm = String(i+1).padStart(2,'0');
+      return { label: `${i+1}월`, value: monthMap[mm]?.revenue || 0 };
+    });
+
+    // 차트 초기화 (setTimeout으로 DOM 렌더 후)
     setTimeout(() => {
       // 일별 매출 차트
       destroyChart('dailySales');
@@ -210,20 +229,20 @@ const StatsModule = (() => {
         _charts['dailySales'] = new Chart(ctx1, {
           type: 'line',
           data: {
-            labels: daily.map(d => d.date.slice(5)),
+            labels: daily30.map(d => d.date.slice(5)),
             datasets: [{
               label: '일별 매출',
-              data: daily.map(d => d.value),
+              data: daily30.map(d => d.value),
               backgroundColor: COLORS.blue.bg,
               borderColor: COLORS.blue.border,
               borderWidth: 2, fill: true,
+              tension: 0.3,
             }],
           },
           options: {
-            ...baseLineOpts('일별 매출').options,
-            plugins: { ...baseLineOpts().options.plugins, tooltip: {
-              callbacks: { label: ctx => `₩${ctx.raw.toLocaleString()}` },
-            }},
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend:{display:false}, tooltip:{callbacks:{label:ctx=>`₩${ctx.raw.toLocaleString()}`}} },
+            scales: { x:{grid:{display:false},ticks:{maxTicksLimit:7,font:{size:10}}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},callback:v=>`₩${(v/10000).toFixed(0)}만`}} },
           },
         });
       }
@@ -235,72 +254,116 @@ const StatsModule = (() => {
         _charts['monthlySales'] = new Chart(ctx2, {
           type: 'bar',
           data: {
-            labels: monthly.map(d => d.label),
+            labels: monthly12.map(d => d.label),
             datasets: [{
               label: '월별 매출',
-              data: monthly.map(d => d.value),
-              backgroundColor: monthly.map((d, i) => i === new Date().getMonth() ? COLORS.blue.border : COLORS.blue.bg),
+              data: monthly12.map(d => d.value),
+              backgroundColor: monthly12.map((_,i) => i===today.getMonth() ? COLORS.blue.border : COLORS.blue.bg),
               borderColor: COLORS.blue.border,
               borderWidth: 1, borderRadius: 4,
             }],
           },
           options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `₩${ctx.raw.toLocaleString()}` } } },
-            scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(0,0,0,0.04)' } } },
+            plugins: { legend:{display:false}, tooltip:{callbacks:{label:ctx=>`₩${ctx.raw.toLocaleString()}`}} },
+            scales: { x:{grid:{display:false}}, y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{callback:v=>`₩${(v/10000).toFixed(0)}만`}} },
           },
         });
       }
 
-      // 지역별 매출 비교 차트
+      // 지역별 매출 차트
       destroyChart('regionSales');
       const ctx3 = document.getElementById('chart-region-sales');
-      if (ctx3) {
+      if (ctx3 && chartRegions.length) {
         _charts['regionSales'] = new Chart(ctx3, {
           type: 'bar',
           data: {
-            labels: regionRevenue.map(r => r.name),
+            labels: chartRegions.map(r => r.short_name||r.name?.slice(0,4)||r.id),
             datasets: [
-              { label: '온라인', data: regionRevenue.map(r => r.online), backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 4 },
-              { label: '현장', data: regionRevenue.map(r => r.offline), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 },
+              { label:'온라인', data:chartRegions.map(r=>r.online_count||0), backgroundColor:'rgba(59,130,246,0.7)', borderRadius:4 },
+              { label:'현장', data:chartRegions.map(r=>r.onsite_count||0), backgroundColor:'rgba(16,185,129,0.7)', borderRadius:4 },
             ],
           },
           options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: ctx => `₩${ctx.raw.toLocaleString()}` } } },
-            scales: { x: { stacked: false }, y: { stacked: false } },
+            responsive:true, maintainAspectRatio:false,
+            plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw}건`}}},
+            scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(0,0,0,0.04)'}}},
           },
         });
       }
 
-      // 결제수단별 파이 차트
-      destroyChart('paymentPie');
-      const ctx4 = document.getElementById('chart-payment-pie');
-      if (ctx4) {
-        _charts['paymentPie'] = new Chart(ctx4, {
-          type: 'doughnut',
+      // 취소율 추이 차트
+      destroyChart('cancelTrend');
+      const ctx4 = document.getElementById('chart-cancel-trend');
+      if (ctx4 && cancelTrend.length) {
+        _charts['cancelTrend'] = new Chart(ctx4, {
+          type: 'line',
           data: {
-            labels: ['신용카드', '간편결제', '가상계좌', '계좌이체', '무료'],
-            datasets: [{ data: [55, 28, 8, 6, 3], backgroundColor: COLORS.PIE, hoverOffset: 4 }],
+            labels: cancelTrend.map(d=>d.month),
+            datasets: [{
+              label:'취소율(%)',
+              data: cancelTrend.map(d=>d.cancel_rate||0),
+              backgroundColor: COLORS.red.bg, borderColor: COLORS.red.border,
+              borderWidth:2, fill:true, tension:0.3,
+            }],
           },
           options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
-            cutout: '65%',
+            responsive:true, maintainAspectRatio:false,
+            plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw}%`}}},
+            scales:{x:{grid:{display:false}},y:{min:0,max:100,ticks:{callback:v=>`${v}%`}}},
           },
+        });
+      }
+
+      // 목표 달성률 차트 (도넛)
+      destroyChart('goalChart');
+      const ctx5 = document.getElementById('chart-goal');
+      if (ctx5 && monthlyGoal > 0) {
+        _charts['goalChart'] = new Chart(ctx5, {
+          type: 'doughnut',
+          data: {
+            labels: ['달성','미달성'],
+            datasets:[{ data:[goalPct, 100-goalPct], backgroundColor:['#3b82f6','#e5e7eb'], borderWidth:0 }],
+          },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw}%`}}} },
         });
       }
     }, 100);
 
-
     return `
-      <!-- KPI 카드 -->
+      <!-- KPI 카드 (클릭 가능) -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        ${statCard('fas fa-won-sign', '이번달 총 매출', `₩${totalSales.toLocaleString()}`, `${thisMonth}`, 'blue', 0, "StatsModule.showKpiDetail('monthly-sales')")}
-        ${statCard('fas fa-calendar-day', '일 평균 매출', `₩${Math.round(totalSales/30).toLocaleString()}`, '최근 30일 기준', 'green', 0, "StatsModule.showKpiDetail('daily-avg')")}
-        ${statCard('fas fa-ticket-alt', '이번달 예약', `${monthRes.length}건`, '취소 제외', 'purple', 0, "StatsModule.showKpiDetail('monthly-reservations')")}
-        ${statCard('fas fa-ticket-alt', '총 결제 건수', `${totalCount}건`, '전체 기간', 'orange', 0, "StatsModule.showKpiDetail('total-count')")}
+        ${statCard('fas fa-won-sign','이번달 총 매출',`₩${monthRevenue.toLocaleString()}`,`${thisMonth} · 전월比 ${growthRate>=0?'+':''}${growthRate}%`,'blue',growthRate,"StatsModule.showKpiDetail('monthly-sales')")}
+        ${statCard('fas fa-calendar-day','일 평균 매출',`₩${Math.round(monthRevenue/new Date().getDate()).toLocaleString()}`,'오늘까지 기준','green',0,"StatsModule.showKpiDetail('daily-avg')")}
+        ${statCard('fas fa-ticket-alt','이번달 예약',`${monthCount}건`,'취소 제외','purple',0,"StatsModule.showKpiDetail('monthly-reservations')")}
+        ${statCard('fas fa-ticket-alt','총 결제 건수',`${totalCount}건`,'전체 기간','orange',0,"StatsModule.showKpiDetail('total-count')")}
       </div>
+
+      ${/* 목표 달성률 바 */ monthlyGoal > 0 ? `
+      <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-bullseye text-blue-500"></i>
+            <span class="font-semibold text-gray-800 text-sm">이번달 목표 달성률</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-600">₩${monthRevenue.toLocaleString()} / ₩${monthlyGoal.toLocaleString()}</span>
+            <span class="font-bold text-lg ${goalPct>=100?'text-green-600':goalPct>=70?'text-blue-600':'text-orange-500'}">${goalPct}%</span>
+            <button onclick="StatsModule.setGoal()" class="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-0.5">목표수정</button>
+          </div>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-3">
+          <div class="h-3 rounded-full transition-all ${goalPct>=100?'bg-green-500':goalPct>=70?'bg-blue-500':'bg-orange-400'}"
+            style="width:${goalPct}%"></div>
+        </div>
+        <div class="flex justify-between text-xs text-gray-400 mt-1">
+          <span>₩0</span><span>목표: ₩${(monthlyGoal/10000).toFixed(0)}만</span>
+        </div>
+      </div>` : `
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+        <div class="text-sm text-blue-700"><i class="fas fa-bullseye mr-2"></i>이번달 매출 목표를 설정하면 달성률을 추적할 수 있습니다.</div>
+        <button onclick="StatsModule.setGoal()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-blue-700">목표 설정</button>
+      </div>`}
 
       <!-- 차트 그리드 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -313,61 +376,66 @@ const StatsModule = (() => {
           <div style="height:220px"><canvas id="chart-monthly-sales"></canvas></div>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">지역별 매출 비교 (온라인/현장)</h3>
+          <h3 class="font-semibold text-gray-800 mb-4 text-sm">지역별 온라인/현장 예약 현황</h3>
           <div style="height:220px"><canvas id="chart-region-sales"></canvas></div>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">결제수단별 비중</h3>
-          <div style="height:220px"><canvas id="chart-payment-pie"></canvas></div>
+          <h3 class="font-semibold text-gray-800 mb-4 text-sm">취소율 추이 (최근 6개월)</h3>
+          <div style="height:220px"><canvas id="chart-cancel-trend"></canvas></div>
         </div>
       </div>
 
-      <!-- 요금별 매출 테이블 -->
-      <div class="bg-white rounded-xl shadow-sm p-5">
-        <h3 class="font-semibold text-gray-800 mb-4 text-sm">요금 종류별 매출 (이번달)</h3>
-        <div class="overflow-x-auto">
-          <table class="admin-table w-full text-sm">
-            <thead>
-              <tr class="bg-gray-50">
-                ${['요금 구분','판매량','단가','소계','비중'].map(h=>`<th class="px-4 py-2 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              ${[
-                {label:'성인', qty: randBetween(1800,2400), price:35000},
-                {label:'청소년', qty: randBetween(400,600), price:30000},
-                {label:'어린이', qty: randBetween(300,500), price:25000},
-                {label:'경로', qty: randBetween(150,250), price:30000},
-                {label:'단체', qty: randBetween(200,400), price:30000},
-                {label:'장애인', qty: randBetween(30,80), price:18000},
-                {label:'국가유공자', qty: randBetween(20,50), price:18000},
-                {label:'유아', qty: randBetween(50,100), price:0},
-              ].map(r => {
-                const sub = r.qty * r.price;
-                const pct = r.price ? ((sub / 120000000)*100).toFixed(1) : '0';
-                return `
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 font-medium">${r.label}</td>
-                    <td class="px-4 py-2 text-center">${r.qty.toLocaleString()}명</td>
-                    <td class="px-4 py-2 text-center">₩${r.price.toLocaleString()}</td>
-                    <td class="px-4 py-2 text-right font-medium">₩${sub.toLocaleString()}</td>
-                    <td class="px-4 py-2 text-center">
-                      <div class="flex items-center gap-2">
-                        <div class="flex-1 bg-gray-200 rounded-full h-1.5">
-                          <div class="bg-blue-500 h-1.5 rounded-full" style="width:${Math.min(parseFloat(pct)*2,100)}%"></div>
-                        </div>
-                        <span class="text-xs text-gray-500 w-10">${pct}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
+      <!-- 인사이트 카드 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <!-- 취소율 요약 -->
+        <div class="bg-white rounded-xl shadow-sm p-5 cursor-pointer hover:shadow-md transition-shadow" onclick="StatsModule.showKpiDetail('cancel-trend')">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-ban mr-2 text-red-400"></i>취소율</h3>
+            <span class="text-xs text-gray-400 hover:text-blue-600">상세보기 →</span>
+          </div>
+          <div class="text-3xl font-bold ${cancelRate>20?'text-red-500':cancelRate>10?'text-orange-500':'text-green-600'}">${cancelRate}%</div>
+          <div class="text-xs text-gray-500 mt-1">전체 예약 대비 취소/환불 비율</div>
+          <div class="mt-3 w-full bg-gray-100 rounded-full h-2">
+            <div class="h-2 rounded-full ${cancelRate>20?'bg-red-400':cancelRate>10?'bg-orange-400':'bg-green-400'}" style="width:${Math.min(cancelRate,100)}%"></div>
+          </div>
+        </div>
+
+        <!-- 반복 고객 -->
+        <div class="bg-white rounded-xl shadow-sm p-5 cursor-pointer hover:shadow-md transition-shadow" onclick="StatsModule.showKpiDetail('repeat-customers')">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-heart mr-2 text-pink-400"></i>재방문 고객</h3>
+            <span class="text-xs text-gray-400 hover:text-blue-600">상세보기 →</span>
+          </div>
+          <div class="text-3xl font-bold text-pink-600">${repeatCustomers.length}명</div>
+          <div class="text-xs text-gray-500 mt-1">2회 이상 예약한 충성 고객</div>
+          <div class="mt-3 space-y-1">
+            ${repeatCustomers.slice(0,3).map(c=>`
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-700">${c.name} (${(c.phone||'').slice(-4)})</span>
+                <span class="font-medium text-pink-600">${c.visit_count}회</span>
+              </div>`).join('') || '<div class="text-xs text-gray-400">데이터 없음</div>'}
+          </div>
+        </div>
+
+        <!-- 지역별 객단가 -->
+        <div class="bg-white rounded-xl shadow-sm p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-user-tag mr-2 text-purple-400"></i>지역별 평균 객단가</h3>
+          </div>
+          <div class="space-y-2">
+            ${(isRegional ? regionStats.filter(r=>r.id===user.regionId) : regionStats).map(r=>`
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-600 w-12 shrink-0">${r.short_name||RNAMES[r.id]||r.id?.slice(0,4)}</span>
+                <div class="flex-1 bg-gray-100 rounded-full h-2">
+                  <div class="h-2 rounded-full bg-purple-400" style="width:${Math.min(100,Math.round((r.avg_per_pax||0)/500))}%"></div>
+                </div>
+                <span class="text-xs font-medium text-purple-700 w-20 text-right">₩${(r.avg_per_pax||0).toLocaleString()}</span>
+              </div>`).join('') || '<div class="text-xs text-gray-400">데이터 없음</div>'}
+          </div>
         </div>
       </div>
 
-      <!-- 실시간 예약 현황 테이블 -->
+      <!-- 최근 예약 현황 -->
       <div class="bg-white rounded-xl shadow-sm p-5">
         <div class="flex items-center justify-between mb-4">
           <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-list mr-2 text-blue-500"></i>최근 예약 현황</h3>
@@ -376,18 +444,24 @@ const StatsModule = (() => {
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead><tr class="bg-gray-50">
-              ${['날짜','예약번호','예약자','지역','금액','상태'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+              ${['날짜','예약번호','예약자','지역','인원','금액','채널','상태'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left whitespace-nowrap">${h}</th>`).join('')}
             </tr></thead>
             <tbody>
-              ${allRes.length ? allRes.slice(-10).reverse().map(r=>`
+              ${recentRes.length ? recentRes.map(r=>`
                 <tr class="border-b hover:bg-gray-50">
                   <td class="px-3 py-2 text-xs text-gray-600">${r.date||'-'}</td>
                   <td class="px-3 py-2 text-xs font-mono text-gray-500">${r.reservationNo||'-'}</td>
-                  <td class="px-3 py-2 text-xs">${r.name||'-'}</td>
-                  <td class="px-3 py-2 text-xs text-center">${{'tongyeong':'통영','buyeo':'부여','hapcheon':'합천'}[r.regionId]||r.regionId||'-'}</td>
+                  <td class="px-3 py-2 text-xs font-medium">${r.name||'-'}</td>
+                  <td class="px-3 py-2 text-xs text-center">${RNAMES[r.regionId]||r.regionId?.slice(0,4)||'-'}</td>
+                  <td class="px-3 py-2 text-xs text-center">${r.pax||0}명</td>
                   <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
-                  <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}">${r.status}</span></td>
-                </tr>`).join('') : '<tr><td colspan="6" class="text-center py-4 text-gray-400 text-xs">데이터 없음</td></tr>'}
+                  <td class="px-3 py-2 text-xs text-center">
+                    <span class="px-1.5 py-0.5 rounded text-xs ${r.channel==='onsite'?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700'}">${r.channel==='onsite'?'현장':'온라인'}</span>
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    <span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-600':'bg-gray-100 text-gray-500'}">${r.status}</span>
+                  </td>
+                </tr>`).join('') : '<tr><td colspan="8" class="text-center py-6 text-gray-400 text-xs">예약 데이터 없음</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -395,7 +469,7 @@ const StatsModule = (() => {
     `;
   };
 
-  // ── 승객 통계 탭 ───────────────────────────────────────────
+
   const passengersTab = () => {
     const daily = genDailyData(30, 350);
 
@@ -2017,84 +2091,108 @@ ${statsArea.innerHTML}
     }
   };
 
-  // KPI 카드 클릭 → 상세 모달
+  // KPI 카드 클릭 → 상세 모달 (DB 기반)
   const showKpiDetail = async (type) => {
-    const res = await API.get('/api/reservations?limit=500');
-    const allRes = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
-    const RNAMES={tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
-    const thisMonth = new Date().toISOString().slice(0,7);
-    const todayStr = new Date().toISOString().slice(0,10);
-    const monthRes = allRes.filter(r=>(r.date||'').startsWith(thisMonth));
+    const RNAMES = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
+    let title = '', tableHtml = '';
 
-    let title='', tableHtml='';
+    if (type === 'monthly-sales' || type === 'daily-avg') {
+      const res = await API.get(`/api/stats/kpi/monthly-sales`);
+      const rows = res.data?.rows || [];
+      const total = res.data?.total || 0;
+      title = '이번달 매출 상세';
+      const rhtml = rows.map(r=>`<tr class="border-b hover:bg-gray-50">
+        <td class="px-3 py-2 text-xs">${r.date}</td>
+        <td class="px-3 py-2 text-xs font-mono">${r.reservation_no||'-'}</td>
+        <td class="px-3 py-2 text-xs">${r.name||'-'}</td>
+        <td class="px-3 py-2 text-xs text-center">${RNAMES[r.region_id]||r.region_id?.slice(0,4)||'-'}</td>
+        <td class="px-3 py-2 text-xs text-center"><span class="px-1.5 py-0.5 rounded text-xs ${r.channel==='onsite'?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700'}">${r.channel==='onsite'?'현장':'온라인'}</span></td>
+        <td class="px-3 py-2 text-xs text-right font-semibold text-blue-700">₩${(r.total_price||0).toLocaleString()}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="text-center py-4 text-gray-400 text-xs">데이터 없음</td></tr>';
+      tableHtml = `<div class="mb-3 flex justify-between items-center">
+        <span class="text-sm text-gray-500">${rows.length}건</span>
+        <span class="font-bold text-blue-700">합계: ₩${total.toLocaleString()}</span>
+      </div>
+      <table class="w-full text-sm"><thead class="bg-gray-50"><tr>
+        ${['날짜','예약번호','예약자','지역','채널','금액'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+      </tr></thead><tbody>${rhtml}</tbody></table>`;
 
-    if (type==='monthly-sales') {
-      title = `이번달 매출 상세 (${thisMonth})`;
-      const rows = monthRes.map(r=>`<tr class="hover:bg-gray-50 border-b">
-        <td class="px-3 py-2 text-sm">${r.date}</td>
-        <td class="px-3 py-2 text-sm">${r.reservationNo}</td>
-        <td class="px-3 py-2 text-sm">${r.name}</td>
-        <td class="px-3 py-2 text-sm text-center">${RNAMES[r.regionId]||r.regionId}</td>
-        <td class="px-3 py-2 text-sm text-center">${r.channel==='onsite'?'현장':'온라인'}</td>
-        <td class="px-3 py-2 text-sm text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
-      </tr>`).join('');
-      const total = monthRes.reduce((s,r)=>s+(r.totalPrice||0),0);
-      tableHtml = `<div class="mb-3 text-right font-bold text-blue-700">합계: ₩${total.toLocaleString()}</div>
-        <table class="w-full text-sm"><thead class="bg-gray-50">
-          <tr>${['날짜','예약번호','예약자','지역','채널','금액'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
-        </thead><tbody>${rows}</tbody></table>`;
-    } else if (type==='daily-avg') {
-      title = '일별 매출 현황 (최근 30일)';
-      const today = new Date();
-      const daily = [...Array(30)].map((_,i)=>{
-        const d=new Date(today); d.setDate(d.getDate()-(29-i));
-        const ds=d.toISOString().slice(0,10);
-        const dr=allRes.filter(r=>r.date===ds);
-        return {date:ds,total:dr.reduce((s,r)=>s+(r.totalPrice||0),0),count:dr.length};
-      }).reverse();
-      const rows = daily.filter(d=>d.total>0||d.count>0).map(d=>`<tr class="hover:bg-gray-50 border-b">
-        <td class="px-3 py-2 text-sm">${d.date}</td>
-        <td class="px-3 py-2 text-sm text-center">${d.count}건</td>
-        <td class="px-3 py-2 text-sm text-right font-medium text-blue-700">₩${d.total.toLocaleString()}</td>
-      </tr>`).join('') || '<tr><td colspan="3" class="text-center py-4 text-gray-400">해당 기간 데이터 없음</td></tr>';
-      tableHtml = `<table class="w-full text-sm"><thead class="bg-gray-50">
-        <tr>${['날짜','예약수','매출'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
-      </thead><tbody>${rows}</tbody></table>`;
-    } else if (type==='monthly-reservations') {
+    } else if (type === 'monthly-reservations') {
+      const res = await API.get('/api/reservations?limit=500');
+      const thisMonth = new Date().toISOString().slice(0,7);
+      const rows = (res.data||[]).filter(r=>(r.date||'').startsWith(thisMonth)&&r.status!=='cancelled');
       title = `이번달 예약 목록 (${thisMonth})`;
-      const rows = monthRes.map(r=>`<tr class="hover:bg-gray-50 border-b">
-        <td class="px-3 py-2 text-sm">${r.date}</td>
-        <td class="px-3 py-2 text-sm font-mono text-xs">${r.reservationNo}</td>
-        <td class="px-3 py-2 text-sm">${r.name}</td>
-        <td class="px-3 py-2 text-sm text-center">${RNAMES[r.regionId]||r.regionId}</td>
-        <td class="px-3 py-2 text-sm text-center">${r.adults||0}/${r.children||0}</td>
-        <td class="px-3 py-2 text-sm text-right">₩${(r.totalPrice||0).toLocaleString()}</td>
-        <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-600'}">${r.status}</span></td>
-      </tr>`).join('') || '<tr><td colspan="7" class="text-center py-4 text-gray-400">예약 없음</td></tr>';
-      tableHtml = `<table class="w-full text-sm"><thead class="bg-gray-50">
-        <tr>${['날짜','예약번호','예약자','지역','성인/소아','금액','상태'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
-      </thead><tbody>${rows}</tbody></table>`;
-    } else if (type==='total-count') {
-      title = '전체 결제 현황';
-      const byRegion = {};
-      allRes.forEach(r=>{ const k=RNAMES[r.regionId]||r.regionId||'기타'; if(!byRegion[k])byRegion[k]={count:0,total:0}; byRegion[k].count++; byRegion[k].total+=(r.totalPrice||0); });
-      const rows = Object.entries(byRegion).map(([name,v])=>`<tr class="hover:bg-gray-50 border-b">
-        <td class="px-3 py-2 text-sm font-medium">${name}</td>
-        <td class="px-3 py-2 text-sm text-center">${v.count}건</td>
-        <td class="px-3 py-2 text-sm text-right font-bold text-blue-700">₩${v.total.toLocaleString()}</td>
+      const rhtml = rows.map(r=>`<tr class="border-b hover:bg-gray-50">
+        <td class="px-3 py-2 text-xs">${r.date}</td>
+        <td class="px-3 py-2 text-xs font-mono text-gray-500">${r.reservationNo||'-'}</td>
+        <td class="px-3 py-2 text-xs font-medium">${r.name||'-'}</td>
+        <td class="px-3 py-2 text-xs text-center">${RNAMES[r.regionId]||r.regionId?.slice(0,4)||'-'}</td>
+        <td class="px-3 py-2 text-xs text-center">${r.adults||0}/${r.children||0}</td>
+        <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
+        <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}">${r.status}</span></td>
+      </tr>`).join('') || '<tr><td colspan="7" class="text-center py-4 text-gray-400 text-xs">예약 없음</td></tr>';
+      tableHtml = `<div class="mb-3 text-sm text-gray-500">${rows.length}건 · 취소 제외</div>
+        <table class="w-full text-sm"><thead class="bg-gray-50"><tr>
+          ${['날짜','예약번호','예약자','지역','성인/소아','금액','상태'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+        </tr></thead><tbody>${rhtml}</tbody></table>`;
+
+    } else if (type === 'total-count') {
+      const res = await API.get('/api/stats/kpi/total-count');
+      const byRegion = res.data?.byRegion || [];
+      const total = res.data?.total || {};
+      title = '전체 결제 현황 (지역별)';
+      const rhtml = byRegion.map(r=>`<tr class="border-b hover:bg-gray-50">
+        <td class="px-3 py-2 text-sm font-medium">${RNAMES[r.region_id]||r.region_id?.slice(0,6)||'-'}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.count}건</td>
+        <td class="px-3 py-2 text-sm text-right font-bold text-blue-700">₩${(r.revenue||0).toLocaleString()}</td>
       </tr>`).join('');
-      const totalAll = allRes.reduce((s,r)=>s+(r.totalPrice||0),0);
-      tableHtml = `<div class="mb-3 text-right font-bold text-blue-700">총계: ₩${totalAll.toLocaleString()} (${allRes.length}건)</div>
-        <table class="w-full text-sm"><thead class="bg-gray-50">
-          <tr>${['지역','예약건수','총 매출'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
-        </thead><tbody>${rows}</tbody></table>`;
+      tableHtml = `<div class="mb-3 flex justify-between items-center font-bold">
+        <span class="text-gray-700">총 ${total.cnt||0}건</span>
+        <span class="text-blue-700">₩${(total.rev||0).toLocaleString()}</span>
+      </div>
+      <table class="w-full text-sm"><thead class="bg-gray-50"><tr>
+        ${['지역','예약건수','총 매출'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+      </tr></thead><tbody>${rhtml}</tbody></table>`;
+
+    } else if (type === 'repeat-customers') {
+      const res = await API.get('/api/stats/kpi/repeat-customers');
+      const rows = res.data?.rows || [];
+      title = '재방문 충성 고객 목록';
+      const rhtml = rows.map((r,i)=>`<tr class="border-b hover:bg-gray-50">
+        <td class="px-3 py-2 text-xs text-gray-500 text-center">${i+1}</td>
+        <td class="px-3 py-2 text-xs font-medium">${r.name||'-'}</td>
+        <td class="px-3 py-2 text-xs text-gray-500">${(r.phone||'').replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3')}</td>
+        <td class="px-3 py-2 text-xs text-center font-bold text-pink-600">${r.visit_count}회</td>
+        <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.total_spent||0).toLocaleString()}</td>
+        <td class="px-3 py-2 text-xs text-gray-400">${r.first_visit||'-'} ~ ${r.last_visit||'-'}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="text-center py-4 text-gray-400 text-xs">재방문 고객 없음</td></tr>';
+      tableHtml = `<div class="mb-3 text-sm text-gray-500">${rows.length}명 · 2회 이상 예약 기준</div>
+        <table class="w-full text-sm"><thead class="bg-gray-50"><tr>
+          ${['#','이름','연락처','방문횟수','총 결제금액','기간'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+        </tr></thead><tbody>${rhtml}</tbody></table>`;
+
+    } else if (type === 'cancel-trend') {
+      const res = await API.get('/api/stats/kpi/cancel-trend');
+      const rows = res.data?.rows || [];
+      title = '취소율 월별 추이';
+      const rhtml = rows.map(r=>`<tr class="border-b hover:bg-gray-50">
+        <td class="px-3 py-2 text-sm">${r.month}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.total}건</td>
+        <td class="px-3 py-2 text-sm text-center text-red-500">${r.cancelled}건</td>
+        <td class="px-3 py-2 text-sm text-center">
+          <span class="font-bold ${r.cancel_rate>20?'text-red-500':r.cancel_rate>10?'text-orange-500':'text-green-600'}">${r.cancel_rate}%</span>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="4" class="text-center py-4 text-gray-400 text-xs">데이터 없음</td></tr>';
+      tableHtml = `<table class="w-full text-sm"><thead class="bg-gray-50"><tr>
+        ${['월','총예약','취소건','취소율'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+      </tr></thead><tbody>${rhtml}</tbody></table>`;
     }
 
     Utils.modal(`
-      <div class="p-6 max-h-[80vh] overflow-y-auto">
+      <div class="p-6" style="max-height:80vh;overflow-y:auto">
         <div class="flex items-center justify-between mb-4">
           <h3 class="font-bold text-lg text-gray-800">${title}</h3>
-          <button onclick="Utils.closeModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+          <button onclick="Utils.closeModal()" class="text-gray-400 hover:text-gray-600 text-lg"><i class="fas fa-times"></i></button>
         </div>
         <div class="overflow-x-auto">${tableHtml}</div>
         <div class="mt-4 flex gap-2 justify-end">
@@ -2107,490 +2205,37 @@ ${statsArea.innerHTML}
     `);
   };
 
-  const generateReport = (type, btnEl, settings = {}) => {
-    const labels = {
-      monthly: '월간 운영보고서', quarterly: '분기별 실적보고서',
-      settlement: '정산 확인서', passengers: '승객 현황보고서',
-      seo: 'SEO 성과보고서', safety: '안전 운행 보고서', custom: '맞춤 보고서',
-    };
-    const label = labels[type] || '보고서';
-
-    // 권한 체크
-    const user = Store.get('adminUser') || {};
-    const role = user.role || '';
-    const regionId = user.regionId || null;
-
-    if (role === 'regional' && type === 'settlement' && !regionId) {
-      Utils.toast('접근 권한이 없습니다.', 'error');
-      return;
-    }
-
-    if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>생성 중...'; }
-    Utils.toast(`${label} 생성 중...`, 'info');
-
-    setTimeout(() => {
-      try {
-        const now = new Date();
-        const ts = now.toISOString().replace('T', ' ').slice(0, 19);
-
-        // ── 보고기간: settings 우선 → DOM fallback ──────────
-        const rptStart = settings?.startDate
-          || document.getElementById('rpt-start-date')?.value || '';
-        const rptEnd   = settings?.endDate
-          || document.getElementById('rpt-end-date')?.value   || '';
-        const hasRange = rptStart && rptEnd;
-        // 기간이 없으면 현재 월 기준
-        const yyyy = hasRange ? rptStart.slice(0,4) : String(now.getFullYear());
-        const mm   = hasRange ? rptStart.slice(5,7) : String(now.getMonth()+1).padStart(2,'0');
-        const periodLabel = hasRange
-          ? `${rptStart} ~ ${rptEnd}`
-          : `${yyyy}-${mm}`;
-        const filename = `aqua_${type}_report_${hasRange ? `${rptStart}_${rptEnd}` : `${yyyy}_${mm}`}.csv`;
-
-        // ── 권한별 지역 결정 ─────────────────────────────────
-        const allRegions = (window.REGIONS || []).filter(r => r.status !== 'hidden');
-        const targetRegions = (role === 'regional' && regionId)
-          ? allRegions.filter(r => r.id === regionId)
-          : allRegions;
-        const regionNames = targetRegions.map(r => r.shortName || r.name).join(', ') || '전체';
-
-        // ── 공통 헤더 메타 ───────────────────────────────────
-        const headerMeta = [
-          ['아쿠아모빌리티코리아 통합 운영 플랫폼'],
-          [`보고서 종류: ${label}`],
-          [`보고기간: ${periodLabel}`],
-          [`생성일시: ${ts}`],
-          [`대상 지역: ${regionNames}`],
-          [`생성자: ${user.name || '관리자'} (${role})`],
-          [],
-        ];
-
-        // ── MONTHLY_SAMPLE 키 목록 (권한별) ─────────────────
-        const ALL_SAMPLE_KEYS = ['tongyeong','buyeo','hapcheon'];
-        const sampleKeys = (role === 'regional' && regionId && MONTHLY_SAMPLE[regionId])
-          ? [regionId]
-          : ALL_SAMPLE_KEYS;
-
-        // ── 보고서 종류별 데이터 생성 ────────────────────────
-        let rows = [];
-
-        if (type === 'monthly' || type === 'custom') {
-          const sTotal = _calcMonthlyTotal(sampleKeys);
-          rows = [
-            ...headerMeta,
-            // 종합 요약
-            ['=== 종합 요약 ==='],
-            ['지역', '탑승객(명)', '총 매출(원)', '온라인 매출', '현장 매출', '운행횟수', '평균요금', '취소율(%)'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              const cancelRate = ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1);
-              return [
-                r.name, r.totalPax, r.totalSales, r.onlineSales, r.offlineSales,
-                r.trips, Math.round(r.totalSales/r.totalPax), cancelRate+'%',
-              ];
-            }),
-            ...(sampleKeys.length > 1 ? [[
-              '합계', sTotal.totalPax, sTotal.totalSales,
-              sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlineSales,0),
-              sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlineSales,0),
-              sTotal.trips, Math.round(sTotal.totalSales/sTotal.totalPax), '-',
-            ]] : []),
-            [],
-            // 취소/환불 현황
-            ['=== 취소/환불 현황 ==='],
-            ['지역', '취소건수', '취소금액(원)', '환불금액(원)', '취소수수료(원)', '취소율(%)'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              return [
-                r.name, r.cancelCnt, r.cancelAmt, r.refundAmt,
-                r.cancelAmt - r.refundAmt,
-                ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1)+'%',
-              ];
-            }),
-            [],
-            // 손목밴드
-            ['=== 손목밴드 현황 ==='],
-            ['지역', '발급(개)', '재발급(개)', '재발급률(%)'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              return [r.name, r.wristbandIssued, r.wristbandReissued,
-                ((r.wristbandReissued/r.wristbandIssued)*100).toFixed(2)+'%'];
-            }),
-            [],
-            [`※ 보고기간: ${periodLabel} 기준 데이터`],
-          ];
-        } else if (type === 'quarterly') {
-          const qYear = parseInt(yyyy);
-          const qMon  = parseInt(mm);
-          const quarter = Math.ceil(qMon/3);
-          const prevQ   = quarter > 1 ? quarter-1 : 4;
-          const prevQYear = quarter > 1 ? qYear : qYear-1;
-          rows = [
-            ...headerMeta,
-            [`=== ${qYear}년 Q${quarter} 분기 실적 ===`],
-            ['분기', '지역', '탑승객(명)', '총 매출(원)', '전분기 대비', '점유율(%)'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              const growth = (Math.random()*20-5).toFixed(1);
-              const sign = growth>=0?'+':'';
-              return [`${qYear}-Q${quarter}`, r.name, r.totalPax*3, r.totalSales*3, `${sign}${growth}%`, r.avgOccupancy+'%'];
-            }),
-            [],
-            [`=== ${prevQYear}년 Q${prevQ} 전분기 참조 ===`],
-            ['분기', '지역', '탑승객(명)', '총 매출(원)'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              return [`${prevQYear}-Q${prevQ}`, r.name, Math.round(r.totalPax*2.7), Math.round(r.totalSales*2.7)];
-            }),
-            [],
-            [`※ 보고기간: ${periodLabel}`],
-          ];
-        } else if (type === 'settlement') {
-          rows = [
-            ...headerMeta,
-            ['지역', '일자', '온라인 결제(원)', '현장 결제(원)', 'PG 수수료(원)', '정산금액(원)', '정산상태'],
-            ...targetRegions.flatMap(r => {
-              const base = r.id==='tongyeong'?580000 : r.id==='buyeo'?480000 : 380000;
-              return Array.from({length:7},(_,i) => {
-                const d = new Date(rptStart||`${yyyy}-${mm}-01`);
-                d.setDate(d.getDate()+i);
-                const on = base + Math.floor(Math.random()*200000);
-                const off= Math.floor(base*0.3) + Math.floor(Math.random()*80000);
-                const fee= Math.round((on+off)*0.035);
-                return [r.name, d.toISOString().slice(0,10), on, off, fee, on+off-fee, i<2?'처리중':'완료'];
-              });
-            }),
-            [],
-            [`※ PG 수수료 3.5% 기준 / 보고기간: ${periodLabel}`],
-          ];
-        } else if (type === 'passengers') {
-          rows = [
-            ...headerMeta,
-            ['=== 요금 구분별 탑승 현황 ==='],
-            ['지역', '성인', '청소년', '소아', '경로', '단체', '총계'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              const fb = r.fareBreakdown;
-              return [r.name, ...fb.map(f=>f.cnt), r.totalPax];
-            }),
-            [],
-            ['=== 예약 채널 분석 ==='],
-            ['지역', ...MONTHLY_SAMPLE[sampleKeys[0]].channels.map(c=>c.ch)],
-            ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, ...MONTHLY_SAMPLE[k].channels.map(c=>c.pct+'%')]),
-            [],
-            ['=== 고객 만족도 ==='],
-            ['지역', '만족도(5점)', '리뷰 건수'],
-            ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, MONTHLY_SAMPLE[k].satisfaction, MONTHLY_SAMPLE[k].reviewCnt]),
-            [],
-            [`※ 보고기간: ${periodLabel}`],
-          ];
-        } else if (type === 'seo') {
-          rows = [
-            ...headerMeta,
-            ['키워드', '검색순위', '월간 노출', '클릭수', 'CTR', '전환수', '지역'],
-            ...targetRegions.flatMap(r => [
-              [`수륙양용버스 ${r.shortName||r.name}`, '3', '12,400', '1,116', '9.0%', '89', r.name],
-              [`${r.shortName||r.name} 수상투어`, '5', '8,200', '574', '7.0%', '46', r.name],
-            ]),
-            ['아쿠아모빌리티', '1', '5,600', '616', '11.0%', '49', '전체'],
-            [],
-            [`※ 보고기간: ${periodLabel} 기준 샘플 데이터`],
-          ];
-        } else if (type === 'safety') {
-          rows = [
-            ...headerMeta,
-            ['=== 운행 안전 기록 ==='],
-            ['일자', '지역', '운행횟수', '탑승객', '사고건수', '안전점검', '특이사항'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              return [periodLabel, r.name, r.trips, r.totalPax, '0', '완료', r.incidents];
-            }),
-            [],
-            ['=== 기상 영향 현황 ==='],
-            ['지역', '취소일수', '취소회차', '주요원인'],
-            ...sampleKeys.map(k => {
-              const r = MONTHLY_SAMPLE[k];
-              return [r.name, r.weatherCancelDays, r.weatherCancelTrips, '강풍/강우'];
-            }),
-            [],
-            ['안전 체크리스트', '구명조끼 점검', '선체 이상 없음', '운전원 음주 없음', '기상 확인'],
-            ['결과', '양호', '양호', '정상', '운항 가능'],
-            [],
-            [`※ 보고기간: ${periodLabel}`],
-          ];
-        } else {
-          rows = [
-            ...headerMeta,
-            ['=== 맞춤 보고서 ==='],
-            ['항목', '내용'],
-            ['보고기간', periodLabel],
-            ['대상 지역', regionNames],
-            ['총 탑승객', _calcMonthlyTotal(sampleKeys).totalPax+'명'],
-            ['총 매출', '₩'+_calcMonthlyTotal(sampleKeys).totalSales.toLocaleString()],
-            ['총 운항', _calcMonthlyTotal(sampleKeys).trips+'회'],
-            ['상태', '정상 운영'],
-          ];
-        }
-
-        // ── 로그 엔트리 준비 ─────────────────────────────────
-        const logEntry = {
-          adminId: user.id || 'unknown',
-          adminName: user.name || '관리자',
-          role,
-          reportType: type,
-          reportLabel: label,
-          regions: regionNames,
-          period: periodLabel,
-          format: 'CSV',
-          datetime: ts,
-          success: true,
-        };
-
-        // ── 금액 원화 형식 변환 헬퍼 ─────────────────────────
-        const fmtWon = (v) => typeof v === 'number' ? v.toLocaleString('ko-KR') + '원' : v;
-        const fmtCell = (cell) => (typeof cell === 'number' && cell > 9999) ? fmtWon(cell) : cell;
-        const fmtRows = (arr) => arr.map(r => Array.isArray(r) ? r.map(fmtCell) : r);
-
-        // ── 출력 형식 결정 ────────────────────────────────────
-        const fmt = settings?.format || 'csv';
-
-        if (fmt === 'pdf') {
-          // ── PDF: A4 인쇄용 HTML ───────────────────────────
-          const orgName = settings?.orgName || '아쿠아모빌리티코리아';
-          const hasSeal = settings?.seal || false;
-          let tableHtml = '';
-          let inTable = false;
-          const bodyRows = rows.slice(7);
-          for (let i = 0; i < bodyRows.length; i++) {
-            const row = bodyRows[i];
-            if (!Array.isArray(row) || row.length === 0) {
-              if (inTable) { tableHtml += '</tbody></table>'; inTable = false; }
-              continue;
-            }
-            if (row.length === 1) {
-              if (inTable) { tableHtml += '</tbody></table>'; inTable = false; }
-              const txt = String(row[0]);
-              if (txt.startsWith('===')) {
-                tableHtml += `<h3 style="margin:20px 0 8px;font-size:13px;color:#1e3a5f;border-bottom:2px solid #1e3a5f;padding-bottom:4px">${txt.replace(/===/g,'').trim()}</h3>`;
-              } else {
-                tableHtml += `<p style="font-size:11px;color:#666;margin:6px 0">${txt}</p>`;
-              }
-              continue;
-            }
-            if (!inTable) {
-              tableHtml += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:4px"><thead><tr>';
-              row.forEach(h => { tableHtml += `<th style="background:#1e3a5f;color:#fff;padding:5px 8px;text-align:left;white-space:nowrap">${fmtCell(h)}</th>`; });
-              tableHtml += '</tr></thead><tbody>';
-              inTable = true;
-            } else {
-              const bg = (i % 2 === 0) ? '#f8fafc' : '#fff';
-              tableHtml += `<tr style="background:${bg}">`;
-              row.forEach(cell => { tableHtml += `<td style="padding:4px 8px;border-bottom:1px solid #e2e8f0">${fmtCell(cell)}</td>`; });
-              tableHtml += '</tr>';
-            }
-          }
-          if (inTable) tableHtml += '</tbody></table>';
-
-          const reportHtml = `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8">
-<title>${label} — ${periodLabel}</title>
-<style>
-  @page{size:A4;margin:15mm 12mm}
-  body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:12px;color:#1a1a1a;margin:0;padding:0}
-  .cover{text-align:center;padding:40px 0 30px;border-bottom:3px solid #1e3a5f;margin-bottom:24px}
-  .cover h1{font-size:22px;font-weight:900;color:#1e3a5f;margin:0 0 6px}
-  .cover .sub{font-size:13px;color:#555;margin:4px 0}
-  .cover .period{font-size:15px;font-weight:700;color:#0369a1;margin:10px 0 0}
-  table{page-break-inside:auto}tr{page-break-inside:avoid}
-  .seal{border:2px solid #e00;padding:6px 18px;display:inline-block;color:#e00;font-weight:700;transform:rotate(-8deg);margin-top:16px;font-size:13px}
-  .fnote{font-size:10px;color:#888;margin-top:30px;padding-top:8px;border-top:1px solid #ddd}
-  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-</style></head><body>
-<div class="cover">
-  <div style="font-size:11px;color:#888;margin-bottom:8px">AQUA MOBILITY KOREA | 아쿠아모빌리티코리아</div>
-  <h1>${label}</h1>
-  <div class="sub">기관명: ${orgName}</div>
-  <div class="period">보고기간: ${periodLabel}</div>
-  <div class="sub" style="margin-top:8px">대상 지역: ${regionNames} &nbsp;|&nbsp; 생성자: ${user.name||'관리자'} (${role})</div>
-  <div class="sub">생성일시: ${ts}</div>
-  ${hasSeal ? '<div class="seal">전자서명 완료<br>' + orgName + '</div>' : ''}
-</div>
-${tableHtml}
-<div class="fnote">※ 본 보고서는 아쿠아모빌리티코리아 통합 운영 플랫폼에서 자동 생성되었습니다. 생성일시: ${ts}</div>
-</body></html>`;
-          Utils.printPDF(reportHtml, filename.replace('.csv','.pdf'));
-          logEntry.format = 'PDF';
-          Utils.toast(`✅ ${label} PDF 인쇄 창이 열렸습니다.`, 'success');
-
-        } else if (fmt === 'excel') {
-          // ── Excel: XLSX 다중 시트 ─────────────────────────
-          let sheets = [];
-          if (type === 'monthly') {
-            // 9개 시트 구조 (월간 운영보고서)
-            sheets = [
-              {
-                name: '①표지',
-                rows: [
-                  ['아쿠아모빌리티코리아 통합 운영 플랫폼'],
-                  [label],
-                  [''],
-                  ['보고기간', periodLabel],
-                  ['대상 지역', regionNames],
-                  ['기관명', settings?.orgName||'아쿠아모빌리티코리아'],
-                  ['생성자', (user.name||'관리자')+' ('+role+')'],
-                  ['생성일시', ts],
-                ],
-              },
-              {
-                name: '②종합요약',
-                rows: [
-                  [label+' — 종합 요약', '', '', '', '', '', '', ''],
-                  ['보고기간: '+periodLabel, '', '', '', '', '', '', ''],
-                  [''],
-                  ['지역', '탑승객(명)', '총 매출', '온라인 매출', '현장 매출', '운행횟수', '평균요금', '취소율'],
-                  ...sampleKeys.map(k => {
-                    const r = MONTHLY_SAMPLE[k];
-                    const cRate = ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1)+'%';
-                    return [r.name, r.totalPax, fmtWon(r.totalSales), fmtWon(r.onlineSales),
-                            fmtWon(r.offlineSales), r.trips, fmtWon(Math.round(r.totalSales/r.totalPax)), cRate];
-                  }),
-                  ...(sampleKeys.length > 1 ? [[
-                    '합계', _calcMonthlyTotal(sampleKeys).totalPax,
-                    fmtWon(_calcMonthlyTotal(sampleKeys).totalSales),
-                    fmtWon(sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlineSales,0)),
-                    fmtWon(sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlineSales,0)),
-                    _calcMonthlyTotal(sampleKeys).trips, '-', '-',
-                  ]] : []),
-                ],
-              },
-              {
-                name: '③일별탑승',
-                rows: [
-                  ['일별 탑승객 현황 — '+periodLabel],
-                  [''],
-                  ['날짜', ...sampleKeys.map(k=>MONTHLY_SAMPLE[k].name+'(명)'), '합계(명)'],
-                  ...(MONTHLY_SAMPLE[sampleKeys[0]].daily||[]).map((d,i) => {
-                    const vals = sampleKeys.map(k => (MONTHLY_SAMPLE[k].daily||[])[i]?.pax || 0);
-                    return [d.date, ...vals, vals.reduce((a,b)=>a+b,0)];
-                  }),
-                ],
-              },
-              {
-                name: '④요금구분',
-                rows: [
-                  ['요금 구분별 탑승 현황 — '+periodLabel],
-                  [''],
-                  ['지역', '성인', '청소년', '소아', '경로', '단체', '합계'],
-                  ...sampleKeys.map(k => {
-                    const r = MONTHLY_SAMPLE[k];
-                    return [r.name, ...r.fareBreakdown.map(f=>f.cnt), r.totalPax];
-                  }),
-                ],
-              },
-              {
-                name: '⑤매출분석',
-                rows: [
-                  ['매출 분석 — '+periodLabel],
-                  [''],
-                  ['지역', '온라인 매출', '현장 매출', '총 매출', '목표대비(%)'],
-                  ...sampleKeys.map(k => {
-                    const r = MONTHLY_SAMPLE[k];
-                    return [r.name, fmtWon(r.onlineSales), fmtWon(r.offlineSales),
-                            fmtWon(r.totalSales), ((r.totalSales/(r.totalSales*0.9))*100).toFixed(1)+'%'];
-                  }),
-                ],
-              },
-              {
-                name: '⑥취소환불',
-                rows: [
-                  ['취소·환불 현황 — '+periodLabel],
-                  [''],
-                  ['지역', '취소건수', '취소금액', '환불금액', '취소수수료', '취소율'],
-                  ...sampleKeys.map(k => {
-                    const r = MONTHLY_SAMPLE[k];
-                    return [r.name, r.cancelCnt, fmtWon(r.cancelAmt), fmtWon(r.refundAmt),
-                            fmtWon(r.cancelAmt-r.refundAmt),
-                            ((r.cancelCnt/(r.totalPax+r.cancelCnt))*100).toFixed(1)+'%'];
-                  }),
-                ],
-              },
-              {
-                name: '⑦손목밴드',
-                rows: [
-                  ['손목밴드 현황 — '+periodLabel],
-                  [''],
-                  ['지역', '발급(개)', '재발급(개)', '재발급률'],
-                  ...sampleKeys.map(k => {
-                    const r = MONTHLY_SAMPLE[k];
-                    return [r.name, r.wristbandIssued, r.wristbandReissued,
-                            ((r.wristbandReissued/r.wristbandIssued)*100).toFixed(2)+'%'];
-                  }),
-                ],
-              },
-              {
-                name: '⑧예약채널',
-                rows: [
-                  ['예약 채널 분석 — '+periodLabel],
-                  [''],
-                  ['지역', ...MONTHLY_SAMPLE[sampleKeys[0]].channels.map(c=>c.ch)],
-                  ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, ...MONTHLY_SAMPLE[k].channels.map(c=>c.pct+'%')]),
-                ],
-              },
-              {
-                name: '⑨고객만족도',
-                rows: [
-                  ['고객 만족도 — '+periodLabel],
-                  [''],
-                  ['지역', '만족도(5점)', '리뷰 건수'],
-                  ...sampleKeys.map(k => [MONTHLY_SAMPLE[k].name, MONTHLY_SAMPLE[k].satisfaction, MONTHLY_SAMPLE[k].reviewCnt]),
-                  [''],
-                  ['※ 보고기간: '+periodLabel+' / 생성일시: '+ts],
-                ],
-              },
-            ];
-          } else {
-            // 기타 보고서: 2시트 구조
-            const fRows = fmtRows(rows);
-            sheets = [
-              { name: '표지', rows: fRows.slice(0, 7) },
-              { name: '보고서 데이터', rows: fRows.slice(7) },
-            ];
-          }
-          Utils.downloadXLSX(sheets, filename.replace('.csv','.xlsx'));
-          logEntry.format = 'Excel';
-          Utils.toast(`✅ ${label} Excel 다운로드 완료!`, 'success');
-
-        } else {
-          // ── CSV (기본) ────────────────────────────────────
-          Utils.downloadCSV(fmtRows(rows), filename);
-          logEntry.format = 'CSV';
-          Utils.toast(`✅ ${label} CSV 다운로드 완료!`, 'success');
-        }
-
-        // 다운로드 로그 저장 (sessionStorage)
-        const logs = JSON.parse(sessionStorage.getItem('amk_dl_logs') || '[]');
-        logs.unshift(logEntry);
-        sessionStorage.setItem('amk_dl_logs', JSON.stringify(logs.slice(0, 50)));
-
-      } catch (err) {
-        console.error('Report generation error:', err);
-        Utils.toast('보고서 생성 중 오류가 발생했습니다.', 'error');
-      } finally {
-        if (btnEl) {
-          btnEl.disabled = false;
-          btnEl.innerHTML = '<i class="fas fa-file-alt"></i> 보고서 생성';
-        }
-      }
-    }, 800);
+  // 월 목표 설정
+  const setGoal = async () => {
+    const curRes = await API.get('/api/stats/overview');
+    const curGoal = curRes.data?.monthlyGoal || 0;
+    Utils.modal(`
+      <div class="p-6">
+        <h3 class="font-bold text-lg text-gray-800 mb-4"><i class="fas fa-bullseye mr-2 text-blue-500"></i>이번달 매출 목표 설정</h3>
+        <div class="mb-4">
+          <label class="block text-sm text-gray-600 mb-2">목표 금액 (원)</label>
+          <input type="number" id="goal-input" value="${curGoal}" min="0" step="100000"
+            class="w-full border rounded-lg px-3 py-2 text-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="예: 5000000">
+          <div class="text-xs text-gray-400 mt-1">예시: 500만원 → 5000000</div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button onclick="Utils.closeModal()" class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">취소</button>
+          <button onclick="StatsModule.saveGoal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">저장</button>
+        </div>
+      </div>
+    `);
   };
 
-  const scheduleReport = () => {
-    Utils.toast('자동 보고서 발송 설정 완료 (매월 1일 이메일 발송)', 'success');
+  const saveGoal = async () => {
+    const val = parseInt(document.getElementById('goal-input')?.value || '0');
+    await API.post('/api/stats/goal', { goal: val });
+    Utils.closeModal();
+    Utils.toast('✅ 목표 ' + '₩' + val.toLocaleString() + ' 저장 완료', 'success');
+    switchTab('sales');
   };
 
-  // ── 보고서 설정 탭 하단 "보고서 생성" 버튼 핸들러 ─────────────
-  // STEP1 카드 선택값 + STEP2 폼 설정값을 읽어 generateReport() 호출
-  const generateReportFromSettings = (btnEl) => {
+    const generateReportFromSettings = (btnEl) => {
     const type = _selectedReportType || 'monthly';
 
     // 출력 형식 (PDF / Excel / CSV)
@@ -3222,7 +2867,7 @@ window.onafterprint = function() { /* window.close(); */ };
 
   return {
     page, switchTab, refreshCurrent,
-    exportPDF, exportExcel, printCurrentTab, saveReport, showKpiDetail,
+    exportPDF, exportExcel, printCurrentTab, saveReport, showKpiDetail, setGoal, saveGoal,
     generateReport, generateReportFromSettings, selectReportCard,
     scheduleReport,
     switchMonthlyRegion, exportMonthlyPDF, exportMonthlyExcel,
