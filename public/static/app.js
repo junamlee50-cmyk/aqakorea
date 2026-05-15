@@ -248,6 +248,23 @@
 
   // ── 앱 메인 초기화 ─────────────────────────────────────────
   const init = async () => {
+    // ── localStorage에서 관리자 세션 복원 (새로고침 후에도 유지) ──
+    try {
+      const savedUser = localStorage.getItem('amk_admin_user');
+      const savedTime = localStorage.getItem('amk_admin_login_time');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        const t = savedTime ? parseInt(savedTime) : Date.now();
+        // 8시간 이내이면 복원
+        if (u && u.id && (Date.now() - t) < 8 * 60 * 60 * 1000) {
+          Store.set('adminUser', u);
+          Store.set('adminLoginTime', t);
+        } else {
+          localStorage.removeItem('amk_admin_user');
+          localStorage.removeItem('amk_admin_login_time');
+        }
+      }
+    } catch(e) {}
     if (_initialized) return;
     _initialized = true;
 

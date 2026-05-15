@@ -159,7 +159,7 @@ const StatsModule = (() => {
   // ── 매출 통계 탭 ───────────────────────────────────────────
   const salesTab = async () => {
     // ── DB /api/stats/overview 로 통합 데이터 로드 ──────────
-    const user = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+    const user = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
     const isRegional = user.role === 'regional';
     let overview = {};
     try {
@@ -474,7 +474,7 @@ const StatsModule = (() => {
 
 
   const passengersTab = async () => {
-    const user = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+    const user = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
     const isRegional = user.role === 'regional';
     const myRegionId = user.regionId || null;
     const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
@@ -633,7 +633,7 @@ const StatsModule = (() => {
   // ── 운영 통계 탭 ───────────────────────────────────────────
   const operationsTab = async () => {
     // ── 지역관리자 필터 + DB 연동 ────────────────────────────
-    const user = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+    const user = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
     const isRegional = user.role === 'regional';
     const myRegionId = user.regionId || null;
     const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
@@ -2093,7 +2093,7 @@ const StatsModule = (() => {
     // DB에서 실제 데이터 가져와서 CSV로 저장
     Utils.toast('데이터를 가져오는 중...', 'info');
     try {
-      const expUser = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const expUser = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
       const expRegion = expUser.role === 'regional' ? expUser.regionId : '';
       const res = await API.get('/api/reservations?limit=1000' + (expRegion ? '&regionId='+expRegion : ''));
       const allRes = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
@@ -2153,7 +2153,7 @@ ${statsArea.innerHTML}
     let title = '', tableHtml = '';
 
     if (type === 'monthly-sales' || type === 'daily-avg') {
-      const kpiUser = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const kpiUser = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
       const kpiRegion = kpiUser.role === 'regional' ? kpiUser.regionId : '';
       const res = await API.get(`/api/stats/kpi/monthly-sales${kpiRegion ? '?regionId='+kpiRegion : ''}`);
       const rows = res.data?.rows || [];
@@ -2176,7 +2176,7 @@ ${statsArea.innerHTML}
       </tr></thead><tbody>${rhtml}</tbody></table>`;
 
     } else if (type === 'monthly-reservations') {
-      const kpiUser2 = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const kpiUser2 = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
       const kpiRegion2 = kpiUser2.role === 'regional' ? kpiUser2.regionId : '';
       const apiUrl2 = '/api/reservations?limit=500' + (kpiRegion2 ? '&regionId='+kpiRegion2 : '');
       const res = await API.get(apiUrl2);
@@ -2198,7 +2198,7 @@ ${statsArea.innerHTML}
         </tr></thead><tbody>${rhtml}</tbody></table>`;
 
     } else if (type === 'total-count') {
-      const kpiUser3 = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const kpiUser3 = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
       const kpiRegion3 = kpiUser3.role === 'regional' ? kpiUser3.regionId : '';
       const res = await API.get('/api/stats/kpi/total-count' + (kpiRegion3 ? '?regionId='+kpiRegion3 : ''));
       const byRegion = res.data?.byRegion || [];

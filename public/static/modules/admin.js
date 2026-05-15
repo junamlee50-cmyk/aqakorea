@@ -354,6 +354,10 @@ const AdminModule = (() => {
     _adminState.selectedRegion = account.regionId || null;
     Store.set('adminUser', _adminState.user);
     Store.set('adminLoginTime', Date.now());
+    try {
+      localStorage.setItem('amk_admin_user', JSON.stringify(_adminState.user));
+      localStorage.setItem('amk_admin_login_time', String(Date.now()));
+    } catch(e) {}
     _addAccessLog(account.id, '로그인 성공');
     Utils.toast(`${account.name}으로 로그인되었습니다.`, 'success');
 
@@ -374,6 +378,7 @@ const AdminModule = (() => {
     _adminState.user = null;
     _adminState.mobileOpen = false;
     Store.set('adminUser', null);
+    try { localStorage.removeItem('amk_admin_user'); } catch(e) {}
     Store.set('adminLoginTime', null);
     Utils.toast(`${userName} 로그아웃되었습니다.`, 'info');
     Router.go('/admin/login');
