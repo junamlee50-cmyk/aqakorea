@@ -176,7 +176,10 @@ const StatsModule = (() => {
     const monthlyStats = overview.monthlyStats || [];
     const cancelTrend  = overview.cancelTrend  || [];
     const repeatCustomers = overview.repeatCustomers || [];
-    const recentRes   = overview.recentReservations || [];
+    const allRecentRes = overview.recentReservations || [];
+    const recentRes = isRegional
+      ? allRecentRes.filter(r => r.regionId === (user.regionId||''))
+      : allRecentRes;
 
     const monthRevenue   = isRegional
       ? (regionStats.find(r=>r.id===user.regionId)||{}).revenue || 0
@@ -444,7 +447,7 @@ const StatsModule = (() => {
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead><tr class="bg-gray-50">
-              ${['날짜','예약번호','예약자','지역','인원','금액','채널','상태'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left whitespace-nowrap">${h}</th>`).join('')}
+              ${['날짜','예약번호','예약자','투어지역','인원','금액','채널','상태'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left whitespace-nowrap">${h}</th>`).join('')}
             </tr></thead>
             <tbody>
               ${recentRes.length ? recentRes.map(r=>`
@@ -470,136 +473,159 @@ const StatsModule = (() => {
   };
 
 
-  const passengersTab = () => {
-    const daily = genDailyData(30, 350);
+  const passengersTab = async () => {
+    const user = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+    const isRegional = user.role === 'regional';
+    const myRegionId = user.regionId || null;
+    const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
+
+    // DB 데이터 로드
+    let regionStats = [], recentRes = [];
+    try {
+      const st = await API.get('/api/stats/overview');
+      regionStats = st.data?.regionStats || [];
+      recentRes   = st.data?.recentReservations || [];
+    } catch(e) {}
+
+    // 지역 필터
+    const fStats   = isRegional ? regionStats.filter(r=>r.id===myRegionId) : regionStats;
+    const fRecent  = isRegional ? recentRes.filter(r=>r.regionId===myRegionId) : recentRes;
+    const totalPax = fStats.reduce((s,r)=>s+(r.pax||0),0);
+    const totalRes = fStats.reduce((s,r)=>s+(r.reservations||0),0);
+
+    // 재방문 고객 (반복고객)
+    let repeatRes = [];
+    try {
+      const rr = await API.get('/api/stats/kpi/repeat-customers');
+      repeatRes = isRegional
+        ? (rr.data?.rows||[])  // 향후 regionId 필터 추가 가능
+        : (rr.data?.rows||[]);
+    } catch(e) {}
+
+    // 일별 탑승객 집계 (최근 30일)
+    const today = new Date();
+    const daily30 = [...Array(30)].map((_,i)=>{
+      const d=new Date(today); d.setDate(d.getDate()-(29-i));
+      const ds=d.toISOString().slice(0,10);
+      const dayRes = fRecent.filter(r=>r.date===ds);
+      const pax = dayRes.reduce((s,r)=>s+(r.pax||0),0);
+      return { date:ds, online: dayRes.filter(r=>r.channel==='online').reduce((s,r)=>s+(r.pax||0),0),
+               onsite: dayRes.filter(r=>r.channel==='onsite').reduce((s,r)=>s+(r.pax||0),0) };
+    });
 
     setTimeout(() => {
-      // 일별 승객 수
       destroyChart('dailyPax');
       const ctx1 = document.getElementById('chart-daily-pax');
       if (ctx1) {
         _charts['dailyPax'] = new Chart(ctx1, {
           type: 'bar',
           data: {
-            labels: daily.map(d => d.date.slice(5)),
+            labels: daily30.map(d=>d.date.slice(5)),
             datasets: [
-              { label: '온라인', data: daily.map(d => Math.round(d.value * 0.72)), backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 3 },
-              { label: '현장', data: daily.map(d => Math.round(d.value * 0.28)), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 3 },
+              { label:'온라인', data:daily30.map(d=>d.online), backgroundColor:'rgba(59,130,246,0.7)', borderRadius:3 },
+              { label:'현장',   data:daily30.map(d=>d.onsite), backgroundColor:'rgba(16,185,129,0.7)', borderRadius:3 },
             ],
           },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true, grid:{display:false} }, y: { stacked: true } } },
+          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}},
+            scales:{x:{stacked:true,grid:{display:false},ticks:{maxTicksLimit:7}},y:{stacked:true}} },
         });
       }
-
-      // 연령별 파이
       destroyChart('agePie');
       const ctx2 = document.getElementById('chart-age-pie');
       if (ctx2) {
         _charts['agePie'] = new Chart(ctx2, {
           type: 'doughnut',
-          data: {
-            labels: ['10대 이하','20대','30대','40대','50대','60대 이상'],
-            datasets: [{ data: [8, 15, 22, 28, 18, 9], backgroundColor: COLORS.PIE, hoverOffset: 4 }],
-          },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels:{font:{size:10}} } }, cutout:'60%' },
-        });
-      }
-
-      // 지역별 방문 출처
-      destroyChart('originBar');
-      const ctx3 = document.getElementById('chart-origin-bar');
-      if (ctx3) {
-        _charts['originBar'] = new Chart(ctx3, {
-          type: 'bar',
-          data: {
-            labels: ['서울/경기','부산','대구','광주','대전','인천','기타 지방','외국인'],
-            datasets: [{ label: '방문객', data: [randBetween(800,1200),randBetween(400,700),randBetween(200,400),randBetween(100,250),randBetween(100,200),randBetween(80,180),randBetween(200,500),randBetween(50,150)], backgroundColor: COLORS.PIE, borderRadius: 4 }],
-          },
-          options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{grid:{display:false}}} },
-        });
-      }
-
-      // 재방문율 트렌드
-      destroyChart('revisitLine');
-      const ctx4 = document.getElementById('chart-revisit-line');
-      if (ctx4) {
-        const months = ['1월','2월','3월','4월','5월'];
-        _charts['revisitLine'] = new Chart(ctx4, {
-          type: 'line',
-          data: {
-            labels: months,
-            datasets: [
-              { label: '신규방문', data: [72,69,67,65,63], backgroundColor: COLORS.blue.bg, borderColor: COLORS.blue.border, fill: true, tension: 0.4 },
-              { label: '재방문', data: [28,31,33,35,37], backgroundColor: COLORS.green.bg, borderColor: COLORS.green.border, fill: true, tension: 0.4 },
-            ],
-          },
-          options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{grid:{display:false}},y:{min:0,max:100,ticks:{callback:v=>`${v}%`}}} },
+          data: { labels:['성인','소아'],
+            datasets:[{ data:[
+              fRecent.reduce((s,r)=>s+(r.adults||0),0)||1,
+              fRecent.reduce((s,r)=>s+(r.children||0),0)||1
+            ], backgroundColor:['#3b82f6','#f59e0b'], hoverOffset:4 }] },
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},cutout:'60%'},
         });
       }
     }, 100);
 
-    const totalPax = daily.reduce((s, d) => s + d.value, 0);
+    const regionLabel = isRegional ? (RNAMES[myRegionId]||myRegionId) : '전체 지역';
 
     return `
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        ${statCard('fas fa-users', '이번달 총 승객', `${Math.round(totalPax/1000*4).toLocaleString()}천명`, '전체 지역 합산', 'blue', 9)}
-        ${statCard('fas fa-redo', '재방문율', '37%', '전월 대비 +2%p', 'green', 6)}
-        ${statCard('fas fa-calendar-day', '1회차 평균 탑승', '38.2명', '정원 대비 84.9%', 'purple', 3)}
-        ${statCard('fas fa-globe', '외국인 비율', '4.2%', '주로 일본·중국 관광객', 'orange', 12)}
+        ${statCard('fas fa-users','총 탑승객',totalPax+'명',regionLabel+' 합산','blue',0)}
+        ${statCard('fas fa-ticket-alt','총 예약건수',totalRes+'건','취소 제외','green',0)}
+        ${statCard('fas fa-heart','재방문 고객',repeatRes.length+'명','2회 이상 예약','pink',0,"StatsModule.showKpiDetail('repeat-customers')")}
+        ${statCard('fas fa-child','성인/소아',
+          fRecent.reduce((s,r)=>s+(r.adults||0),0)+'/'+ fRecent.reduce((s,r)=>s+(r.children||0),0),
+          '성인/소아 인원','orange',0)}
       </div>
+
+      ${isRegional ? `
+      <div class="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 mb-4">
+        <i class="fas fa-info-circle flex-shrink-0"></i>
+        <span><strong>${regionLabel}</strong> 지역 데이터만 표시됩니다.</span>
+      </div>` : ''}
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">일별 승객 수 (온라인/현장)</h3>
+          <h3 class="font-semibold text-gray-800 mb-4 text-sm">일별 탑승객 수 (온라인/현장)</h3>
           <div style="height:220px"><canvas id="chart-daily-pax"></canvas></div>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">연령대별 비중</h3>
+          <h3 class="font-semibold text-gray-800 mb-4 text-sm">성인/소아 비율</h3>
           <div style="height:220px"><canvas id="chart-age-pie"></canvas></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">출발지별 방문객 분포</h3>
-          <div style="height:220px"><canvas id="chart-origin-bar"></canvas></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm">신규/재방문 트렌드</h3>
-          <div style="height:220px"><canvas id="chart-revisit-line"></canvas></div>
+          <div class="text-center mt-2 text-xs text-gray-500">
+            성인 ${fRecent.reduce((s,r)=>s+(r.adults||0),0)}명 / 소아 ${fRecent.reduce((s,r)=>s+(r.children||0),0)}명
+          </div>
         </div>
       </div>
 
-      <!-- 승객 상세 테이블 -->
-      <div class="bg-white rounded-xl shadow-sm p-5">
-        <h3 class="font-semibold text-gray-800 mb-4 text-sm">지역별 승객 비교</h3>
+      <!-- 지역별 승객 비교 (DB 기반) -->
+      <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <h3 class="font-semibold text-gray-800 mb-4 text-sm">투어 지역별 승객 현황</h3>
         <div class="overflow-x-auto">
-          <table class="admin-table w-full text-sm">
-            <thead>
-              <tr class="bg-gray-50">
-                ${['지역','총 승객','온라인','현장','만석률','재방문율'].map(h=>`<th class="px-4 py-2 text-xs font-semibold text-gray-600 text-center">${h}</th>`).join('')}
-              </tr>
-            </thead>
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50">
+              ${['투어 지역','총 예약','총 탑승객','온라인 예약','현장 예약','평균 객단가'].map(h=>`<th class="px-4 py-2 text-xs font-semibold text-gray-600 text-left">${h}</th>`).join('')}
+            </tr></thead>
             <tbody class="divide-y divide-gray-100">
-              ${(window.REGIONS||[]).filter(r=>r.status==='active').map(r => {
-                const total = randBetween(2000, 6000);
-                const online = Math.round(total * (r.onlineRatio||70) / 100);
-                const offline = total - online;
-                const occ = randBetween(78, 95);
-                const rev = randBetween(28, 45);
-                return `
-                  <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2 font-medium">${r.name}</td>
-                    <td class="px-4 py-2 text-center">${total.toLocaleString()}명</td>
-                    <td class="px-4 py-2 text-center text-blue-600">${online.toLocaleString()}명</td>
-                    <td class="px-4 py-2 text-center text-green-600">${offline.toLocaleString()}명</td>
-                    <td class="px-4 py-2 text-center">
-                      <span class="font-medium ${occ>=90?'text-red-600':occ>=80?'text-orange-500':'text-gray-700'}">${occ}%</span>
-                    </td>
-                    <td class="px-4 py-2 text-center">${rev}%</td>
-                  </tr>
-                `;
-              }).join('')}
+              ${fStats.length ? fStats.map(r=>`
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-2 font-medium">${RNAMES[r.id]||r.name||r.id}</td>
+                  <td class="px-4 py-2 text-center">${r.reservations||0}건</td>
+                  <td class="px-4 py-2 text-center text-blue-700 font-medium">${r.pax||0}명</td>
+                  <td class="px-4 py-2 text-center text-blue-600">${r.online_count||0}건</td>
+                  <td class="px-4 py-2 text-center text-green-600">${r.onsite_count||0}건</td>
+                  <td class="px-4 py-2 text-center text-purple-700">₩${(r.avg_per_pax||0).toLocaleString()}</td>
+                </tr>`).join('')
+              : '<tr><td colspan="6" class="text-center py-6 text-gray-400 text-sm">데이터 없음</td></tr>'}
             </tbody>
           </table>
         </div>
+      </div>
+
+      <!-- 재방문 충성 고객 -->
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-heart mr-2 text-pink-500"></i>재방문 충성 고객 TOP 10</h3>
+          <button onclick="StatsModule.showKpiDetail('repeat-customers')" class="text-xs text-blue-600 hover:underline">전체보기 →</button>
+        </div>
+        ${repeatRes.length ? `
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50">
+              ${['#','이름','연락처','방문횟수','총 결제금액','최근 방문'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+            </tr></thead>
+            <tbody>
+              ${repeatRes.slice(0,10).map((r,i)=>`
+                <tr class="border-b hover:bg-gray-50">
+                  <td class="px-3 py-2 text-xs text-gray-400 text-center">${i+1}</td>
+                  <td class="px-3 py-2 text-xs font-medium">${r.name||'-'}</td>
+                  <td class="px-3 py-2 text-xs text-gray-500">${(r.phone||'').replace(/(\d{3})(\d{4})(\d{4})/,'$1-****-$4')}</td>
+                  <td class="px-3 py-2 text-center"><span class="font-bold text-pink-600 text-sm">${r.visit_count}회</span></td>
+                  <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.total_spent||0).toLocaleString()}</td>
+                  <td class="px-3 py-2 text-xs text-gray-400">${r.last_visit||'-'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<div class="text-center py-6 text-gray-400 text-sm">재방문 고객 없음 (2회 이상 예약 기준)</div>'}
       </div>
     `;
   };
@@ -761,7 +787,7 @@ const StatsModule = (() => {
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead><tr class="bg-gray-50">
-              ${['날짜','지역','예약번호','예약자','회차','인원','금액','상태'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-left whitespace-nowrap">${h}</th>`).join('')}
+              ${['날짜','투어지역','예약번호','예약자','회차','인원','금액','상태'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-left whitespace-nowrap">${h}</th>`).join('')}
             </tr></thead>
             <tbody class="divide-y divide-gray-100">
               ${fRecentRes.length ? fRecentRes.slice(0,10).map(r=>`
@@ -2017,7 +2043,7 @@ const StatsModule = (() => {
 
     const contentMap = {
       sales: () => salesTab(),
-      passengers: passengersTab,
+      passengers: () => passengersTab(),
       operations: () => operationsTab(),
       marketing: marketingTab,
       wristbands: wristbandsTab,
@@ -2067,7 +2093,9 @@ const StatsModule = (() => {
     // DB에서 실제 데이터 가져와서 CSV로 저장
     Utils.toast('데이터를 가져오는 중...', 'info');
     try {
-      const res = await API.get('/api/reservations?limit=1000');
+      const expUser = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const expRegion = expUser.role === 'regional' ? expUser.regionId : '';
+      const res = await API.get('/api/reservations?limit=1000' + (expRegion ? '&regionId='+expRegion : ''));
       const allRes = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
       const RNAMES={tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
       const header = ['날짜','예약번호','예약자명','지역','채널','결제방식','성인','소아','금액','상태'];
@@ -2125,7 +2153,9 @@ ${statsArea.innerHTML}
     let title = '', tableHtml = '';
 
     if (type === 'monthly-sales' || type === 'daily-avg') {
-      const res = await API.get(`/api/stats/kpi/monthly-sales`);
+      const kpiUser = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const kpiRegion = kpiUser.role === 'regional' ? kpiUser.regionId : '';
+      const res = await API.get(`/api/stats/kpi/monthly-sales${kpiRegion ? '?regionId='+kpiRegion : ''}`);
       const rows = res.data?.rows || [];
       const total = res.data?.total || 0;
       title = '이번달 매출 상세';
@@ -2146,7 +2176,10 @@ ${statsArea.innerHTML}
       </tr></thead><tbody>${rhtml}</tbody></table>`;
 
     } else if (type === 'monthly-reservations') {
-      const res = await API.get('/api/reservations?limit=500');
+      const kpiUser2 = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const kpiRegion2 = kpiUser2.role === 'regional' ? kpiUser2.regionId : '';
+      const apiUrl2 = '/api/reservations?limit=500' + (kpiRegion2 ? '&regionId='+kpiRegion2 : '');
+      const res = await API.get(apiUrl2);
       const thisMonth = new Date().toISOString().slice(0,7);
       const rows = (res.data||[]).filter(r=>(r.date||'').startsWith(thisMonth)&&r.status!=='cancelled');
       title = `이번달 예약 목록 (${thisMonth})`;
@@ -2165,7 +2198,9 @@ ${statsArea.innerHTML}
         </tr></thead><tbody>${rhtml}</tbody></table>`;
 
     } else if (type === 'total-count') {
-      const res = await API.get('/api/stats/kpi/total-count');
+      const kpiUser3 = typeof _adminState !== 'undefined' ? (_adminState.user||{}) : {};
+      const kpiRegion3 = kpiUser3.role === 'regional' ? kpiUser3.regionId : '';
+      const res = await API.get('/api/stats/kpi/total-count' + (kpiRegion3 ? '?regionId='+kpiRegion3 : ''));
       const byRegion = res.data?.byRegion || [];
       const total = res.data?.total || {};
       title = '전체 결제 현황 (지역별)';
