@@ -54,11 +54,14 @@ const StatsModule = (() => {
   });
 
   // ── 통계 레이아웃 렌더링 ───────────────────────────────────
-  const statCard = (icon, label, value, sub, color = 'blue', trend = null) => `
-    <div class="stat-card bg-white rounded-xl shadow-sm p-5 border-l-4 border-${color}-500">
+  const statCard = (icon, label, value, sub, color = 'blue', trend = null, onclick = null) => `
+    <div class="stat-card bg-white rounded-xl shadow-sm p-5 border-l-4 border-${color}-500 ${onclick ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all' : ''}"
+      ${onclick ? `onclick="${onclick}"` : ''}>
       <div class="flex items-center justify-between">
         <div class="flex-1">
-          <p class="text-gray-500 text-xs font-medium uppercase tracking-wide">${label}</p>
+          <p class="text-gray-500 text-xs font-medium uppercase tracking-wide">${label}
+            ${onclick ? '<i class="fas fa-chevron-right text-xs ml-1 text-gray-300"></i>' : ''}
+          </p>
           <p class="text-2xl font-bold text-gray-800 mt-1">${value}</p>
           ${sub ? `<p class="text-xs text-gray-500 mt-1">${sub}</p>` : ''}
           ${trend !== null ? `<p class="text-xs mt-1 ${trend >= 0 ? 'text-green-600' : 'text-red-500'} font-medium">
@@ -85,11 +88,14 @@ const StatsModule = (() => {
               <h1 class="text-gray-800 font-semibold">${title}</h1>
             </div>
             <div class="flex items-center gap-2 print:hidden">
-              <button onclick="StatsModule.exportPDF()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1">
-                <i class="fas fa-file-pdf text-red-500"></i> PDF 출력
-              </button>
               <button onclick="StatsModule.exportExcel()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1">
-                <i class="fas fa-file-excel text-green-500"></i> 엑셀 다운로드
+                <i class="fas fa-file-excel text-green-500"></i> 엑셀 저장
+              </button>
+              <button onclick="StatsModule.exportPDF()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1">
+                <i class="fas fa-file-pdf text-red-500"></i> PDF 저장
+              </button>
+              <button onclick="StatsModule.saveReport()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-blue-700 flex items-center gap-1">
+                <i class="fas fa-save"></i> 보고서 저장
               </button>
               <button onclick="StatsModule.printCurrentTab()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50 flex items-center gap-1">
                 <i class="fas fa-print text-blue-500"></i> 인쇄
@@ -290,10 +296,10 @@ const StatsModule = (() => {
     return `
       <!-- KPI 카드 -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        ${statCard('fas fa-won-sign', '이번달 총 매출', `₩${totalSales.toLocaleString()}`, `${thisMonth}`, 'blue', 0)}
-        ${statCard('fas fa-calendar-day', '일 평균 매출', `₩${Math.round(totalSales/30).toLocaleString()}`, '최근 30일 기준', 'green', 0)}
-        ${statCard('fas fa-ticket-alt', '이번달 예약', `${monthRes.length}건`, '취소 제외', 'purple', 0)}
-        ${statCard('fas fa-ticket-alt', '총 결제 건수', `${totalCount}건`, '전체 기간', 'orange', 0)}
+        ${statCard('fas fa-won-sign', '이번달 총 매출', `₩${totalSales.toLocaleString()}`, `${thisMonth}`, 'blue', 0, "StatsModule.showKpiDetail('monthly-sales')")}
+        ${statCard('fas fa-calendar-day', '일 평균 매출', `₩${Math.round(totalSales/30).toLocaleString()}`, '최근 30일 기준', 'green', 0, "StatsModule.showKpiDetail('daily-avg')")}
+        ${statCard('fas fa-ticket-alt', '이번달 예약', `${monthRes.length}건`, '취소 제외', 'purple', 0, "StatsModule.showKpiDetail('monthly-reservations')")}
+        ${statCard('fas fa-ticket-alt', '총 결제 건수', `${totalCount}건`, '전체 기간', 'orange', 0, "StatsModule.showKpiDetail('total-count')")}
       </div>
 
       <!-- 차트 그리드 -->
@@ -356,6 +362,32 @@ const StatsModule = (() => {
                   </tr>
                 `;
               }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 실시간 예약 현황 테이블 -->
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-gray-800 text-sm"><i class="fas fa-list mr-2 text-blue-500"></i>최근 예약 현황</h3>
+          <button onclick="StatsModule.showKpiDetail('monthly-reservations')" class="text-xs text-blue-600 hover:underline">전체보기 →</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50">
+              ${['날짜','예약번호','예약자','지역','금액','상태'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 text-left">${h}</th>`).join('')}
+            </tr></thead>
+            <tbody>
+              ${allRes.length ? allRes.slice(-10).reverse().map(r=>`
+                <tr class="border-b hover:bg-gray-50">
+                  <td class="px-3 py-2 text-xs text-gray-600">${r.date||'-'}</td>
+                  <td class="px-3 py-2 text-xs font-mono text-gray-500">${r.reservationNo||'-'}</td>
+                  <td class="px-3 py-2 text-xs">${r.name||'-'}</td>
+                  <td class="px-3 py-2 text-xs text-center">${{'tongyeong':'통영','buyeo':'부여','hapcheon':'합천'}[r.regionId]||r.regionId||'-'}</td>
+                  <td class="px-3 py-2 text-xs text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
+                  <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}">${r.status}</span></td>
+                </tr>`).join('') : '<tr><td colspan="6" class="text-center py-4 text-gray-400 text-xs">데이터 없음</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -1919,7 +1951,8 @@ const StatsModule = (() => {
 
   // ── 액션 핸들러 ────────────────────────────────────────────
   const exportPDF = () => {
-    Utils.toast('PDF 보고서를 생성 중입니다... (인쇄 다이얼로그가 열립니다)', 'info');
+    // PDF = 인쇄 다이얼로그에서 "PDF로 저장" 선택
+    Utils.toast('브라우저 인쇄 창에서 "PDF로 저장"을 선택하세요.', 'info');
     setTimeout(() => window.print(), 500);
   };
 
@@ -1928,17 +1961,150 @@ const StatsModule = (() => {
     setTimeout(() => window.print(), 400);
   };
 
-  const exportExcel = () => {
-    // CSV 형식으로 다운로드
-    const data = [
-      ['날짜', '지역', '온라인 매출', '현장 매출', '총 매출', '승객수'],
-      ...genDailyData(30, 3500000).map((d, i) => [
-        d.date, '전체',
-        Math.round(d.value * 0.72), Math.round(d.value * 0.28),
-        d.value, randBetween(200, 450),
-      ]),
-    ];
-    Utils.downloadCSV(data, `aqua_stats_${new Date().toISOString().slice(0,10)}.csv`);
+  const exportExcel = async () => {
+    // DB에서 실제 데이터 가져와서 CSV로 저장
+    Utils.toast('데이터를 가져오는 중...', 'info');
+    try {
+      const res = await API.get('/api/reservations?limit=1000');
+      const allRes = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
+      const RNAMES={tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
+      const header = ['날짜','예약번호','예약자명','지역','채널','결제방식','성인','소아','금액','상태'];
+      const rows = allRes.map(r=>[
+        r.date||'', r.reservationNo||'', r.name||'',
+        RNAMES[r.regionId]||r.regionId||'',
+        r.channel==='onsite'?'현장':'온라인',
+        r.paymentMethod||'',
+        r.adults||0, r.children||0,
+        r.totalPrice||0, r.status||''
+      ]);
+      const csv = [header,...rows].map(r=>r.join(',')).join('\n');
+      const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `예약통계_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      Utils.toast(`✅ ${allRes.length}건 다운로드 완료`, 'success');
+    } catch(e) {
+      Utils.toast('다운로드 실패: '+e.message, 'error');
+    }
+  };
+
+  // 보고서 저장 (로컬 HTML 파일로 저장)
+  const saveReport = () => {
+    try {
+      const statsArea = document.getElementById('stats-content');
+      if (!statsArea) { Utils.toast('저장할 내용이 없습니다.', 'error'); return; }
+      const title = `아쿠아모빌리티 통계보고서_${new Date().toISOString().slice(0,10)}`;
+      const htmlContent = `<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8"><title>${title}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>body{font-family:'Noto Sans KR',sans-serif;padding:20px;background:#f9fafb}</style>
+</head><body>
+<h1 style="font-size:20px;font-weight:bold;margin-bottom:16px;color:#1f2937;">${title}</h1>
+<p style="color:#6b7280;font-size:12px;margin-bottom:20px;">생성일시: ${new Date().toLocaleString('ko-KR')}</p>
+${statsArea.innerHTML}
+</body></html>`;
+      const blob = new Blob([htmlContent],{type:'text/html;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${title}.html`;
+      a.click();
+      Utils.toast('✅ 보고서가 HTML 파일로 저장되었습니다.', 'success');
+    } catch(e) {
+      Utils.toast('저장 실패: '+e.message, 'error');
+    }
+  };
+
+  // KPI 카드 클릭 → 상세 모달
+  const showKpiDetail = async (type) => {
+    const res = await API.get('/api/reservations?limit=500');
+    const allRes = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
+    const RNAMES={tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
+    const thisMonth = new Date().toISOString().slice(0,7);
+    const todayStr = new Date().toISOString().slice(0,10);
+    const monthRes = allRes.filter(r=>(r.date||'').startsWith(thisMonth));
+
+    let title='', tableHtml='';
+
+    if (type==='monthly-sales') {
+      title = `이번달 매출 상세 (${thisMonth})`;
+      const rows = monthRes.map(r=>`<tr class="hover:bg-gray-50 border-b">
+        <td class="px-3 py-2 text-sm">${r.date}</td>
+        <td class="px-3 py-2 text-sm">${r.reservationNo}</td>
+        <td class="px-3 py-2 text-sm">${r.name}</td>
+        <td class="px-3 py-2 text-sm text-center">${RNAMES[r.regionId]||r.regionId}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.channel==='onsite'?'현장':'온라인'}</td>
+        <td class="px-3 py-2 text-sm text-right font-medium text-blue-700">₩${(r.totalPrice||0).toLocaleString()}</td>
+      </tr>`).join('');
+      const total = monthRes.reduce((s,r)=>s+(r.totalPrice||0),0);
+      tableHtml = `<div class="mb-3 text-right font-bold text-blue-700">합계: ₩${total.toLocaleString()}</div>
+        <table class="w-full text-sm"><thead class="bg-gray-50">
+          <tr>${['날짜','예약번호','예약자','지역','채널','금액'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
+        </thead><tbody>${rows}</tbody></table>`;
+    } else if (type==='daily-avg') {
+      title = '일별 매출 현황 (최근 30일)';
+      const today = new Date();
+      const daily = [...Array(30)].map((_,i)=>{
+        const d=new Date(today); d.setDate(d.getDate()-(29-i));
+        const ds=d.toISOString().slice(0,10);
+        const dr=allRes.filter(r=>r.date===ds);
+        return {date:ds,total:dr.reduce((s,r)=>s+(r.totalPrice||0),0),count:dr.length};
+      }).reverse();
+      const rows = daily.filter(d=>d.total>0||d.count>0).map(d=>`<tr class="hover:bg-gray-50 border-b">
+        <td class="px-3 py-2 text-sm">${d.date}</td>
+        <td class="px-3 py-2 text-sm text-center">${d.count}건</td>
+        <td class="px-3 py-2 text-sm text-right font-medium text-blue-700">₩${d.total.toLocaleString()}</td>
+      </tr>`).join('') || '<tr><td colspan="3" class="text-center py-4 text-gray-400">해당 기간 데이터 없음</td></tr>';
+      tableHtml = `<table class="w-full text-sm"><thead class="bg-gray-50">
+        <tr>${['날짜','예약수','매출'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
+      </thead><tbody>${rows}</tbody></table>`;
+    } else if (type==='monthly-reservations') {
+      title = `이번달 예약 목록 (${thisMonth})`;
+      const rows = monthRes.map(r=>`<tr class="hover:bg-gray-50 border-b">
+        <td class="px-3 py-2 text-sm">${r.date}</td>
+        <td class="px-3 py-2 text-sm font-mono text-xs">${r.reservationNo}</td>
+        <td class="px-3 py-2 text-sm">${r.name}</td>
+        <td class="px-3 py-2 text-sm text-center">${RNAMES[r.regionId]||r.regionId}</td>
+        <td class="px-3 py-2 text-sm text-center">${r.adults||0}/${r.children||0}</td>
+        <td class="px-3 py-2 text-sm text-right">₩${(r.totalPrice||0).toLocaleString()}</td>
+        <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='boarded'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-600'}">${r.status}</span></td>
+      </tr>`).join('') || '<tr><td colspan="7" class="text-center py-4 text-gray-400">예약 없음</td></tr>';
+      tableHtml = `<table class="w-full text-sm"><thead class="bg-gray-50">
+        <tr>${['날짜','예약번호','예약자','지역','성인/소아','금액','상태'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
+      </thead><tbody>${rows}</tbody></table>`;
+    } else if (type==='total-count') {
+      title = '전체 결제 현황';
+      const byRegion = {};
+      allRes.forEach(r=>{ const k=RNAMES[r.regionId]||r.regionId||'기타'; if(!byRegion[k])byRegion[k]={count:0,total:0}; byRegion[k].count++; byRegion[k].total+=(r.totalPrice||0); });
+      const rows = Object.entries(byRegion).map(([name,v])=>`<tr class="hover:bg-gray-50 border-b">
+        <td class="px-3 py-2 text-sm font-medium">${name}</td>
+        <td class="px-3 py-2 text-sm text-center">${v.count}건</td>
+        <td class="px-3 py-2 text-sm text-right font-bold text-blue-700">₩${v.total.toLocaleString()}</td>
+      </tr>`).join('');
+      const totalAll = allRes.reduce((s,r)=>s+(r.totalPrice||0),0);
+      tableHtml = `<div class="mb-3 text-right font-bold text-blue-700">총계: ₩${totalAll.toLocaleString()} (${allRes.length}건)</div>
+        <table class="w-full text-sm"><thead class="bg-gray-50">
+          <tr>${['지역','예약건수','총 매출'].map(h=>`<th class="px-3 py-2 text-left text-xs text-gray-500">${h}</th>`).join('')}</tr>
+        </thead><tbody>${rows}</tbody></table>`;
+    }
+
+    Utils.modal(`
+      <div class="p-6 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-lg text-gray-800">${title}</h3>
+          <button onclick="Utils.closeModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="overflow-x-auto">${tableHtml}</div>
+        <div class="mt-4 flex gap-2 justify-end">
+          <button onclick="StatsModule.exportExcel()" class="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700 flex items-center gap-1">
+            <i class="fas fa-download mr-1"></i>CSV 저장
+          </button>
+          <button onclick="Utils.closeModal()" class="border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-50">닫기</button>
+        </div>
+      </div>
+    `);
   };
 
   const generateReport = (type, btnEl, settings = {}) => {
@@ -3056,7 +3222,7 @@ window.onafterprint = function() { /* window.close(); */ };
 
   return {
     page, switchTab, refreshCurrent,
-    exportPDF, exportExcel, printCurrentTab,
+    exportPDF, exportExcel, printCurrentTab, saveReport, showKpiDetail,
     generateReport, generateReportFromSettings, selectReportCard,
     scheduleReport,
     switchMonthlyRegion, exportMonthlyPDF, exportMonthlyExcel,
