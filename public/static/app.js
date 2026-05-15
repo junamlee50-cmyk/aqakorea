@@ -97,9 +97,18 @@
     Router.add('/field/dashboard',    FieldModule.dashboard);
 
     // ── 관리자 페이지 ─────────────────────────────────────
-    Router.add('/admin',              _adminGuard(AdminModule.hqDashboard));
+    Router.add('/admin', _adminGuard(async (params) => {
+      const u = Store.get('adminUser') || {};
+      if (u.role === 'regional') return AdminModule.regionDashboard(params);
+      if (u.role === 'staff')    return AdminModule.regionDashboard(params);
+      return AdminModule.hqDashboard(params);
+    }));
     Router.add('/admin/login',        AdminModule.loginPage);
-    Router.add('/admin/dashboard',    _adminGuard(AdminModule.hqDashboard));
+    Router.add('/admin/dashboard', _adminGuard(async (params) => {
+      const u = Store.get('adminUser') || {};
+      if (u.role === 'regional' || u.role === 'staff') return AdminModule.regionDashboard(params);
+      return AdminModule.hqDashboard(params);
+    }));
     Router.add('/admin/hq-dashboard', _adminGuard(AdminModule.hqDashboard));
     Router.add('/admin/region-dashboard', _adminGuard(AdminModule.regionDashboard));
     Router.add('/admin/region-dashboard/:regionId', _adminGuard(async (params) => AdminModule.regionDashboard(params)));
