@@ -2235,7 +2235,26 @@ ${statsArea.innerHTML}
     switchTab('sales');
   };
 
-    const generateReportFromSettings = (btnEl) => {
+    const generateReport = (type, btnEl, settings = {}) => {
+    const labels = {
+      daily: '일별 보고서', weekly: '주간 보고서', monthly: '월간 보고서', annual: '연간 보고서',
+    };
+    const label = labels[type] || type;
+    if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>생성중...'; }
+    Utils.toast(`${label} 생성 중...`, 'info');
+    setTimeout(() => {
+      if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = label; }
+      // 인쇄 창으로 PDF 저장 안내
+      Utils.toast(`${label} 준비 완료 — 인쇄 창에서 PDF로 저장하세요.`, 'success');
+      setTimeout(() => window.print(), 800);
+    }, 1200);
+  };
+
+  const scheduleReport = () => {
+    Utils.toast('자동 보고서 예약 기능은 준비 중입니다.', 'info');
+  };
+
+  const generateReportFromSettings = (btnEl) => {
     const type = _selectedReportType || 'monthly';
 
     // 출력 형식 (PDF / Excel / CSV)
