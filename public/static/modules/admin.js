@@ -3878,13 +3878,15 @@ const AdminModule = (() => {
         </div>` : '<div class="text-center py-8 text-gray-400 text-sm">발송 이력이 없습니다.</div>';
 
       const regionCards = Object.entries(byRegion).map(([rid, stat])=>`
-        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all"
+          onclick="AdminModule.showSmsDetail('all','${rid}')">
           <div class="flex items-center gap-2 mb-3">
             <span class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm">${(RNAMES[rid]||rid||'?')[0]}</span>
-            <div>
+            <div class="flex-1">
               <div class="font-semibold text-sm">${RNAMES[rid]||rid}</div>
               <div class="text-xs text-gray-400">최근 ${(stat.last||'').slice(0,10)}</div>
             </div>
+            <i class="fas fa-chevron-right text-gray-300 text-xs"></i>
           </div>
           <div class="grid grid-cols-2 gap-2 text-center">
             <div class="bg-blue-50 rounded-lg p-2"><div class="font-bold text-blue-700">${stat.count}건</div><div class="text-xs text-gray-400">발송건수</div></div>
@@ -3895,17 +3897,29 @@ const AdminModule = (() => {
       const contentHtml = `
         <div class="space-y-5">
           <div class="grid grid-cols-4 gap-3">
-            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100">
-              <div class="font-bold text-blue-700 text-2xl">${smsHistory.length}</div><div class="text-xs text-gray-500 mt-1">총 발송건수</div>
+            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
+              onclick="AdminModule.showSmsDetail('all')">
+              <div class="font-bold text-blue-700 text-2xl group-hover:scale-110 transition-transform">${smsHistory.length}</div>
+              <div class="text-xs text-gray-500 mt-1">총 발송건수</div>
+              <div class="text-xs text-blue-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">클릭하여 상세보기</div>
             </div>
-            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100">
-              <div class="font-bold text-green-700 text-2xl">${smsHistory.filter(h=>(h.sentAt||'').startsWith(new Date().toISOString().slice(0,7))).length}</div><div class="text-xs text-gray-500 mt-1">이번달 발송</div>
+            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100 cursor-pointer hover:shadow-md hover:border-green-300 transition-all group"
+              onclick="AdminModule.showSmsDetail('thismonth')">
+              <div class="font-bold text-green-700 text-2xl group-hover:scale-110 transition-transform">${smsHistory.filter(h=>(h.sentAt||'').startsWith(new Date().toISOString().slice(0,7))).length}</div>
+              <div class="text-xs text-gray-500 mt-1">이번달 발송</div>
+              <div class="text-xs text-green-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">클릭하여 상세보기</div>
             </div>
-            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100">
-              <div class="font-bold text-purple-700 text-2xl">${[...new Set(smsHistory.map(h=>h.regionId))].filter(Boolean).length}</div><div class="text-xs text-gray-500 mt-1">발송 지역수</div>
+            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100 cursor-pointer hover:shadow-md hover:border-purple-300 transition-all group"
+              onclick="AdminModule.showSmsDetail('byregion')">
+              <div class="font-bold text-purple-700 text-2xl group-hover:scale-110 transition-transform">${[...new Set(smsHistory.map(h=>h.regionId))].filter(Boolean).length}</div>
+              <div class="text-xs text-gray-500 mt-1">발송 지역수</div>
+              <div class="text-xs text-purple-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">클릭하여 상세보기</div>
             </div>
-            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100">
-              <div class="font-bold text-orange-700 text-2xl">${smsHistory.reduce((s,h)=>s+(h.count||0),0)}</div><div class="text-xs text-gray-500 mt-1">총 수신자수</div>
+            <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100 cursor-pointer hover:shadow-md hover:border-orange-300 transition-all group"
+              onclick="AdminModule.showSmsDetail('all')">
+              <div class="font-bold text-orange-700 text-2xl group-hover:scale-110 transition-transform">${smsHistory.reduce((s,h)=>s+(h.count||0),0)}</div>
+              <div class="text-xs text-gray-500 mt-1">총 수신자수</div>
+              <div class="text-xs text-orange-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">클릭하여 상세보기</div>
             </div>
           </div>
 
@@ -4057,15 +4071,140 @@ const AdminModule = (() => {
 
         <!-- 발송 이력 -->
         <div class="bg-white rounded-xl shadow-sm p-5">
-          <h3 class="font-semibold text-gray-800 mb-4 text-sm flex items-center gap-2">
-            <i class="fas fa-history text-gray-500"></i>발송 이력
-            <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">${regionLabel}</span>
-          </h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800 text-sm flex items-center gap-2">
+              <i class="fas fa-history text-gray-500"></i>발송 이력
+              <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">${regionLabel}</span>
+            </h3>
+            <div class="flex gap-2">
+              <button onclick="AdminModule.showSmsDetail('all','${myRegionId}')"
+                class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1">
+                <i class="fas fa-list"></i> 전체 ${myHistory.length}건
+              </button>
+              <button onclick="AdminModule.showSmsDetail('thismonth','${myRegionId}')"
+                class="text-xs bg-green-50 text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors flex items-center gap-1">
+                <i class="fas fa-calendar"></i> 이번달 ${myHistory.filter(h=>(h.sentAt||'').startsWith(new Date().toISOString().slice(0,7))).length}건
+              </button>
+            </div>
+          </div>
           ${historyRows}
         </div>
       </div>
     `;
     return renderAdminLayout('sms', contentHtml, 'SMS 발송 관리');
+  };
+
+  // SMS 상세 이력 모달
+  const showSmsDetail = (filter, regionFilter) => {
+    const RNAMES = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
+    const TYPE_NAMES = {emergency:'🚨 긴급',weather:'🌧 기상',info:'📢 일반',reservation:'📋 예약'};
+    const allHistory = JSON.parse(localStorage.getItem('amk_sms_history')||'[]');
+    const thisMonth = new Date().toISOString().slice(0,7);
+
+    let filtered = regionFilter
+      ? allHistory.filter(h=>h.regionId===regionFilter)
+      : allHistory;
+
+    let title = '전체 발송 이력';
+    if (filter === 'thismonth') {
+      filtered = filtered.filter(h=>(h.sentAt||'').startsWith(thisMonth));
+      title = '이번달 발송 이력';
+    } else if (filter === 'byregion' && !regionFilter) {
+      // 지역별 그룹핑 뷰
+      title = '지역별 발송 이력';
+    }
+    if (regionFilter) title += ' — ' + (RNAMES[regionFilter]||regionFilter);
+
+    // 지역별 그룹핑
+    const byRegion = {};
+    filtered.forEach(h => {
+      const r = h.regionId||'unknown';
+      if (!byRegion[r]) byRegion[r] = [];
+      byRegion[r].push(h);
+    });
+
+    const tableRows = (rows) => rows.length ? rows.slice().reverse().map(h => `
+      <tr class="hover:bg-gray-50 border-b border-gray-50">
+        <td class="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">${(h.sentAt||'').slice(0,16).replace('T',' ')}</td>
+        <td class="px-3 py-2.5"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">${RNAMES[h.regionId]||h.regionId||'전체'}</span></td>
+        <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-full text-xs ${h.type==='emergency'?'bg-red-100 text-red-600':h.type==='weather'?'bg-yellow-100 text-yellow-700':h.type==='reservation'?'bg-green-100 text-green-700':'bg-blue-100 text-blue-700'}">${TYPE_NAMES[h.type]||h.type}</span></td>
+        <td class="px-3 py-2.5 text-xs text-gray-700 max-w-xs">
+          <div class="truncate max-w-64" title="${(h.message||'').replace(/"/g,"'")}">${h.message||''}</div>
+          ${h.scheduleName ? `<div class="text-gray-400 text-xs mt-0.5">회차: ${h.scheduleName}</div>` : ''}
+        </td>
+        <td class="px-3 py-2.5 text-center"><span class="font-bold text-blue-700">${h.count||0}</span><span class="text-xs text-gray-400">명</span></td>
+        <td class="px-3 py-2.5 text-xs text-gray-500">${h.sender||'-'}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="text-center py-6 text-gray-400 text-sm">발송 이력 없음</td></tr>';
+
+    const byRegionHtml = filter === 'byregion' && !regionFilter ? `
+      <div class="mb-4 grid grid-cols-3 gap-3">
+        ${Object.entries(byRegion).map(([rid, rows])=>`
+          <div class="bg-blue-50 rounded-xl p-3 text-center cursor-pointer hover:bg-blue-100 transition-colors"
+            onclick="AdminModule.showSmsDetail('all','${rid}')">
+            <div class="font-bold text-blue-700 text-lg">${rows.length}건</div>
+            <div class="text-sm text-gray-600">${RNAMES[rid]||rid}</div>
+            <div class="text-xs text-gray-400 mt-0.5">수신 ${rows.reduce((s,h)=>s+(h.count||0),0)}명</div>
+          </div>`).join('') || '<div class="col-span-3 text-center text-gray-400 py-4">데이터 없음</div>'}
+      </div>` : '';
+
+    const summaryBar = `
+      <div class="flex gap-3 mb-4 bg-gray-50 rounded-xl p-3">
+        <div class="text-center flex-1">
+          <div class="font-bold text-gray-800">${filtered.length}</div>
+          <div class="text-xs text-gray-500">총 발송건</div>
+        </div>
+        <div class="text-center flex-1">
+          <div class="font-bold text-gray-800">${filtered.reduce((s,h)=>s+(h.count||0),0)}</div>
+          <div class="text-xs text-gray-500">총 수신자</div>
+        </div>
+        <div class="text-center flex-1">
+          <div class="font-bold text-gray-800">${filtered.filter(h=>h.type==='weather').length}</div>
+          <div class="text-xs text-gray-500">기상취소</div>
+        </div>
+        <div class="text-center flex-1">
+          <div class="font-bold text-gray-800">${filtered.filter(h=>h.type==='emergency').length}</div>
+          <div class="text-xs text-gray-500">긴급공지</div>
+        </div>
+      </div>`;
+
+    const modal = document.createElement('div');
+    modal.id = 'sms-detail-modal';
+    modal.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-sms text-blue-500 text-lg"></i>
+            <h2 class="font-bold text-gray-800">${title}</h2>
+            <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">${filtered.length}건</span>
+          </div>
+          <button onclick="document.getElementById('sms-detail-modal').remove()"
+            class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition-colors">
+            <i class="fas fa-times text-sm"></i>
+          </button>
+        </div>
+        <div class="p-5 overflow-y-auto flex-1">
+          ${summaryBar}
+          ${byRegionHtml}
+          ${filter === 'byregion' && !regionFilter ? '<h3 class="text-sm font-semibold text-gray-700 mb-3">전체 발송 목록</h3>' : ''}
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="sticky top-0 bg-white">
+                <tr class="bg-gray-50">
+                  ${['발송일시','지역','유형','메시지 내용','수신자','발송자'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-medium text-left whitespace-nowrap">${h}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>${tableRows(filtered)}</tbody>
+            </table>
+          </div>
+        </div>
+        <div class="p-4 border-t bg-gray-50 rounded-b-2xl flex justify-end">
+          <button onclick="document.getElementById('sms-detail-modal').remove()"
+            class="px-5 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700">닫기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
   };
 
   // 회차 선택 시 예약자 목록 로드
@@ -5853,7 +5992,7 @@ const backupPage = async () => {
     addPopup, editPopup, savePopup, deletePopup,
     addNotice, editNotice, saveNotice, hideNotice, deleteNotice, closeNoticeModal,
     showTermsTab, saveTerms, previewTerms,
-    selectSeoRegion, saveSeoGlobal, saveSeoSettings, smsPage, loadSmsPassengers, onSmsTypeChange, smsSelectAll, updateSmsSelectedCount, sendSms, setSmsTemplate, updateSmsCharCount, updateSmsPreview, previewSms,
+    selectSeoRegion, saveSeoGlobal, saveSeoSettings, smsPage, showSmsDetail, loadSmsPassengers, onSmsTypeChange, smsSelectAll, updateSmsSelectedCount, sendSms, setSmsTemplate, updateSmsCharCount, updateSmsPreview, previewSms,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
     addAdmin, resetPassword, deleteAdmin,
