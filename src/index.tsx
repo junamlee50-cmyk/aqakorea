@@ -99,6 +99,13 @@ const buildMeta = (opts: {
 }
 
 // ============================================================
+// Google Search Console 인증 파일
+app.get('/googlee9064f654e79faa3.html', (c) => {
+  return c.text('google-site-verification: googlee9064f654e79faa3.html', 200, {
+    'Content-Type': 'text/html; charset=utf-8',
+  });
+});
+
 // robots.txt
 // ============================================================
 app.get('/robots.txt', (c) => {

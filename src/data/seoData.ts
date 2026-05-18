@@ -30,7 +30,7 @@ export const SEO_CONFIG = {
   },
   // 구글/네이버 서치콘솔 소유확인 코드 (관리자에서 수정 가능)
   searchConsole: {
-    googleVerification: '', // 예: 'abc123def456'
+    googleVerification: 'googlee9064f654e79faa3', // Google Search Console 인증 코드
     naverVerification: '', // 예: 'abc123def456'
     bingVerification: '',
   },
