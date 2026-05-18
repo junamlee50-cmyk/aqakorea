@@ -3843,145 +3843,266 @@ const AdminModule = (() => {
     const region = regions.find(r=>r.id===activeRegionId);
     const regionSeo = (window.REGION_SEO||{})[activeRegionId] || {};
     const saved = seoSettings[activeRegionId] || {};
+    const sc = Settings.get('searchConsole') || {};
+    const an = Settings.get('analytics') || {};
 
     const regionTabs = regions.map(r=>`
       <button onclick="AdminModule.selectSeoRegion('${r.id}')"
         class="px-4 py-2 rounded-lg text-sm font-medium transition-colors ${r.id===activeRegionId?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-        ${r.shortName}
+        ${r.shortName||r.name}
       </button>
     `).join('');
 
     const content = `
-      <div class="space-y-4">
-        <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
-          <i class="fas fa-search mr-2"></i>
-          <strong>관리자 직접 편집:</strong> 각 지역별 SEO 정보를 직접 수정하세요. 저장 즉시 검색엔진에 반영됩니다.
-        </div>
+      <div class="space-y-6">
 
-        <div class="flex gap-2 flex-wrap">${regionTabs}</div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <!-- 기본 SEO -->
-          <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="font-semibold text-gray-800 mb-4">기본 SEO 설정 - ${region?.name||''}</h3>
-            <div class="space-y-3">
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">페이지 제목 (title 태그)</label>
-                <input id="seo-title" type="text" value="${saved.title||regionSeo.title||''}" maxlength="60"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <p class="text-xs text-gray-400 mt-0.5">권장 50-60자</p>
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">메타 설명</label>
-                <textarea id="seo-desc" rows="3" maxlength="160" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none">${saved.description||regionSeo.description||''}</textarea>
-                <p class="text-xs text-gray-400 mt-0.5">권장 150-160자</p>
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">키워드 (쉼표 구분)</label>
-                <input id="seo-keywords" type="text" value="${(saved.keywords||regionSeo.keywords||[]).join(', ')}"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">H1 제목</label>
-                <input id="seo-h1" type="text" value="${saved.h1||regionSeo.h1||''}"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              </div>
-            </div>
+        <!-- ═══ 섹션 1: 사이트 전체 공통 설정 (지역 무관) ═══ -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fas fa-globe text-blue-600"></i>
+            <h2 class="font-bold text-gray-800">사이트 전체 공통 설정</h2>
+            <span class="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full ml-1">모든 지역에 자동 적용</span>
           </div>
+          <p class="text-xs text-gray-500 mb-4">아래 설정은 지역 구분 없이 사이트 전체에 한 번만 입력하면 됩니다.</p>
 
-          <!-- OG / SNS -->
-          <div class="bg-white rounded-xl shadow-sm p-6">
-            <h3 class="font-semibold text-gray-800 mb-4">SNS 공유 (Open Graph)</h3>
-            <div class="space-y-3">
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">OG 제목</label>
-                <input id="seo-og-title" type="text" value="${saved.ogTitle||regionSeo.ogTitle||''}"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">OG 설명</label>
-                <textarea id="seo-og-desc" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none">${saved.ogDescription||regionSeo.ogDescription||''}</textarea>
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-gray-700 mb-1">OG 이미지 URL</label>
-                <input id="seo-og-img" type="url" value="${saved.ogImage||regionSeo.ogImage||''}"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 검색엔진 인증 코드 -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h3 class="font-semibold text-gray-800 mb-4">검색엔진 인증 코드 (사이트 전체 적용)</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1"><i class="fab fa-google text-red-500 mr-1"></i>Google Search Console 인증 코드</label>
-              <input id="seo-google-verify" type="text" placeholder="예: abc123xyz..."
-                value="${(Settings.get('searchConsole')||{}).googleVerification||''}"
-                class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+            <!-- 검색엔진 인증 -->
+            <div class="bg-white rounded-xl p-4 shadow-sm">
+              <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <i class="fas fa-key text-orange-500"></i>검색엔진 소유 확인 코드
+                <a href="https://search.google.com/search-console" target="_blank" class="ml-auto text-xs text-blue-500 hover:underline">Google →</a>
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    <i class="fab fa-google text-red-500 mr-1"></i>Google Search Console 인증 코드
+                    <span class="text-gray-400 font-normal ml-1">(meta content 값만 입력)</span>
+                  </label>
+                  <input id="seo-google-verify" type="text" placeholder="예: abc123xyz..."
+                    value="${sc.googleVerification||''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    <span class="text-green-600 font-bold mr-1">N</span>Naver Search Advisor 인증 코드
+                    <a href="https://searchadvisor.naver.com" target="_blank" class="ml-1 text-xs text-blue-500 hover:underline">네이버 서치어드바이저 →</a>
+                  </label>
+                  <input id="seo-naver-verify" type="text" placeholder="예: abc123xyz..."
+                    value="${sc.naverVerification||''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    Bing Webmaster 인증 코드
+                  </label>
+                  <input id="seo-bing-verify" type="text" placeholder="예: abc123..."
+                    value="${sc.bingVerification||''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1"><i class="fas fa-search text-green-500 mr-1"></i>Naver Search Advisor 인증 코드</label>
-              <input id="seo-naver-verify" type="text" placeholder="예: abc123xyz..."
-                value="${(Settings.get('searchConsole')||{}).naverVerification||''}"
-                class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+
+            <!-- 분석 도구 -->
+            <div class="bg-white rounded-xl p-4 shadow-sm">
+              <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <i class="fas fa-chart-bar text-purple-500"></i>방문자 분석 도구
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    <i class="fab fa-google text-blue-500 mr-1"></i>Google Analytics 4 ID
+                  </label>
+                  <input id="seo-ga-id" type="text" placeholder="G-XXXXXXXXXX"
+                    value="${an.gaId||''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    <span class="text-green-600 font-bold mr-1">N</span>네이버 애널리틱스 ID
+                  </label>
+                  <input id="seo-naver-analytics" type="text" placeholder="na_xxxxxx"
+                    value="${an.naverAnalyticsId||''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">
+                    카카오 픽셀 ID
+                  </label>
+                  <input id="seo-kakao-pixel" type="text" placeholder="픽셀 ID"
+                    value="${an.kakaoPixelId||''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1"><i class="fab fa-google text-blue-500 mr-1"></i>Google Analytics ID</label>
-              <input id="seo-ga-id" type="text" placeholder="G-XXXXXXXXXX"
-                value="${(Settings.get('analytics')||{}).gaId||''}"
-                class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+          </div>
+
+          <!-- 사이트맵/robots 상태 -->
+          <div class="mt-4 grid grid-cols-3 gap-3 text-xs">
+            <a href="/sitemap.xml" target="_blank" class="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border hover:border-blue-400 transition-colors">
+              <i class="fas fa-sitemap text-blue-500"></i>
+              <div><div class="font-medium text-gray-700">sitemap.xml</div><div class="text-gray-400">클릭하여 확인</div></div>
+              <i class="fas fa-external-link-alt text-gray-300 ml-auto"></i>
+            </a>
+            <a href="/robots.txt" target="_blank" class="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border hover:border-blue-400 transition-colors">
+              <i class="fas fa-robot text-gray-500"></i>
+              <div><div class="font-medium text-gray-700">robots.txt</div><div class="text-gray-400">클릭하여 확인</div></div>
+              <i class="fas fa-external-link-alt text-gray-300 ml-auto"></i>
+            </a>
+            <div class="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2 border border-green-200">
+              <i class="fas fa-check-circle text-green-500"></i>
+              <div><div class="font-medium text-green-700">도메인</div><div class="text-green-600">aquamobility.co.kr ✓</div></div>
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">네이버 애널리틱스 ID</label>
-              <input id="seo-naver-analytics" type="text" placeholder="na_xxxxxx"
-                value="${(Settings.get('analytics')||{}).naverAnalyticsId||''}"
-                class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono">
-            </div>
+          </div>
+
+          <div class="flex justify-end mt-4">
+            <button onclick="AdminModule.saveSeoGlobal()" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2 font-medium">
+              <i class="fas fa-save"></i> 공통 설정 저장
+            </button>
           </div>
         </div>
 
-        <!-- 네이버 스마트플레이스 / 구글 비즈니스 -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h3 class="font-semibold text-gray-800 mb-4">지역 비즈니스 정보 - ${region?.name||''}</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="space-y-3">
-              <h4 class="text-sm font-medium text-gray-700 flex items-center gap-2"><i class="fas fa-map-marker-alt text-green-500"></i>네이버 스마트플레이스</h4>
-              <div><label class="block text-xs text-gray-600 mb-1">스마트플레이스 URL</label>
-                <input type="url" placeholder="https://smartplace.naver.com/..." class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
-              <div><label class="block text-xs text-gray-600 mb-1">운영시간</label>
-                <input type="text" placeholder="09:00 - 18:00" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
+        <!-- ═══ 섹션 2: 지역별 SEO 설정 ═══ -->
+        <div class="bg-white rounded-xl shadow-sm p-5">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fas fa-map-marker-alt text-indigo-500"></i>
+            <h2 class="font-bold text-gray-800">지역별 SEO 설정</h2>
+            <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full ml-1">지역마다 다른 키워드/설명</span>
+          </div>
+          <p class="text-xs text-gray-500 mb-4">각 지역 투어 페이지에 표시되는 제목·설명·키워드를 설정합니다. 검색 결과에서 각 지역 페이지가 어떻게 보이는지를 결정합니다.</p>
+
+          <div class="flex gap-2 flex-wrap mb-5">${regionTabs}</div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- 기본 SEO -->
+            <div class="border rounded-xl p-4">
+              <h3 class="font-semibold text-gray-700 mb-3 text-sm flex items-center gap-2">
+                <i class="fas fa-tags text-blue-500"></i>기본 SEO - ${region?.name||activeRegionId}
+              </h3>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">페이지 제목 (title 태그) <span class="text-gray-400">권장 50-60자</span></label>
+                  <input id="seo-title" type="text" value="${saved.title||regionSeo.title||''}" maxlength="70"
+                    class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                  <p class="text-xs text-gray-400 mt-0.5" id="seo-title-count">${(saved.title||regionSeo.title||'').length}/70자</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">메타 설명 <span class="text-gray-400">권장 150-160자</span></label>
+                  <textarea id="seo-desc" rows="3" maxlength="160" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none">${saved.description||regionSeo.description||''}</textarea>
+                  <p class="text-xs text-gray-400 mt-0.5">${(saved.description||regionSeo.description||'').length}/160자</p>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">검색 키워드 <span class="text-gray-400">쉼표로 구분, 10~15개 권장</span></label>
+                  <textarea id="seo-keywords" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none">${(saved.keywords||regionSeo.keywords||[]).join(', ')}</textarea>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">H1 제목 <span class="text-gray-400">페이지 대표 제목</span></label>
+                  <input id="seo-h1" type="text" value="${saved.h1||regionSeo.h1||''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+              </div>
             </div>
-            <div class="space-y-3">
-              <h4 class="text-sm font-medium text-gray-700 flex items-center gap-2"><i class="fab fa-google text-blue-500"></i>구글 비즈니스 프로필</h4>
-              <div><label class="block text-xs text-gray-600 mb-1">구글 비즈니스 URL</label>
-                <input type="url" placeholder="https://business.google.com/..." class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
-              <div><label class="block text-xs text-gray-600 mb-1">Google Place ID</label>
-                <input type="text" placeholder="ChIJ..." class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"></div>
+
+            <!-- OG + 비즈니스 -->
+            <div class="space-y-4">
+              <div class="border rounded-xl p-4">
+                <h3 class="font-semibold text-gray-700 mb-3 text-sm flex items-center gap-2">
+                  <i class="fas fa-share-alt text-pink-500"></i>SNS 공유 (Open Graph)
+                </h3>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">OG 제목 <span class="text-gray-400">SNS 공유 시 표시</span></label>
+                    <input id="seo-og-title" type="text" value="${saved.ogTitle||regionSeo.ogTitle||''}"
+                      class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">OG 설명</label>
+                    <textarea id="seo-og-desc" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none">${saved.ogDescription||regionSeo.ogDescription||''}</textarea>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">OG 이미지 URL <span class="text-gray-400">1200×630px 권장</span></label>
+                    <input id="seo-og-img" type="url" value="${saved.ogImage||regionSeo.ogImage||''}"
+                      class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                  </div>
+                </div>
+              </div>
+
+              <div class="border rounded-xl p-4">
+                <h3 class="font-semibold text-gray-700 mb-3 text-sm flex items-center gap-2">
+                  <i class="fas fa-map-pin text-green-500"></i>지역 비즈니스 등록 URL
+                  <span class="text-xs text-gray-400 font-normal">(지도 검색 노출용)</span>
+                </h3>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">
+                      <span class="text-green-600 font-bold mr-1">N</span>네이버 스마트플레이스 URL
+                      <a href="https://smartplace.naver.com" target="_blank" class="ml-1 text-blue-500 hover:underline text-xs">등록하기 →</a>
+                    </label>
+                    <input id="seo-smartplace" type="url" value="${saved.smartplaceUrl||''}"
+                      placeholder="https://smartplace.naver.com/..."
+                      class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">
+                      <i class="fab fa-google text-blue-500 mr-1"></i>구글 비즈니스 프로필 URL
+                      <a href="https://business.google.com" target="_blank" class="ml-1 text-blue-500 hover:underline text-xs">등록하기 →</a>
+                    </label>
+                    <input id="seo-gbusiness" type="url" value="${saved.googleBusinessUrl||''}"
+                      placeholder="https://business.google.com/..."
+                      class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Google Place ID</label>
+                    <input id="seo-place-id" type="text" value="${saved.googlePlaceId||''}"
+                      placeholder="ChIJ..."
+                      class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+
+          <div class="flex justify-end mt-4">
+            <button onclick="AdminModule.saveSeoSettings('${activeRegionId}')" class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-indigo-700 flex items-center gap-2 font-medium">
+              <i class="fas fa-save"></i> ${region?.name||''} SEO 저장
+            </button>
           </div>
         </div>
 
-        <div class="flex justify-end">
-          <button onclick="AdminModule.saveSeoSettings('${activeRegionId}')" class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
-            <i class="fas fa-save"></i> SEO 설정 저장
-          </button>
-        </div>
       </div>
     `;
     return renderAdminLayout('seo', content, 'SEO 관리');
   };
-
   const selectSeoRegion = (regionId) => { _adminState.selectedRegion = regionId; seoManagePage().then(html=>{document.getElementById('app').innerHTML=html;}); };
+  const saveSeoGlobal = () => {
+    const get = id => document.getElementById(id)?.value?.trim() || '';
+    Settings.set('searchConsole', {
+      googleVerification: get('seo-google-verify'),
+      naverVerification: get('seo-naver-verify'),
+      bingVerification: get('seo-bing-verify'),
+    });
+    Settings.set('analytics', {
+      gaId: get('seo-ga-id'),
+      naverAnalyticsId: get('seo-naver-analytics'),
+      kakaoPixelId: get('seo-kakao-pixel'),
+    });
+    Utils.toast('✅ 공통 설정이 저장되었습니다. 검색엔진에 즉시 반영됩니다.', 'success');
+  };
+
   const saveSeoSettings = (regionId) => {
-    const get = (id) => document.getElementById(id)?.value||'';
+    const get = id => document.getElementById(id)?.value?.trim() || '';
     let allSeo = Settings.get('seoSettings') || {};
-    allSeo[regionId] = { title: get('seo-title'), description: get('seo-desc'), keywords: get('seo-keywords').split(',').map(k=>k.trim()).filter(Boolean), h1: get('seo-h1'), ogTitle: get('seo-og-title'), ogDescription: get('seo-og-desc'), ogImage: get('seo-og-img') };
+    allSeo[regionId] = {
+      title: get('seo-title'), description: get('seo-desc'),
+      keywords: get('seo-keywords').split(',').map(k=>k.trim()).filter(Boolean),
+      h1: get('seo-h1'), ogTitle: get('seo-og-title'),
+      ogDescription: get('seo-og-desc'), ogImage: get('seo-og-img'),
+      smartplaceUrl: get('seo-smartplace'),
+      googleBusinessUrl: get('seo-gbusiness'),
+      googlePlaceId: get('seo-place-id'),
+    };
     Settings.set('seoSettings', allSeo);
-    Settings.set('searchConsole', { googleVerification: get('seo-google-verify'), naverVerification: get('seo-naver-verify') });
-    Settings.set('analytics', { gaId: get('seo-ga-id'), naverAnalyticsId: get('seo-naver-analytics') });
-    Utils.toast('SEO 설정이 저장되었습니다.', 'success');
+    const rnames = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
+    Utils.toast('✅ ' + (rnames[regionId]||regionId) + ' SEO 설정이 저장되었습니다.', 'success');
   };
 
   // ── 새 지역 추가 ───────────────────────────────────────────
@@ -5321,7 +5442,7 @@ const backupPage = async () => {
     addPopup, editPopup, savePopup, deletePopup,
     addNotice, editNotice, saveNotice, hideNotice, deleteNotice, closeNoticeModal,
     showTermsTab, saveTerms, previewTerms,
-    selectSeoRegion, saveSeoSettings,
+    selectSeoRegion, saveSeoGlobal, saveSeoSettings,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
     addAdmin, resetPassword, deleteAdmin,
