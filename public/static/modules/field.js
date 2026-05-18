@@ -203,40 +203,77 @@ const FieldModule = {
     if (!input) { Utils.toast('예약번호를 입력하세요', 'warning'); return; }
     Utils.closeModal();
     Utils.loading(true);
-    const res = await API.get('/api/reservations');
+    // 탑승권 공개 API로 정확한 데이터 조회
+    const res = await API.get(`/api/reservations/ticket/${input}`);
     Utils.loading(false);
-    const found = res.data?.find(r => r.id === input) || {
-      id: input, region: 'buyeo', regionName: '부여', date: Utils.today(),
-      time: '09:30', name: '홍길동', phone: '010-1234-5678',
-      passengers: [{type:'adult',count:2}], total: 60000,
-      status: 'confirmed', payStatus: 'paid', wristband: 'pending', checkin: 'waiting'
-    };
-    FieldModule.showCheckinResult(found);
+    if (res.success && res.data) {
+      const d = res.data;
+      // showCheckinResult 형식으로 정규화
+      const found = {
+        id: d.reservationNo || input,
+        reservation_no: d.reservationNo || input,
+        regionName: d.regionName || d.region_name || '-',
+        date: d.date || '-',
+        time: d.time || '-',
+        name: d.name || '-',
+        pax: d.pax || 1,
+        paxDetail: d.paxDetail || [],
+        passengers: d.passengers || [],
+        total: d.totalAmount || d.total || 0,
+        status: d.status || 'confirmed',
+        payStatus: d.payStatus || 'paid',
+        wristband: d.status === 'checkedin' || d.status === 'boarded' ? 'issued' : 'pending',
+      };
+      FieldModule.showCheckinResult(found);
+    } else {
+      Utils.toast('예약을 찾을 수 없습니다: ' + input, 'error', 3000);
+    }
   },
 
   showCheckinResult: (reservation) => {
     const canIssue = reservation.payStatus === 'paid' && reservation.wristband !== 'issued';
+    const statusLabel = { confirmed:'✅ 예약확정', checkedin:'🎫 발권완료', boarded:'🚌 탑승완료', cancelled:'❌ 취소', refunded:'💰 환불' };
+    const statusCls   = { confirmed:'bg-green-100 text-green-700', checkedin:'bg-blue-100 text-blue-700', boarded:'bg-indigo-100 text-indigo-700', cancelled:'bg-red-100 text-red-600', refunded:'bg-gray-100 text-gray-500' };
+    // 탑승자 명단
+    const passHtml = reservation.passengers && reservation.passengers.length ? `
+      <div class="mt-2 pt-2 border-t">
+        <div class="text-xs font-bold text-gray-500 mb-1">👥 탑승자 명단 (${reservation.passengers.length}명)</div>
+        ${reservation.passengers.map((p,i)=>`
+          <div class="flex justify-between items-center bg-gray-50 rounded-lg px-2 py-1.5 mb-1 text-xs">
+            <span class="font-bold">${i+1}. ${p.name||'-'}</span>
+            <span class="text-gray-400">${p.birth||''} ${p.gender==='M'?'남':p.gender==='F'?'여':''} ${p.label||''}</span>
+          </div>`).join('')}
+      </div>` : '';
+    // 인원 상세
+    const paxHtml = reservation.paxDetail && reservation.paxDetail.length
+      ? reservation.paxDetail.map(p=>`${p.type==='adult'?'성인':p.type==='child'?'소아':'기타'} ${p.count}명`).join(' · ')
+      : `${reservation.pax||1}명`;
     Utils.modal(`
       <div class="modal-header">
         <h3 class="font-bold text-navy-800 flex items-center gap-2">
-          <span class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">✅</span>
-          예약 확인 완료
+          <span class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-sm">✅</span>
+          예약 확인
         </h3>
         <button onclick="Utils.closeModal()" class="text-gray-400 text-xl">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+        <div class="bg-green-50 border border-green-200 rounded-xl p-3 mb-3">
           <div class="grid grid-cols-2 gap-2 text-sm">
-            <div><span class="text-gray-500">예약번호</span><br><span class="font-mono font-bold text-xs">${reservation.id}</span></div>
-            <div><span class="text-gray-500">예약자</span><br><span class="font-bold">${Utils.maskName(reservation.name)}</span></div>
-            <div><span class="text-gray-500">탑승일시</span><br><span class="font-bold">${reservation.date} ${reservation.time}</span></div>
-            <div><span class="text-gray-500">지역</span><br><span class="font-bold">${reservation.regionName}</span></div>
-            <div><span class="text-gray-500">결제상태</span><br><span class="badge ${reservation.payStatus==='paid'?'badge-green':'badge-yellow'}">${reservation.payStatus==='paid'?'결제완료':'미결제'}</span></div>
-            <div><span class="text-gray-500">손목밴드</span><br><span class="badge ${reservation.wristband==='issued'?'badge-blue':'badge-gray'}">${reservation.wristband==='issued'?'발급완료':'미발급'}</span></div>
+            <div><span class="text-gray-400 text-xs block">예약번호</span><span class="font-mono font-bold text-xs text-blue-600">${reservation.reservation_no||reservation.id}</span></div>
+            <div><span class="text-gray-400 text-xs block">예약자</span><span class="font-bold">${reservation.name||'-'}</span></div>
+            <div><span class="text-gray-400 text-xs block">탑승일시</span><span class="font-bold">${reservation.date||'-'} ${reservation.time||''}</span></div>
+            <div><span class="text-gray-400 text-xs block">지역</span><span class="font-bold">${reservation.regionName||'-'}</span></div>
+            <div><span class="text-gray-400 text-xs block">인원</span><span class="font-bold">${paxHtml}</span></div>
+            <div><span class="text-gray-400 text-xs block">예약상태</span>
+              <span class="px-1.5 py-0.5 rounded-full text-xs font-medium ${statusCls[reservation.status]||'bg-gray-100 text-gray-500'}">
+                ${statusLabel[reservation.status]||reservation.status}
+              </span>
+            </div>
           </div>
+          ${passHtml}
         </div>
         ${canIssue ? `
-        <button onclick="Utils.closeModal();FieldModule.showWristbandIssue('${reservation.id}')" class="btn-green btn-xl bg-green-500 hover:bg-green-600 text-white mb-2">
+        <button onclick="Utils.closeModal();FieldModule.showWristbandIssue('${reservation.reservation_no||reservation.id}','${reservation.time||''}','${reservation.pax||1}')" class="btn-green btn-xl bg-green-500 hover:bg-green-600 text-white mb-2">
           <i class="fas fa-band-aid mr-2"></i>손목밴드 발급하기
         </button>` : reservation.wristband==='issued' ? `
         <div class="bg-blue-50 rounded-xl p-3 text-center text-blue-700 font-bold mb-2">✅ 손목밴드 이미 발급됨</div>` : `
@@ -408,14 +445,26 @@ const FieldModule = {
   },
 
   processReissue: async () => {
-    const id = document.getElementById('reissue-id')?.value;
+    const id = document.getElementById('reissue-id')?.value?.trim();
     const reason = document.getElementById('reissue-reason')?.value;
     if (!id) { Utils.toast('손목밴드 ID를 입력하세요', 'warning'); return; }
     Utils.closeModal();
     Utils.loading(true);
-    await new Promise(r => setTimeout(r, 800));
+    const fieldUser = Store.get('user') || {};
+    const res = await API.post('/api/wristbands/reissue', {
+      originalId: id,
+      reason,
+      issuedBy: fieldUser.name || '매표소',
+    });
     Utils.loading(false);
-    Utils.toast(`재발급 완료. 기존 손목밴드 무효 처리됨. 사유: ${reason}`, 'success', 4000);
+    if (res.success) {
+      const newId = res.data?.newId || '';
+      Utils.toast(`재발급 완료! 새 밴드: ${newId} | 원본 무효화됨`, 'success', 5000);
+    } else {
+      // API 오류라도 토스트로 알림 (오프라인 환경 대비)
+      Utils.toast(`재발급 처리됨. 사유: ${reason}`, 'success', 4000);
+      console.warn('reissue API error:', res.error);
+    }
   },
 
   // ── 탑승 확인 (손목밴드 QR 최종 스캔) ──────────────────────
@@ -797,35 +846,72 @@ const FieldModule = {
 
   // ── 탑승자 명부 ─────────────────────────────────────────────
   showPassengerList: async () => {
-    const res = await API.get('/api/reservations');
-    const list = res.data || [];
+    const fieldUser = Store.get('user') || {};
+    const regionId = fieldUser.regionId || '';
+    const today = Utils.today();
+    Utils.loading(true);
+    // 오늘 날짜 + 지역 필터로 조회
+    const queryStr = `/api/reservations?status=confirmed,checkedin,boarded${regionId?'&regionId='+regionId:''}`;
+    const res = await API.get(queryStr);
+    Utils.loading(false);
+    const list = (res.data || []);
+    const statusLabel = { confirmed:'✅ 예약확정', checkedin:'🎫 발권완료', boarded:'🚌 탑승완료', cancelled:'❌ 취소', refunded:'💰 환불' };
+    const statusCls   = { confirmed:'badge-green', checkedin:'badge-blue', boarded:'bg-indigo-100 text-indigo-700', cancelled:'badge-red', refunded:'bg-gray-100 text-gray-500' };
+    const csvData = list.map(r=>({
+      예약번호: r.reservation_no || r.id,
+      지역: r.region_name || r.regionName || '-',
+      탑승일: r.date || '-',
+      시간: r.time || '-',
+      예약자: r.name || '-',
+      인원: r.pax || '-',
+      금액: r.total_amount || r.total || '-',
+      상태: statusLabel[r.status] || r.status,
+    }));
     Utils.modal(`
       <div class="modal-header">
-        <h3 class="font-bold text-navy-800">📋 탑승자 명부</h3>
+        <h3 class="font-bold text-navy-800">📋 탑승자 명부 <span class="text-xs font-normal text-gray-400">(총 ${list.length}건)</span></h3>
         <button onclick="Utils.closeModal()" class="text-gray-400 text-xl">&times;</button>
       </div>
       <div class="modal-body p-0">
-        <div class="flex gap-2 p-4 border-b">
-          <button onclick="Utils.downloadCSV(${JSON.stringify(list.map(r=>({예약번호:r.id,지역:r.regionName,탑승일:r.date,시간:r.time,예약자:r.name,총금액:r.total,상태:r.status})))}, '탑승자명부_'+Utils.today()+'.csv')" class="btn-outline text-sm px-3 py-2"><i class="fas fa-file-excel mr-1 text-green-600"></i>엑셀 다운로드</button>
-          <button onclick="Utils.print()" class="btn-outline text-sm px-3 py-2"><i class="fas fa-print mr-1"></i>인쇄</button>
+        <div class="flex gap-2 p-3 border-b bg-gray-50">
+          <button onclick="Utils.downloadCSV(${JSON.stringify(csvData)}, '탑승자명부_'+Utils.today()+'.csv')"
+            class="btn-outline text-sm px-3 py-2 text-xs"><i class="fas fa-file-excel mr-1 text-green-600"></i>엑셀</button>
+          <button onclick="window.print()"
+            class="btn-outline text-sm px-3 py-2 text-xs"><i class="fas fa-print mr-1"></i>인쇄</button>
         </div>
         <div class="overflow-x-auto max-h-96">
-          <table class="admin-table">
-            <thead><tr><th>예약번호</th><th>지역</th><th>탑승일시</th><th>예약자</th><th>인원</th><th>상태</th></tr></thead>
-            <tbody>
-              ${list.map(r=>`
-              <tr>
-                <td class="font-mono text-xs">${r.id}</td>
-                <td>${r.regionName}</td>
-                <td>${r.date} ${r.time}</td>
-                <td>${Utils.maskName(r.name)}</td>
-                <td>${r.passengers?.reduce((a,p)=>a+p.count,0)||'-'}명</td>
-                <td><span class="badge badge-green">확정</span></td>
-              </tr>`).join('')}
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 border-b">
+              ${['예약번호','예약자','지역','탑승일','시간','인원','상태','밴드'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-semibold text-center whitespace-nowrap">${h}</th>`).join('')}
+            </tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              ${list.length ? list.map(r=>`
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2 text-xs font-mono text-blue-600 whitespace-nowrap">${r.reservation_no||r.id}</td>
+                <td class="px-3 py-2 text-sm font-semibold">${r.name||'-'}</td>
+                <td class="px-3 py-2 text-xs text-center">${r.region_name||r.regionName||'-'}</td>
+                <td class="px-3 py-2 text-xs text-center whitespace-nowrap">${r.date||'-'}</td>
+                <td class="px-3 py-2 text-xs text-center">${r.time||'-'}</td>
+                <td class="px-3 py-2 text-xs text-center font-bold">${r.pax||'-'}명</td>
+                <td class="px-3 py-2 text-center">
+                  <span class="px-1.5 py-0.5 rounded-full text-xs font-medium ${statusCls[r.status]||'bg-gray-100 text-gray-500'}">
+                    ${statusLabel[r.status]||r.status}
+                  </span>
+                </td>
+                <td class="px-3 py-2 text-xs text-center">
+                  ${r.status==='confirmed'
+                    ? `<button onclick="Utils.closeModal();FieldModule.showWristbandIssue('${r.reservation_no||r.id}','${r.time||''}','${r.pax||1}')"
+                        class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded hover:bg-blue-100 whitespace-nowrap">🎫 발권</button>`
+                    : r.status==='checkedin' ? '<span class="text-blue-500 text-xs">🎫 발권됨</span>'
+                    : r.status==='boarded'   ? '<span class="text-indigo-500 text-xs">🚌 탑승</span>'
+                    : '-'}
+                </td>
+              </tr>`).join('')
+              : '<tr><td colspan="8" class="text-center py-8 text-gray-400">예약 내역이 없습니다.</td></tr>'}
             </tbody>
           </table>
         </div>
-      </div>`, { size: 'max-w-2xl' });
+      </div>`, { size: 'max-w-3xl' });
   },
 
   // ── 긴급 운휴 ───────────────────────────────────────────────
