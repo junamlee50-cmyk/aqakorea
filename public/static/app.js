@@ -257,20 +257,24 @@
 
   // ── 앱 메인 초기화 ─────────────────────────────────────────
   const init = async () => {
-    // ── localStorage에서 관리자 세션 복원 (새로고침 후에도 유지) ──
+    // ── 관리자 페이지 접속 시에만 세션 복원 (일반 고객 페이지는 복원 안 함) ──
     try {
-      const savedUser = localStorage.getItem('amk_admin_user');
-      const savedTime = localStorage.getItem('amk_admin_login_time');
-      if (savedUser) {
-        const u = JSON.parse(savedUser);
-        const t = savedTime ? parseInt(savedTime) : Date.now();
-        // 8시간 이내이면 복원
-        if (u && u.id && (Date.now() - t) < 8 * 60 * 60 * 1000) {
-          Store.set('adminUser', u);
-          Store.set('adminLoginTime', t);
-        } else {
-          localStorage.removeItem('amk_admin_user');
-          localStorage.removeItem('amk_admin_login_time');
+      const path = window.location.pathname;
+      const isAdminPath = path.startsWith('/admin') || path.startsWith('/stats') || path.startsWith('/field');
+      if (isAdminPath) {
+        const savedUser = localStorage.getItem('amk_admin_user');
+        const savedTime = localStorage.getItem('amk_admin_login_time');
+        if (savedUser) {
+          const u = JSON.parse(savedUser);
+          const t = savedTime ? parseInt(savedTime) : Date.now();
+          // 8시간 이내이면 복원
+          if (u && u.id && (Date.now() - t) < 8 * 60 * 60 * 1000) {
+            Store.set('adminUser', u);
+            Store.set('adminLoginTime', t);
+          } else {
+            localStorage.removeItem('amk_admin_user');
+            localStorage.removeItem('amk_admin_login_time');
+          }
         }
       }
     } catch(e) {}
