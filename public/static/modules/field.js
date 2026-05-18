@@ -443,21 +443,43 @@ const FieldModule = {
     if (!id) { Utils.toast('손목밴드 ID를 입력하세요', 'warning'); return; }
     Utils.closeModal();
     Utils.loading(true);
-    await new Promise(r => setTimeout(r, 500));
+
+    // 실제 API 호출 — DB 탑승완료 업데이트
+    const user = Store.get('user') || {};
+    const res = await API.post('/api/wristbands/board', {
+      wristbandId: id,
+      boardedBy: user.name || '승강구',
+    });
     Utils.loading(false);
+
+    if (!res.success) {
+      // 이미 탑승 또는 없는 밴드
+      Utils.modal(`
+        <div class="modal-body text-center py-6">
+          <div class="text-5xl mb-3">⚠️</div>
+          <h3 class="text-xl font-black text-red-600 mb-2">${res.error || '처리 실패'}</h3>
+          <p class="text-gray-500 text-sm mb-4">${id}</p>
+          <button onclick="Utils.closeModal()" class="w-full bg-gray-200 py-3 rounded-xl font-bold">닫기</button>
+        </div>`, { size: 'max-w-xs' });
+      return;
+    }
+
+    const data = res.data || {};
+    const pax = data.passenger;
     Utils.modal(`
       <div class="modal-body text-center py-6">
-        <div class="text-6xl mb-3">✅</div>
+        <div class="text-6xl mb-3">🚌</div>
         <h3 class="text-2xl font-black text-navy-800 mb-1">탑승 완료!</h3>
-        <p class="text-gray-500 mb-4">${id}</p>
+        <p class="text-gray-400 text-xs mb-4">${id}</p>
         <div class="bg-green-50 rounded-xl p-3 mb-4">
           <div class="grid grid-cols-2 gap-2 text-sm text-left">
-            <div><span class="text-gray-500">손목밴드</span><br><span class="font-bold">${id}</span></div>
+            <div><span class="text-gray-500">예약자</span><br><span class="font-bold">${pax?.name || '-'}</span></div>
+            <div><span class="text-gray-500">인원</span><br><span class="font-bold">${pax?.pax || '-'}명</span></div>
             <div><span class="text-gray-500">처리시간</span><br><span class="font-bold">${new Date().toLocaleTimeString('ko-KR')}</span></div>
-            <div><span class="text-gray-500">권종</span><br><span class="font-bold">성인</span></div>
-            <div><span class="text-gray-500">담당자</span><br><span class="font-bold">매표소1</span></div>
+            <div><span class="text-gray-500">담당자</span><br><span class="font-bold">${user.name||'승강구'}</span></div>
           </div>
         </div>
+        <div class="text-xs text-green-600 bg-green-50 rounded-lg py-2 mb-3">✅ 관리자 화면에 탑승완료로 자동 업데이트</div>
         <button onclick="Utils.closeModal()" class="btn-mint bg-green-500 text-white w-full py-3 rounded-xl font-bold">확인</button>
       </div>`, { size: 'max-w-xs' });
   },
