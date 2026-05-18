@@ -1317,7 +1317,30 @@ ${Footer.render()}
     for (const id of requiredAgrees) {
       if (!document.getElementById(id)?.checked) { Utils.toast('필수 동의 항목을 확인해주세요', 'warning'); return; }
     }
-    Store.set('cart', { regionId, date: s.date, scheduleId: s.scheduleId, paxList, pax, total, totalAmount: total, name, phone, email: document.getElementById('inp-email')?.value, source: s.source });
+    // ── 탑승자 정보 수집 ──
+    const passengerCards = document.querySelectorAll('.passenger-card');
+    const passengers = [];
+    let passengerWarning = false;
+    passengerCards.forEach((card, idx) => {
+      const pName  = card.querySelector('.pax-name')?.value?.trim() || '';
+      const pBirth = card.querySelector('.pax-birth')?.value?.trim() || '';
+      const pGender= card.querySelector('.pax-gender')?.value?.trim() || '';
+      const pNat   = card.querySelector('.pax-nationality')?.value?.trim() || 'KR';
+      const fareId = card.dataset.fareId || '';
+      const label  = card.querySelector('.pax-label')?.textContent?.trim() || '';
+      if (!pName) passengerWarning = true;
+      passengers.push({ idx: idx+1, name: pName, birth: pBirth, gender: pGender, nationality: pNat, fareId, label });
+    });
+    if (passengerWarning) {
+      Utils.toast('탑승자 이름을 모두 입력해주세요', 'warning'); return;
+    }
+    Store.set('cart', {
+      regionId, date: s.date, scheduleId: s.scheduleId,
+      paxList, pax, total, totalAmount: total,
+      name, phone, email: document.getElementById('inp-email')?.value,
+      source: s.source,
+      passengers,
+    });
     Router.go('/payment');
   },
 
@@ -1554,12 +1577,34 @@ ${Footer.render()}`;
             </div>
             <div class="flex justify-between items-center border-b border-gray-50 pb-2">
               <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-users w-4 text-center text-blue-400"></i>탑승인원</span>
-              <span class="font-semibold">${found.pax}명${found.paxList?.length ? ' (' + found.paxList.join(', ') + ')' : ''}</span>
+              <span class="font-semibold">${
+                (() => {
+                  const pd = found.paxDetail || [];
+                  if (pd.length > 0) {
+                    return pd.map(p => {
+                      const lbl = p.type==='adult'?'성인':p.type==='child'?'소아':p.type==='infant'?'유아':p.type==='senior'?'경로':p.type;
+                      return lbl+' '+p.count+'명';
+                    }).join(' / ');
+                  }
+                  return (found.adultCnt||found.pax||1)+'명';
+                })()
+              }</span>
             </div>
             <div class="flex justify-between items-center border-b border-gray-50 pb-2">
               <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-user w-4 text-center text-blue-400"></i>예약자</span>
               <span class="font-semibold">${found.name} / ${maskPhone(found.phone)}</span>
             </div>
+            ${found.passengers && found.passengers.length > 0 ? `
+            <div class="border-b border-gray-50 pb-2">
+              <div class="text-gray-500 flex items-center gap-1.5 mb-2"><i class="fas fa-users w-4 text-center text-blue-400"></i>탑승자 명단</div>
+              <div class="space-y-1.5">
+                ${found.passengers.map((p,i) => `
+                  <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-xs">
+                    <span class="font-medium text-gray-700">${i+1}. ${p.name||'미입력'}</span>
+                    <span class="text-gray-400">${p.birth||''} ${p.gender==='M'?'남':p.gender==='F'?'여':''} ${p.nationality!=='KR'?'('+p.nationality+')':''}</span>
+                  </div>`).join('')}
+              </div>
+            </div>` : ''}
             <div class="flex justify-between items-center border-b border-gray-50 pb-2">
               <span class="text-gray-500 flex items-center gap-1.5"><i class="fas fa-map-pin w-4 text-center text-blue-400"></i>탑승장</span>
               <span class="font-semibold text-xs text-right">${found.boardingPlace}</span>
@@ -1777,6 +1822,16 @@ ${Footer.render()}`;
                 schedule: r.scheduleTime || r.scheduleId || '-',
                 pax: r.pax || 1,
                 paxDetail: r.paxDetail || [],
+                passengers: r.passengers || [],
+                adultCnt: (() => {
+                  const pd = r.paxDetail || [];
+                  const a = pd.find(p=>p.type==='adult');
+                  return a ? a.count : (r.pax || 1);
+                })(),
+                childCnt: (() => {
+                  const pd = r.paxDetail || [];
+                  return pd.filter(p=>p.type!=='adult').reduce((s,p)=>s+(p.count||0),0);
+                })(),
                 totalAmount: r.totalPrice || 0,
                 name: r.name || '-',
                 phone: r.phone || '-',

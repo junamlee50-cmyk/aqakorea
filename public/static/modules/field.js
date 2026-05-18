@@ -466,22 +466,70 @@ const FieldModule = {
 
     const data = res.data || {};
     const pax = data.passenger;
+    const passengers = data.passengers || [];
+
+    // 탑승자 체크리스트 (1인1인 확인용)
+    const checklistHtml = passengers.length > 0
+      ? `<div class="mt-3 mb-3 text-left">
+          <div class="text-xs font-bold text-gray-600 mb-2 flex items-center gap-1">
+            <i class="fas fa-clipboard-check text-green-500"></i> 탑승자 체크리스트
+          </div>
+          <div class="space-y-1.5" id="boarding-checklist">
+            ${passengers.map((p,i) => `
+              <label class="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5 cursor-pointer hover:bg-green-50 transition-colors" id="check-item-${i}">
+                <input type="checkbox" class="w-5 h-5 rounded accent-green-500"
+                  onchange="FieldModule._onCheckPassenger(${i}, ${passengers.length})">
+                <div class="flex-1">
+                  <div class="font-bold text-sm text-navy-800">${p.name||'미입력'}</div>
+                  <div class="text-xs text-gray-400">${p.birth||''} ${p.gender==='M'?'남성':p.gender==='F'?'여성':''}</div>
+                </div>
+                <span class="text-gray-300 check-icon-${i}">⬜</span>
+              </label>`).join('')}
+          </div>
+          <div id="checklist-status" class="mt-2 text-center text-xs text-gray-400">0 / ${passengers.length}명 확인됨</div>
+        </div>`
+      : '';
+
     Utils.modal(`
-      <div class="modal-body text-center py-6">
-        <div class="text-6xl mb-3">🚌</div>
-        <h3 class="text-2xl font-black text-navy-800 mb-1">탑승 완료!</h3>
-        <p class="text-gray-400 text-xs mb-4">${id}</p>
-        <div class="bg-green-50 rounded-xl p-3 mb-4">
+      <div class="modal-body text-center py-4">
+        <div class="text-5xl mb-2">🚌</div>
+        <h3 class="text-xl font-black text-navy-800 mb-1">탑승 완료!</h3>
+        <p class="text-gray-400 text-xs mb-3">${id}</p>
+        <div class="bg-green-50 rounded-xl p-3 mb-2">
           <div class="grid grid-cols-2 gap-2 text-sm text-left">
-            <div><span class="text-gray-500">예약자</span><br><span class="font-bold">${pax?.name || '-'}</span></div>
-            <div><span class="text-gray-500">인원</span><br><span class="font-bold">${pax?.pax || '-'}명</span></div>
-            <div><span class="text-gray-500">처리시간</span><br><span class="font-bold">${new Date().toLocaleTimeString('ko-KR')}</span></div>
-            <div><span class="text-gray-500">담당자</span><br><span class="font-bold">${user.name||'승강구'}</span></div>
+            <div><span class="text-gray-500 text-xs">예약자</span><br><span class="font-bold">${pax?.name || '-'}</span></div>
+            <div><span class="text-gray-500 text-xs">총 인원</span><br><span class="font-bold">${pax?.pax || passengers.length || '-'}명</span></div>
+            <div><span class="text-gray-500 text-xs">처리시간</span><br><span class="font-bold text-xs">${new Date().toLocaleTimeString('ko-KR')}</span></div>
+            <div><span class="text-gray-500 text-xs">담당자</span><br><span class="font-bold text-xs">${user.name||'승강구'}</span></div>
           </div>
         </div>
-        <div class="text-xs text-green-600 bg-green-50 rounded-lg py-2 mb-3">✅ 관리자 화면에 탑승완료로 자동 업데이트</div>
+        ${checklistHtml}
+        <div class="text-xs text-green-600 bg-green-50 rounded-lg py-1.5 mb-3">✅ DB 탑승완료 자동 업데이트</div>
         <button onclick="Utils.closeModal()" class="btn-mint bg-green-500 text-white w-full py-3 rounded-xl font-bold">확인</button>
-      </div>`, { size: 'max-w-xs' });
+      </div>`, { size: 'max-w-sm' });
+  },
+
+  // ── 탑승자 체크 처리 ──────────────────────────────────────
+  _onCheckPassenger: (idx, total) => {
+    const item = document.getElementById(`check-item-${idx}`);
+    const icon = item?.querySelector(`.check-icon-${idx}`);
+    const cb   = item?.querySelector('input[type=checkbox]');
+    if (cb?.checked) {
+      item?.classList.add('bg-green-100', 'border', 'border-green-300');
+      if (icon) icon.textContent = '✅';
+    } else {
+      item?.classList.remove('bg-green-100', 'border', 'border-green-300');
+      if (icon) icon.textContent = '⬜';
+    }
+    // 전체 체크 수 업데이트
+    const checked = document.querySelectorAll('#boarding-checklist input:checked').length;
+    const statusEl = document.getElementById('checklist-status');
+    if (statusEl) {
+      statusEl.textContent = `${checked} / ${total}명 확인됨`;
+      statusEl.className = checked === total
+        ? 'mt-2 text-center text-xs text-green-600 font-bold'
+        : 'mt-2 text-center text-xs text-gray-400';
+    }
   },
 
   // ── 현장 발권 (복합결제 지원) ────────────────────────────────

@@ -3290,6 +3290,32 @@ const AdminModule = (() => {
         </div>
         <p class="text-xs text-red-500 mt-1">탑승 전 현장 직원이 반드시 확인해야 합니다.</p>
       </div>` : '';
+    // 탑승자 명단 — DB에서 직접 조회
+    let passengersList = r.passengers || [];
+    if (!passengersList.length) {
+      try {
+        const dbRes = await API.get(`/api/reservations/ticket/${r.id}`);
+        if (dbRes.success) passengersList = dbRes.data.passengers || [];
+      } catch(e) {}
+    }
+    const passengersHtml = passengersList.length > 0
+      ? `<div class="mt-3 border-t pt-3">
+          <div class="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1">
+            <i class="fas fa-users text-blue-400"></i> 탑승자 명단 (${passengersList.length}명)
+          </div>
+          <div class="space-y-1">
+            ${passengersList.map((p,i) => `
+              <div class="flex items-center justify-between bg-gray-50 rounded-lg px-2 py-1.5 text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-xs">${i+1}</span>
+                  <span class="font-semibold">${p.name||'미입력'}</span>
+                </div>
+                <span class="text-gray-400">${p.birth||''} ${p.gender==='M'?'남':p.gender==='F'?'여':''}</span>
+              </div>`).join('')}
+          </div>
+        </div>`
+      : '<div class="mt-3 border-t pt-3 text-xs text-gray-400 text-center">탑승자 정보 미입력 (구형 예약)</div>';
+
     Utils.confirm(
       `<div class="text-left space-y-1.5 text-sm">
         <div class="font-bold text-base mb-2 font-mono">${r.id}</div>
@@ -3297,7 +3323,15 @@ const AdminModule = (() => {
         <div class="flex justify-between pt-1"><span class="text-gray-500">예약자</span><span class="font-medium">${r.name}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">지역</span><span>${r.regionName}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">날짜·회차</span><span>${r.date} ${r.schedule}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">인원</span><span>성인 ${r.adultCnt}명 / 소아 ${r.childCnt}명</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">인원</span>
+          <span>${
+            (() => {
+              const pd = r.paxDetail || [];
+              if (pd.length > 0) return pd.map(p=>{const l=p.type==='adult'?'성인':p.type==='child'?'소아':p.type==='infant'?'유아':p.type==='senior'?'경로':p.type; return l+' '+p.count+'명';}).join(' / ');
+              return '성인 '+(r.adultCnt||r.pax||1)+'명'+(r.childCnt?' / 소아 '+r.childCnt+'명':'');
+            })()
+          }</span>
+        </div>
         <div class="flex justify-between"><span class="text-gray-500">결제금액</span><span class="font-bold">₩${r.totalAmount.toLocaleString()}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">결제수단</span><span>${r.payMethod}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">유입경로</span><span>${r.source}</span></div>
@@ -3305,6 +3339,13 @@ const AdminModule = (() => {
           <span class="px-2 py-0.5 rounded-full text-xs font-medium ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='checkedin'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-700':'bg-yellow-100 text-yellow-700'}">
             ${statusLabels[r.status]||r.status}
           </span>
+        </div>
+        ${passengersHtml}
+        <div class="mt-3 pt-2 border-t flex gap-2">
+          <a href="/ticket/${r.id}" target="_blank"
+            class="flex-1 text-center bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-medium hover:bg-blue-100">
+            🎫 탑승권 QR 보기
+          </a>
         </div>
       </div>`,
       () => {},

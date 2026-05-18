@@ -115,11 +115,45 @@ const TicketPage = {
           <span class="text-gray-500 text-sm">인원</span>
           <span class="font-bold text-navy-800">${r.pax}명</span>
         </div>
+        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+          <span class="text-gray-500 text-sm">탑승인원</span>
+          <span class="font-bold text-navy-800">${
+            (() => {
+              const pd = r.paxDetail || [];
+              if (pd.length > 0) return pd.map(p=>{
+                const l=p.type==='adult'?'성인':p.type==='child'?'소아':p.type==='infant'?'유아':p.type==='senior'?'경로':p.type;
+                return l+' '+p.count+'명';
+              }).join(' / ');
+              return (r.pax||1)+'명';
+            })()
+          }</span>
+        </div>
         <div class="flex justify-between items-center py-2">
           <span class="text-gray-500 text-sm">결제금액</span>
           <span class="font-bold text-ocean-600">₩${Number(r.totalPrice || 0).toLocaleString()}</span>
         </div>
       </div>
+
+      <!-- 탑승자 명단 -->
+      ${r.passengers && r.passengers.length > 0 ? `
+      <div class="mx-4 mb-0 border-t border-dashed border-gray-200 pt-3 pb-1">
+        <div class="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1">
+          <i class="fas fa-users text-blue-400"></i> 탑승자 명단
+        </div>
+        <div class="space-y-1.5">
+          ${r.passengers.map((p,i) => `
+            <div class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold">${i+1}</span>
+                <span class="font-semibold text-sm text-navy-800">${p.name||'미입력'}</span>
+              </div>
+              <div class="text-right text-xs text-gray-400">
+                <div>${p.birth||''} ${p.gender==='M'?'남성':p.gender==='F'?'여성':''}</div>
+                <div>${p.nationality&&p.nationality!=='KR'?'('+p.nationality+')':''}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
 
       <!-- 안내사항 -->
       ${r.status !== 'cancelled' ? `
