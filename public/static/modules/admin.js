@@ -3426,83 +3426,126 @@ const AdminModule = (() => {
   // ── 손목밴드 관리 ──────────────────────────────────────────
   const wristbandsPage = async () => {
     _adminState.currentSection = 'wristbands';
-    const allBands = _generateDemoWristbands();
-    const user = _adminState.user || { role: 'super', regionId: null };
-    const wristbands = user.role === 'regional' && user.regionId
-      ? allBands.filter(w => w.regionName === ({tongyeong:'통영',buyeo:'부여',hapcheon:'합천'}[user.regionId]))
-      : allBands;
-    const wbText = Settings.get('wristbandText') || { brand: 'Aqua Mobility Korea', footer: '분실 시 재발급 불가', warning: '이 밴드는 탑승권입니다' };
+    const user = _adminState.user || Store.get('adminUser') || { role: 'super', regionId: null };
+    const wbText = Settings.get('wristbandText') || { brand: 'Aqua Mobility Korea', footer: '안전하고 즐거운 투어 되세요!', warning: '' };
 
-    const activeCount = wristbands.filter(w=>w.status==='active').length;
-    const usedCount   = wristbands.filter(w=>w.status==='used').length;
-    const invalidCount= wristbands.filter(w=>w.status==='invalidated').length;
+    // DB에서 실제 데이터 로드
+    const regionId = user.role === 'regional' ? user.regionId : null;
+    const queryStr = regionId ? `?regionId=${regionId}&limit=100` : '?limit=100';
+    const wbRes = await API.get(`/api/wristbands/search${queryStr}`);
+    const wristbands = wbRes.success ? (wbRes.data || []) : [];
 
-    const rows = wristbands.slice(0, 20).map(w => `
-      <tr class="hover:bg-gray-50">
-        <td class="px-3 py-2 text-xs font-mono whitespace-nowrap">${w.id}</td>
-        <td class="px-3 py-2 text-xs font-mono text-blue-600 whitespace-nowrap">${w.reservationId}</td>
-        <td class="px-3 py-2 text-sm text-center">${w.regionName}</td>
-        <td class="px-3 py-2 text-sm text-center whitespace-nowrap">${w.round}</td>
-        <td class="px-3 py-2 text-sm text-center">${w.ticketType}</td>
-        <td class="px-3 py-2 text-center">
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${w.status==='active'?'bg-green-100 text-green-700':w.status==='used'?'bg-gray-100 text-gray-500':'bg-red-100 text-red-700'}">
-            ${w.status==='active'?'유효':w.status==='used'?'사용완료':'무효화'}
-          </span>
+    const activeCount  = wristbands.filter(w=>w.status==='active').length;
+    const usedCount    = wristbands.filter(w=>w.status==='used').length;
+    const voidedCount  = wristbands.filter(w=>w.status==='voided').length;
+
+    const _statusBadge = (s) => {
+      const m = { active:'bg-green-100 text-green-700', used:'bg-gray-100 text-gray-500', voided:'bg-red-100 text-red-600' };
+      const l = { active:'✅ 유효', used:'🔘 사용완료', voided:'🚫 무효화' };
+      return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${m[s]||'bg-gray-100 text-gray-500'}">${l[s]||s}</span>`;
+    };
+    const _typeLabel = (t) => ({adult:'성인',child:'소아',infant:'유아',senior:'경로',group:'단체',youth:'청소년'})[t]||t||'-';
+
+    const rows = wristbands.length ? wristbands.map((w,i) => `
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="AdminModule.showWristbandDetail('${w.id}')">
+        <td class="px-3 py-2 text-xs font-mono text-navy-700 whitespace-nowrap">${w.id}</td>
+        <td class="px-3 py-2">
+          <div class="text-xs font-mono text-blue-600">${w.reservationNo || '-'}</div>
+          <div class="text-xs font-bold text-gray-800">${w.passengerName}</div>
+          ${w.passengerBirth ? `<div class="text-xs text-gray-400">${w.passengerBirth} ${w.passengerGender==='M'?'남':w.passengerGender==='F'?'여':''}</div>` : ''}
         </td>
-        <td class="px-3 py-2 text-xs text-gray-500 text-center whitespace-nowrap">${w.issuedAt}</td>
+        <td class="px-3 py-2 text-xs text-center text-gray-600">${w.regionName||'-'}</td>
+        <td class="px-3 py-2 text-xs text-center whitespace-nowrap text-gray-600">${w.round||'-'}</td>
+        <td class="px-3 py-2 text-xs text-center">${_typeLabel(w.type)}</td>
+        <td class="px-3 py-2 text-center">${_statusBadge(w.status)}</td>
+        <td class="px-3 py-2 text-xs text-gray-500 text-center whitespace-nowrap">${(w.issuedAt||'').slice(0,16)}</td>
+        <td class="px-3 py-2 text-xs text-gray-500 text-center">${w.issuedBy||'-'}</td>
         <td class="px-3 py-2 text-center">
-          <button onclick="Utils.toast('QR: ${w.qrCode}', 'info')" class="text-blue-600 hover:underline text-xs">QR확인</button>
+          <div class="flex gap-1 justify-center">
+            <button onclick="event.stopPropagation(); AdminModule.showWristbandDetail('${w.id}')"
+              class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100">상세</button>
+            ${w.status==='active'?`
+            <button onclick="event.stopPropagation(); AdminModule.voidWristband('${w.id}')"
+              class="text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100">무효화</button>`:''}
+          </div>
         </td>
-      </tr>
-    `).join('') || '<tr><td colspan="8" class="text-center py-4 text-gray-500">발급 내역이 없습니다.</td></tr>';
+      </tr>`) .join('')
+    : '<tr><td colspan="9" class="text-center py-8 text-gray-400">발급된 손목밴드가 없습니다.</td></tr>';
 
     const content = `
       <div class="space-y-4">
         <!-- 손목밴드 인쇄 문구 편집 -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h2 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <i class="fas fa-edit text-blue-500"></i> 손목밴드 인쇄 문구 관리 (관리자 직접 편집)
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+          <h2 class="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-sm">
+            <i class="fas fa-edit text-blue-500"></i> 손목밴드 인쇄 문구 관리
           </h2>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">브랜드명</label>
-              <input id="wb-brand" type="text" value="${wbText.brand}" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">하단 문구</label>
-              <input id="wb-footer" type="text" value="${wbText.footer}" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">경고 문구</label>
-              <input id="wb-warning" type="text" value="${wbText.warning}" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div><label class="block text-xs text-gray-500 mb-1">브랜드명</label>
+              <input id="wb-brand" type="text" value="${wbText.brand}" class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"></div>
+            <div><label class="block text-xs text-gray-500 mb-1">하단 문구</label>
+              <input id="wb-footer" type="text" value="${wbText.footer}" class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"></div>
+            <div><label class="block text-xs text-gray-500 mb-1">경고 문구</label>
+              <input id="wb-warning" type="text" value="${wbText.warning||''}" class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400"></div>
           </div>
-          <div class="mt-3 p-3 bg-amber-50 rounded-lg text-xs text-amber-700">
-            <i class="fas fa-shield-alt mr-1"></i> 개인정보 보호: 손목밴드에는 성명, 전화번호, 생년월일을 절대 인쇄하지 않습니다.
-          </div>
-          <div class="mt-3 flex justify-end">
-            <button onclick="AdminModule.saveWristbandText()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+          <div class="mt-2 flex items-center justify-between">
+            <p class="text-xs text-amber-600"><i class="fas fa-shield-alt mr-1"></i>개인정보 보호: 손목밴드에는 성명·전화번호·생년월일을 인쇄하지 않습니다.</p>
+            <button onclick="AdminModule.saveWristbandText()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex-shrink-0">
               <i class="fas fa-save mr-1"></i> 저장
             </button>
           </div>
         </div>
 
-        <!-- 밴드 발급 현황 -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h2 class="font-semibold text-gray-800 mb-4">손목밴드 발급 현황</h2>
-          <div class="grid grid-cols-3 gap-3 mb-4">
-            ${statCard('fas fa-check-circle','유효 밴드',`${activeCount}개`,'체크인 대기','green')}
-            ${statCard('fas fa-history','사용 완료',`${usedCount}개`,'탑승 처리됨','blue')}
-            ${statCard('fas fa-ban','무효화',`${invalidCount}개`,'취소/만료','red')}
+        <!-- 통계 카드 -->
+        <div class="grid grid-cols-3 gap-3">
+          ${statCard('fas fa-check-circle','유효 밴드',`${activeCount}개`,'체크인 대기','green')}
+          ${statCard('fas fa-check-double','사용 완료',`${usedCount}개`,'탑승 처리됨','blue')}
+          ${statCard('fas fa-ban','무효화',`${voidedCount}개`,'취소/훼손','red')}
+        </div>
+
+        <!-- 검색 + 스캔 확인 -->
+        <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+          <div class="flex gap-3 flex-wrap">
+            <div class="flex-1 min-w-[200px]">
+              <label class="text-xs text-gray-500 font-medium block mb-1">이름 / 예약번호 / 밴드ID 검색</label>
+              <div class="flex gap-2">
+                <input type="text" id="wb-search-q" placeholder="홍길동 / BYO-... / WB-..."
+                  class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                  onkeydown="if(event.key==='Enter') AdminModule.searchWristbands()">
+                <button onclick="AdminModule.searchWristbands()"
+                  class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+            </div>
+            <div class="flex-1 min-w-[200px]">
+              <label class="text-xs text-gray-500 font-medium block mb-1">🔍 밴드 스캔 상태 확인 (사용완료·무효화 경고)</label>
+              <div class="flex gap-2">
+                <input type="text" id="wb-scan-check-id" placeholder="손목밴드 ID (WB-...)"
+                  class="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                  onkeydown="if(event.key==='Enter') AdminModule.scanCheckWristband()">
+                <button onclick="AdminModule.scanCheckWristband()"
+                  class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+                  <i class="fas fa-qrcode"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 발급 현황 테이블 -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="px-5 py-3 border-b bg-gray-50 flex items-center justify-between">
+            <span class="font-semibold text-sm text-gray-700">발급 현황 <span class="text-gray-400 font-normal">(행 클릭 → 상세보기)</span></span>
+            <span class="text-xs text-gray-400">총 ${wristbands.length}건</span>
           </div>
           <div class="overflow-x-auto">
-            <table class="admin-table w-full">
+            <table class="w-full text-sm">
               <thead>
-                <tr class="bg-gray-50">
-                  ${['밴드ID','예약번호','지역','회차','유형','상태','발급시간','QR'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
+                <tr class="bg-gray-50 border-b">
+                  ${['밴드ID','예약번호 / 탑승자','지역','회차','유형','상태','발급시간','발급자','작업'].map(h=>`<th class="px-3 py-2 text-xs font-semibold text-gray-500 text-center whitespace-nowrap">${h}</th>`).join('')}
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100">${rows}</tbody>
+              <tbody id="wb-table-body" class="divide-y divide-gray-50">${rows}</tbody>
             </table>
           </div>
         </div>
@@ -3514,6 +3557,211 @@ const AdminModule = (() => {
     const text = { brand: document.getElementById('wb-brand')?.value||'', footer: document.getElementById('wb-footer')?.value||'', warning: document.getElementById('wb-warning')?.value||'' };
     Settings.set('wristbandText', text);
     Utils.toast('손목밴드 인쇄 문구가 저장되었습니다.', 'success');
+  };
+
+  // ── 손목밴드 상세보기 모달 ────────────────────────────────
+  const showWristbandDetail = async (wbId) => {
+    Utils.loading(true);
+    const res = await API.get(`/api/wristbands/${wbId}`);
+    Utils.loading(false);
+    if (!res.success) { Utils.toast('조회 실패: ' + (res.error||''), 'error'); return; }
+    const w = res.data;
+    const stMap = { active:'✅ 유효', used:'🔘 사용완료', voided:'🚫 무효화' };
+    const stCls = { active:'bg-green-100 text-green-700', used:'bg-gray-100 text-gray-500', voided:'bg-red-100 text-red-600' };
+    const typeLabel = {adult:'성인',child:'소아',infant:'유아',senior:'경로',group:'단체',youth:'청소년'};
+    const passengersHtml = w.passengers && w.passengers.length ? `
+      <div class="mt-3 border-t pt-3">
+        <div class="text-xs font-bold text-gray-500 mb-2">👥 탑승자 명단</div>
+        <div class="space-y-1">
+          ${w.passengers.map((p,i)=>`
+            <div class="flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 text-xs">
+              <span class="font-bold">${i+1}. ${p.name||'-'}</span>
+              <span class="text-gray-400">${p.birth||''} ${p.gender==='M'?'남':p.gender==='F'?'여':''}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+    const logsHtml = w.logs && w.logs.length ? `
+      <div class="mt-3 border-t pt-3">
+        <div class="text-xs font-bold text-gray-500 mb-2">📋 처리 이력</div>
+        <div class="space-y-1">
+          ${w.logs.map(l=>`
+            <div class="flex items-start gap-2 text-xs">
+              <span class="text-gray-400 whitespace-nowrap">${(l.created_at||'').slice(0,16)}</span>
+              <span class="px-1.5 py-0.5 rounded text-xs font-medium ${l.action==='issue'?'bg-green-100 text-green-700':l.action==='void'||l.action==='void_for_reissue'?'bg-red-100 text-red-600':l.action==='reissue'?'bg-blue-100 text-blue-700':l.action==='board'?'bg-indigo-100 text-indigo-600':'bg-gray-100 text-gray-500'}">
+                ${{issue:'발급',void:'무효화',void_for_reissue:'무효화(재발급)',reissue:'재발급',board:'탑승확인'}[l.action]||l.action}
+              </span>
+              <span class="text-gray-600">${l.actor||''} ${l.reason?'— '+l.reason:''}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold">손목밴드 상세</h3></div>
+      <div class="modal-body space-y-2 text-sm pt-2">
+        <div class="flex justify-between items-center">
+          <span class="font-mono font-bold text-navy-800">${w.id}</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${stCls[w.status]||''}">${stMap[w.status]||w.status}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm border-t pt-2">
+          <div><span class="text-gray-400 text-xs block">예약번호</span><span class="font-semibold text-blue-600">${w.reservationNo||'-'}</span></div>
+          <div><span class="text-gray-400 text-xs block">예약자</span><span class="font-semibold">${w.passengerName}</span></div>
+          <div><span class="text-gray-400 text-xs block">생년월일</span><span>${w.passengerBirth||'-'}</span></div>
+          <div><span class="text-gray-400 text-xs block">성별</span><span>${w.passengerGender==='M'?'남성':w.passengerGender==='F'?'여성':'-'}</span></div>
+          <div><span class="text-gray-400 text-xs block">지역</span><span>${w.regionName||'-'}</span></div>
+          <div><span class="text-gray-400 text-xs block">회차</span><span>${w.round||'-'}</span></div>
+          <div><span class="text-gray-400 text-xs block">권종</span><span>${typeLabel[w.type]||w.type||'-'}</span></div>
+          <div><span class="text-gray-400 text-xs block">발급자</span><span>${w.issuedBy||'-'}</span></div>
+          <div><span class="text-gray-400 text-xs block">발급시간</span><span>${(w.issuedAt||'').slice(0,16)}</span></div>
+          ${w.boardedAt?`<div><span class="text-gray-400 text-xs block">탑승확인</span><span class="text-indigo-600">${(w.boardedAt||'').slice(0,16)}</span></div>`:''}
+          ${w.voidedAt?`<div><span class="text-gray-400 text-xs block">무효화</span><span class="text-red-600">${(w.voidedAt||'').slice(0,16)} (${w.voidedBy||'-'})</span></div>`:''}
+          ${w.voidReason?`<div class="col-span-2"><span class="text-gray-400 text-xs block">무효화 사유</span><span class="text-red-600">${w.voidReason}</span></div>`:''}
+          ${w.reissuedFrom?`<div class="col-span-2"><span class="text-gray-400 text-xs block">재발급 원본</span><span class="text-blue-600">${w.reissuedFrom} — ${w.reissueReason||''}</span></div>`:''}
+        </div>
+        ${passengersHtml}
+        ${logsHtml}
+        ${w.status==='active'?`
+        <div class="flex gap-2 pt-2 border-t">
+          <button onclick="Utils.closeModal(); AdminModule.voidWristband('${w.id}')"
+            class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-100">🚫 무효화</button>
+          <button onclick="Utils.closeModal()"
+            class="flex-1 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">닫기</button>
+        </div>`:`<button onclick="Utils.closeModal()" class="w-full border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 mt-2">닫기</button>`}
+      </div>`);
+  };
+
+  // ── 이름/예약번호 검색 ────────────────────────────────────
+  const searchWristbands = async () => {
+    const q = document.getElementById('wb-search-q')?.value?.trim();
+    if (!q) { Utils.toast('검색어를 입력하세요', 'warning'); return; }
+    Utils.loading(true);
+    const res = await API.get(`/api/wristbands/search?q=${encodeURIComponent(q)}&limit=50`);
+    Utils.loading(false);
+    if (!res.success) { Utils.toast('검색 실패', 'error'); return; }
+    const wristbands = res.data || [];
+    const stBadge = (s) => {
+      const m = {active:'bg-green-100 text-green-700',used:'bg-gray-100 text-gray-500',voided:'bg-red-100 text-red-600'};
+      const l = {active:'✅ 유효',used:'🔘 사용완료',voided:'🚫 무효화'};
+      return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${m[s]||''}">${l[s]||s}</span>`;
+    };
+    const typeLabel = {adult:'성인',child:'소아',infant:'유아',senior:'경로',group:'단체',youth:'청소년'};
+    const rows = wristbands.length
+      ? wristbands.map(w=>`
+          <tr class="hover:bg-gray-50 cursor-pointer" onclick="AdminModule.showWristbandDetail('${w.id}')">
+            <td class="px-3 py-2 text-xs font-mono text-navy-700">${w.id}</td>
+            <td class="px-3 py-2">
+              <div class="text-xs font-mono text-blue-600">${w.reservationNo||'-'}</div>
+              <div class="text-xs font-bold">${w.passengerName}</div>
+              ${w.passengerBirth?`<div class="text-xs text-gray-400">${w.passengerBirth} ${w.passengerGender==='M'?'남':w.passengerGender==='F'?'여':''}</div>`:''}
+            </td>
+            <td class="px-3 py-2 text-xs text-center">${w.regionName||'-'}</td>
+            <td class="px-3 py-2 text-xs text-center">${w.round||'-'}</td>
+            <td class="px-3 py-2 text-xs text-center">${typeLabel[w.type]||w.type||'-'}</td>
+            <td class="px-3 py-2 text-center">${stBadge(w.status)}</td>
+            <td class="px-3 py-2 text-xs text-gray-500 text-center">${(w.issuedAt||'').slice(0,16)}</td>
+          </tr>`).join('')
+      : '<tr><td colspan="7" class="text-center py-6 text-gray-400">검색 결과가 없습니다.</td></tr>';
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold">검색 결과: "${q}" (${wristbands.length}건)</h3></div>
+      <div class="modal-body p-0" style="max-height:400px;overflow-y:auto">
+        <table class="w-full text-sm">
+          <thead><tr class="bg-gray-50 border-b">
+            ${['밴드ID','예약번호/탑승자','지역','회차','권종','상태','발급시간'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-semibold text-center">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody class="divide-y divide-gray-100">${rows}</tbody>
+        </table>
+      </div>`, { size: 'max-w-3xl' });
+  };
+
+  // ── 무효화 ────────────────────────────────────────────────
+  const voidWristband = (wbId) => {
+    const user = Store.get('adminUser') || {};
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold text-red-600">🚫 손목밴드 무효화</h3></div>
+      <div class="modal-body space-y-3 pt-2">
+        <div class="bg-red-50 rounded-lg p-3 text-sm text-red-600">
+          밴드 ID: <strong>${wbId}</strong>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 font-medium block mb-1">무효화 사유 <span class="text-red-400">*</span></label>
+          <select id="void-reason-select" class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-400 mb-2"
+            onchange="document.getElementById('void-reason-custom').style.display=this.value==='직접입력'?'block':'none'">
+            <option value="분실">분실</option>
+            <option value="훼손">훼손</option>
+            <option value="예약취소">예약취소로 인한 무효화</option>
+            <option value="재발급">재발급으로 무효화</option>
+            <option value="직접입력">직접 입력</option>
+          </select>
+          <input id="void-reason-custom" type="text" placeholder="무효화 사유 직접 입력"
+            class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-400 hidden">
+        </div>
+        <div class="flex gap-2">
+          <button onclick="Utils.closeModal()" class="flex-1 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">취소</button>
+          <button onclick="AdminModule._doVoidWristband('${wbId}')"
+            class="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-red-700">무효화 처리</button>
+        </div>
+      </div>`);
+  };
+
+  const _doVoidWristband = async (wbId) => {
+    const sel = document.getElementById('void-reason-select')?.value;
+    const custom = document.getElementById('void-reason-custom')?.value?.trim();
+    const reason = sel === '직접입력' ? (custom||'사유없음') : sel;
+    const user = Store.get('adminUser') || {};
+    Utils.closeModal();
+    Utils.loading(true);
+    const res = await API.post('/api/wristbands/void', { wristbandId: wbId, reason, voidedBy: user.name||'관리자' });
+    Utils.loading(false);
+    if (res.success) {
+      Utils.toast('무효화 완료 — 이 밴드는 더 이상 사용할 수 없습니다.', 'success', 3000);
+      // 테이블 새로고침
+      wristbandsPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      Utils.toast('무효화 실패: ' + (res.error||''), 'error');
+    }
+  };
+
+  // ── 스캔 상태 확인 (사용완료·무효화 경고) ────────────────
+  const scanCheckWristband = async () => {
+    const id = document.getElementById('wb-scan-check-id')?.value?.trim();
+    if (!id) { Utils.toast('밴드 ID를 입력하세요', 'warning'); return; }
+    Utils.loading(true);
+    const res = await API.post('/api/wristbands/scan-check', { wristbandId: id });
+    Utils.loading(false);
+    if (!res.success) { Utils.toast('조회 오류', 'error'); return; }
+    const d = res.data;
+    if (!d.found) {
+      Utils.modal(`
+        <div class="modal-body text-center py-6">
+          <div class="text-5xl mb-3">🔴</div>
+          <h3 class="text-xl font-black text-red-600 mb-2">등록되지 않은 밴드</h3>
+          <p class="text-gray-500 text-sm mb-4">${id}</p>
+          <button onclick="Utils.closeModal()" class="w-full bg-gray-100 py-3 rounded-xl text-sm font-medium">닫기</button>
+        </div>`, { size: 'max-w-xs' });
+      return;
+    }
+    const isOk = d.level === 'ok';
+    const icon = isOk ? '✅' : '⛔';
+    const color = isOk ? 'text-green-600' : 'text-red-600';
+    const bgColor = isOk ? 'bg-green-50' : 'bg-red-50';
+    const logsHtml = d.logs && d.logs.length ? `
+      <div class="mt-3 text-left">
+        <div class="text-xs font-bold text-gray-500 mb-1">처리 이력</div>
+        ${d.logs.map(l=>`<div class="text-xs text-gray-500">${(l.created_at||'').slice(0,16)} ${l.actor||''} — ${l.action} ${l.reason?'('+l.reason+')':''}</div>`).join('')}
+      </div>` : '';
+    Utils.modal(`
+      <div class="modal-body text-center py-5">
+        <div class="text-5xl mb-3">${icon}</div>
+        <h3 class="text-xl font-black ${color} mb-3">${d.alert || '유효한 밴드'}</h3>
+        <div class="${bgColor} rounded-xl p-3 text-sm text-left space-y-1">
+          <div class="flex justify-between"><span class="text-gray-500">밴드ID</span><span class="font-mono font-bold">${d.wristbandId}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">예약번호</span><span class="font-semibold">${d.reservationNo||'-'}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">예약자</span><span class="font-semibold">${d.passengerName}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">발급자</span><span>${d.issuedBy||'-'}</span></div>
+          ${d.boardedAt?`<div class="flex justify-between"><span class="text-gray-500">탑승시간</span><span class="text-indigo-600 font-semibold">${(d.boardedAt||'').slice(0,16)}</span></div>`:''}
+          ${d.voidedBy?`<div class="flex justify-between"><span class="text-gray-500">무효화</span><span class="text-red-600">${d.voidedBy} — ${d.voidReason||''}</span></div>`:''}
+        </div>
+        ${logsHtml}
+        <button onclick="Utils.closeModal()" class="w-full border py-3 rounded-xl text-sm font-medium mt-3 hover:bg-gray-50">닫기</button>
+      </div>`, { size: 'max-w-xs' });
   };
 
   // ── 팝업/공지 관리 ─────────────────────────────────────────
@@ -6362,6 +6610,7 @@ const backupPage = async () => {
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare, cancelFareApproval,
     updateSeatRatio, saveSeatRatio, saveSensConfig, testSms, _doTestSms,
+    showWristbandDetail, searchWristbands, voidWristband, _doVoidWristband, scanCheckWristband,
     viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter,
     saveWristbandText,
     addPopup, editPopup, savePopup, deletePopup,
