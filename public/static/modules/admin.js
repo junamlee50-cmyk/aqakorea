@@ -2886,10 +2886,28 @@ const AdminModule = (() => {
     if (onlSeats) onlSeats.textContent = Math.ceil(cap*ratio/100);
     if (offSeats) offSeats.textContent = cap - Math.ceil(cap*ratio/100);
   };
-  const saveSeatRatio = (regionId) => {
+  const saveSeatRatio = async (regionId) => {
     const slider = document.getElementById(`${regionId}-slider`);
+    const autoRelease = document.getElementById(`${regionId}-auto-release`);
+    const autoMin = document.getElementById(`${regionId}-auto-min`);
     if (!slider) return;
-    Utils.toast(`${regionId} 지역 좌석 배분이 저장되었습니다.`, 'success');
+    const online = parseInt(slider.value) || 70;
+    const value = {
+      online,
+      offline: 100 - online,
+      autoRelease: autoRelease?.checked || false,
+      autoReleaseMinutes: parseInt(autoMin?.value) || 30,
+    };
+    try {
+      const res = await API.put(`/api/settings/seatAllocation_${regionId}`, { value });
+      if (res.success) {
+        Utils.toast(`${regionId} 지역 좌석 배분이 저장되었습니다. (온라인 ${online}% / 현장 ${100-online}%)`, 'success');
+      } else {
+        Utils.toast('저장 실패: ' + (res.message || ''), 'error');
+      }
+    } catch(e) {
+      Utils.toast('저장 중 오류: ' + e.message, 'error');
+    }
   };
 
   // ── 예약 데모 데이터 생성 ──────────────────────────────────
@@ -2997,7 +3015,12 @@ const AdminModule = (() => {
           regionName: REGION_NAMES[r.regionId] || r.regionId || '-',
           name: r.name || '-',
           date: r.date || '-',
-          schedule: r.scheduleId || '-',
+          schedule: (() => {
+            const sid = r.scheduleId || '';
+            const m = sid.match(/(\d{4})$/);
+            if (m) return m[1].slice(0,2)+':'+m[1].slice(2); // "1000" → "10:00"
+            return sid || '-';
+          })(),
           totalPassengers: r.pax || 1,
           adultCnt: r.paxDetail?.find(p=>p.type==='adult')?.count || r.pax || 1,
           childCnt: r.paxDetail?.find(p=>p.type==='child')?.count || 0,
