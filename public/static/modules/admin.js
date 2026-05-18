@@ -3862,13 +3862,15 @@ const AdminModule = (() => {
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead><tr class="bg-gray-50">
-              ${['발송일시','지역','유형','내용','수신자수','발송자'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-medium text-left">${h}</th>`).join('')}
+              ${['발송일시','지역','날짜','회차','유형','내용','수신자수','발송자'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-medium text-left whitespace-nowrap">${h}</th>`).join('')}
             </tr></thead>
             <tbody class="divide-y divide-gray-100">
               ${smsHistory.slice().reverse().slice(0,20).map((h,i)=>`
                 <tr class="hover:bg-gray-50">
                   <td class="px-3 py-2 text-xs text-gray-500">${(h.sentAt||'').slice(0,16).replace('T',' ')}</td>
                   <td class="px-3 py-2"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">${RNAMES[h.regionId]||h.regionId||'전체'}</span></td>
+                  <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">${(h.scheduleDate||(h.sentAt||'').slice(0,10))||'-'}</td>
+                  <td class="px-3 py-2 text-xs whitespace-nowrap">${h.scheduleName ? `<span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs">${h.scheduleName}</span>` : '<span class="text-gray-300">-</span>'}</td>
                   <td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs ${h.type==='emergency'?'bg-red-100 text-red-600':h.type==='weather'?'bg-yellow-100 text-yellow-700':'bg-green-100 text-green-700'}">${{emergency:'긴급',weather:'기상',info:'일반',reservation:'예약'}[h.type]||h.type}</span></td>
                   <td class="px-3 py-2 text-xs text-gray-600 max-w-xs truncate">${h.message||''}</td>
                   <td class="px-3 py-2 text-center">
@@ -3983,7 +3985,10 @@ const AdminModule = (() => {
         </table>
       </div>` : '<div class="text-center py-6 text-gray-400 text-sm">발송 이력 없음</div>';
 
-    const scheduleOptions = schedules.map(s=>`<option value="${s.id}" data-time="${s.time}" data-cap="${s.capacity}">${s.time} 회차 (정원 ${s.capacity}명)</option>`).join('');
+    // 시간순 정렬 후 회차 번호 부여
+    const sortedSchedules = schedules.slice().sort((a,b)=>a.time.localeCompare(b.time));
+    sortedSchedules.forEach((s, i) => { s._roundNum = i + 1; });
+    const scheduleOptions = sortedSchedules.map(s=>`<option value="${s.id}" data-time="${s.time}" data-cap="${s.capacity}" data-round="${s._roundNum}">${s.time} (${s._roundNum}회차) — 정원 ${s.capacity}명</option>`).join('');
 
     const contentHtml = `
       <div class="space-y-5">
@@ -4209,6 +4214,8 @@ const AdminModule = (() => {
       <tr class="hover:bg-gray-50 border-b border-gray-50">
         <td class="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">${(h.sentAt||'').slice(0,16).replace('T',' ')}</td>
         <td class="px-3 py-2.5"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">${RNAMES[h.regionId]||h.regionId||'전체'}</span></td>
+        <td class="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap">${h.scheduleDate||'-'}</td>
+        <td class="px-3 py-2.5 text-xs whitespace-nowrap">${h.scheduleName ? `<span class="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">${h.scheduleName}</span>` : '<span class="text-gray-300">-</span>'}</td>
         <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-full text-xs ${h.type==='emergency'?'bg-red-100 text-red-600':h.type==='weather'?'bg-yellow-100 text-yellow-700':h.type==='reservation'?'bg-green-100 text-green-700':'bg-blue-100 text-blue-700'}">${TYPE_NAMES[h.type]||h.type}</span></td>
         <td class="px-3 py-2.5 text-xs text-gray-700 max-w-xs">
           <div class="truncate max-w-64" title="${(h.message||'').replace(/"/g,"'")}">${h.message||''}</div>
@@ -4279,7 +4286,7 @@ const AdminModule = (() => {
             <table class="w-full text-sm">
               <thead class="sticky top-0 bg-white">
                 <tr class="bg-gray-50">
-                  ${['발송일시','지역','유형','메시지 내용','수신자','발송자'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-medium text-left whitespace-nowrap">${h}</th>`).join('')}
+                  ${['발송일시','지역','날짜','회차','유형','메시지 내용','수신자','발송자'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-medium text-left whitespace-nowrap">${h}</th>`).join('')}
                 </tr>
               </thead>
               <tbody>${tableRows(filtered)}</tbody>
@@ -4297,7 +4304,14 @@ const AdminModule = (() => {
 
   // 회차 선택 시 예약자 목록 로드
   const loadSmsPassengers = async () => {
-    const scheduleId = document.getElementById('sms-schedule-id')?.value;
+    const scheduleSel = document.getElementById('sms-schedule');
+    const scheduleId = scheduleSel?.value || document.getElementById('sms-schedule-id')?.value;
+    const selOpt = scheduleSel?.options[scheduleSel?.selectedIndex];
+    if (selOpt && selOpt.dataset.round) {
+      // hidden input에 data 속성 동기화
+      const hi = document.getElementById('sms-schedule-id');
+      if (hi) { hi.value = scheduleId; hi.dataset.time = selOpt.dataset.time||''; hi.dataset.round = selOpt.dataset.round||''; }
+    }
     const date = document.getElementById('sms-date')?.value;
     const type = document.getElementById('sms-type')?.value || 'all';
     const passengerArea = document.getElementById('sms-passenger-area');
@@ -4437,9 +4451,16 @@ const AdminModule = (() => {
   const sendSms = (regionId) => {
     const msg = document.getElementById('sms-message')?.value?.trim();
     if (!msg) { Utils.toast('메시지를 입력하세요.', 'error'); return; }
+    // sms-schedule select 드롭다운 우선, 없으면 hidden input 폴백
+    const scheduleDropdown = document.getElementById('sms-schedule');
     const scheduleEl = document.getElementById('sms-schedule-id');
-    const scheduleId = scheduleEl?.value || '';
-    const scheduleName = scheduleEl?.options[scheduleEl?.selectedIndex]?.text || '';
+    const scheduleId = scheduleDropdown?.value || scheduleEl?.value || '';
+    const selOpt = scheduleDropdown
+      ? scheduleDropdown.options[scheduleDropdown.selectedIndex]
+      : null;
+    const rawTime = selOpt?.dataset?.time || selOpt?.text?.match(/^\d{2}:\d{2}/)?.[0] || '';
+    const roundNum = selOpt?.dataset?.round || '';
+    const scheduleName = scheduleId && rawTime ? `${rawTime} (${roundNum}회차)` : '';
     const type = document.getElementById('sms-type')?.value || 'all';
     const user = _adminState.user || {};
 
@@ -4457,6 +4478,7 @@ const AdminModule = (() => {
 
     const msgType = msg.includes('기상') ? 'weather' : msg.includes('긴급') ? 'emergency' : msg.includes('예약') ? 'reservation' : 'info';
     const history = JSON.parse(localStorage.getItem('amk_sms_history')||'[]');
+    const scheduleDate = document.getElementById('sms-date')?.value || new Date().toISOString().slice(0,10);
     history.push({
       sentAt: new Date().toISOString(),
       regionId: regionId || user.regionId || 'all',
@@ -4465,8 +4487,9 @@ const AdminModule = (() => {
       count: recipients.length,
       scheduleId,
       scheduleName,
+      scheduleDate,
       sender: user.name || '관리자',
-      recipients: recipients.slice(0, 200), // 최대 200명 저장
+      recipients: recipients.slice(0, 200),
     });
     localStorage.setItem('amk_sms_history', JSON.stringify(history));
     Utils.toast('✅ ' + recipients.length + '명에게 발송 완료', 'success');
