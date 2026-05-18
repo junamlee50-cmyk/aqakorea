@@ -3063,7 +3063,11 @@ const AdminModule = (() => {
     return list.slice(0, 50).map(r => `
       <tr class="hover:bg-gray-50" id="res-row-${r.id}">
         <td class="px-3 py-2 text-xs font-mono text-blue-600 whitespace-nowrap">${r.id}</td>
-        <td class="px-3 py-2 text-sm font-medium">${r.name}</td>
+        <td class="px-3 py-2 text-sm font-medium">
+          ${r.notes ? `<span title="${r.notes}" class="inline-flex items-center gap-0.5">
+            <span class="text-red-500 text-xs" title="${r.notes}">⚠️</span>${r.name}
+          </span>` : r.name}
+        </td>
         <td class="px-3 py-2 text-sm text-center">${r.regionName}</td>
         <td class="px-3 py-2 text-sm text-center whitespace-nowrap">${r.date}</td>
         <td class="px-3 py-2 text-sm text-center">${r.schedule}</td>
@@ -3131,6 +3135,7 @@ const AdminModule = (() => {
           phone: r.phone || '',
           email: r.email || '',
           memo: r.notes || '',
+          notes: r.notes || '',
           _dbId: r.id,
         }));
       }
@@ -3272,28 +3277,23 @@ const AdminModule = (() => {
     const r = allRes.find(x => x.id === id);
     if (!r) { Utils.toast('예약 정보를 찾을 수 없습니다.', 'error'); return; }
     const statusLabels = { confirmed:'✅ 예약확정', cancelled:'❌ 취소', pending:'⏳ 대기', checkedin:'🎫 발권완료', boarded:'🚌 탑승완료', refunded:'💰 환불완료' };
-    // 특이사항에서 안전 확인 필요 여부 감지
+    // 특이사항 — notes 필드에서 실제 데이터 파싱
+    const notesRaw = r.notes || r.memo || '';
     const safetyFlags = [];
-    if (r.memo) {
-      if (/임산부/i.test(r.memo)) safetyFlags.push('임산부 포함');
-      if (/유아/i.test(r.memo)) safetyFlags.push('36개월 미만 유아 동반');
-      if (/심장|고혈압/i.test(r.memo)) safetyFlags.push('심장·고혈압 질환');
-      if (/보행|보조/i.test(r.memo)) safetyFlags.push('보행 보조 필요');
-      if (/고령/i.test(r.memo)) safetyFlags.push('고령자 동반');
-    }
-    // 임의로 일부 예약에 안전 플래그 시뮬레이션 (데모용)
-    if (!safetyFlags.length && r.adultCnt >= 3 && Math.random() > 0.6) {
-      safetyFlags.push('임산부 포함');
+    if (notesRaw) {
+      // "보행 보조 필요 / 임산부 포함" 같은 형식 분리
+      const parts = notesRaw.split(/[,/\n]+/).map(s => s.trim()).filter(Boolean);
+      safetyFlags.push(...parts);
     }
     const safetyBadge = safetyFlags.length > 0 ? `
-      <div class="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-        <div class="flex items-center gap-1.5 text-red-600 font-semibold text-xs mb-1">
-          <i class="fas fa-exclamation-triangle"></i>⚠️ 안전 확인 필요
+      <div class="mt-2 p-2 bg-red-50 border-2 border-red-300 rounded-xl">
+        <div class="flex items-center gap-1.5 text-red-700 font-bold text-xs mb-1.5">
+          ⚠️ 현장 직원 확인 필요 — 특이사항
         </div>
         <div class="flex flex-wrap gap-1">
-          ${safetyFlags.map(f=>`<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full">${f}</span>`).join('')}
+          ${safetyFlags.map(f=>`<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-semibold">${f}</span>`).join('')}
         </div>
-        <p class="text-xs text-red-500 mt-1">탑승 전 현장 직원이 반드시 확인해야 합니다.</p>
+        <p class="text-xs text-red-500 mt-1.5">⚠️ 탑승 전 반드시 확인하세요.</p>
       </div>` : '';
     // 탑승자 명단 — DB에서 직접 조회
     let passengersList = r.passengers || [];

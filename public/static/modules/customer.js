@@ -1334,12 +1334,30 @@ ${Footer.render()}
     if (passengerWarning) {
       Utils.toast('탑승자 이름을 모두 입력해주세요', 'warning'); return;
     }
+    // ── 특이사항 수집 ──
+    const spMap = {
+      'sp-pregnant': '임산부 포함',
+      'sp-infant':   '36개월 미만 유아 동반',
+      'sp-heart':    '심장·고혈압 질환',
+      'sp-mobility': '보행 보조 필요',
+      'sp-elderly':  '고령자 동반',
+      'sp-other':    '기타 특이사항',
+    };
+    const specialChecks = Object.entries(spMap)
+      .filter(([id]) => document.getElementById(id)?.checked)
+      .map(([, label]) => label);
+    const memoText = document.getElementById('inp-memo')?.value?.trim() || '';
+    const notesArr = [...specialChecks, ...(memoText ? [memoText] : [])];
+    const notes = notesArr.join(' / ') || '';
+
     Store.set('cart', {
       regionId, date: s.date, scheduleId: s.scheduleId,
       paxList, pax, total, totalAmount: total,
       name, phone, email: document.getElementById('inp-email')?.value,
       source: s.source,
       passengers,
+      notes,
+      specials: specialChecks,
     });
     Router.go('/payment');
   },

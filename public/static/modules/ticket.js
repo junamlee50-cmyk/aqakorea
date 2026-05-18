@@ -155,6 +155,16 @@ const TicketPage = {
         </div>
       </div>` : ''}
 
+      <!-- 특이사항 배너 -->
+      ${r.notes ? `
+      <div class="mx-4 mb-3 bg-red-50 border-2 border-red-300 rounded-xl p-3 flex items-start gap-3">
+        <div class="text-xl flex-shrink-0">⚠️</div>
+        <div>
+          <div class="font-bold text-red-700 text-xs mb-0.5">현장 직원 확인 필요 — 특이사항</div>
+          <div class="text-red-600 text-sm font-semibold">${r.notes}</div>
+        </div>
+      </div>` : ''}
+
       <!-- 안내사항 -->
       ${r.status !== 'cancelled' ? `
       <div class="mx-4 mb-4 bg-blue-50 rounded-xl p-3 text-xs text-blue-700 space-y-1">
