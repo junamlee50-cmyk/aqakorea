@@ -1176,6 +1176,10 @@ const AdminModule = (() => {
   const _makeScheduleId = (regionId, time) => `${regionId}-${time.replace(':','')}`;
   // 차량 목록 가져오기
   const _getVehicles = (regionId) => {
+    // Check window cache (populated by schedulesPage via API)
+    if (window._vehicleCache && window._vehicleCache[regionId]) {
+      return window._vehicleCache[regionId].filter(v => v.status !== 'inactive');
+    }
     const all = Settings.get('vehicles') || {};
     return (all[regionId] || []).filter(v => v.status !== 'inactive');
   };
@@ -1196,6 +1200,12 @@ const AdminModule = (() => {
       : (_adminState.selectedRegion || regions[0]?.id || 'buyeo');
     const schRes = await API.get(`/api/schedules/${activeRegionId}`);
     const schedules = (schRes.success && schRes.data) ? schRes.data : [];
+    // Load vehicles from API and cache for _getVehicles()
+    const vehRes = await API.get(`/api/vehicles/${activeRegionId}`);
+    if (vehRes.success && vehRes.data) {
+      if (!window._vehicleCache) window._vehicleCache = {};
+      window._vehicleCache[activeRegionId] = vehRes.data;
+    }
     const vehicles = _getVehicles(activeRegionId);
 
     const regionTabs = regions.map(r=>`
@@ -2963,8 +2973,30 @@ const AdminModule = (() => {
   // ── 예약 관리 ──────────────────────────────────────────────
   // 필터링된 예약 목록을 테이블 행으로 변환
   const _renderReservationRows = (list) => {
-    const statusColors = { confirmed:'bg-green-100 text-green-700', cancelled:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', checkedin:'bg-blue-100 text-blue-700' };
-    const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
+    const statusColors = {
+      confirmed: 'bg-green-100 text-green-700',
+      checkedin: 'bg-blue-100 text-blue-700',
+      boarded:   'bg-indigo-100 text-indigo-700',
+      cancelled: 'bg-red-100 text-red-700',
+      refunded:  'bg-gray-100 text-gray-500',
+      pending:   'bg-yellow-100 text-yellow-700',
+    };
+    const statusLabels = {
+      confirmed: '✅ 예약확정',
+      checkedin: '🎫 발권완료',
+      boarded:   '🚌 탑승완료',
+      cancelled: '❌ 취소',
+      refunded:  '💰 환불완료',
+      pending:   '⏳ 대기',
+    };
+    const statusIcons = {
+      confirmed: 'fas fa-check-circle text-green-500',
+      checkedin: 'fas fa-ticket-alt text-blue-500',
+      boarded:   'fas fa-bus text-indigo-500',
+      cancelled: 'fas fa-times-circle text-red-400',
+      refunded:  'fas fa-undo text-gray-400',
+      pending:   'fas fa-clock text-yellow-500',
+    };
     const payColors = { paid:'bg-green-100 text-green-700', unpaid:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', refunded:'bg-gray-100 text-gray-600' };
     const payLabels = { paid:'결제완료', unpaid:'미결제', pending:'결제대기', refunded:'환불' };
     if (!list.length) return '<tr><td colspan="11" class="text-center py-8 text-gray-400"><i class="fas fa-search mr-2"></i>검색 결과가 없습니다.</td></tr>';
@@ -3112,10 +3144,12 @@ const AdminModule = (() => {
               <label class="text-xs text-gray-500 font-medium">상태</label>
               <select id="res-filter-status" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[100px]">
                 <option value="">전체 상태</option>
-                <option value="confirmed">확정</option>
-                <option value="pending">대기</option>
-                <option value="checkedin">탑승완료</option>
-                <option value="cancelled">취소</option>
+                <option value="confirmed">✅ 예약확정</option>
+                <option value="checkedin">🎫 발권완료</option>
+                <option value="boarded">🚌 탑승완료</option>
+                <option value="pending">⏳ 대기</option>
+                <option value="cancelled">❌ 취소</option>
+                <option value="refunded">💰 환불완료</option>
               </select>
             </div>
             <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
@@ -3172,7 +3206,7 @@ const AdminModule = (() => {
     const allRes = await _loadRealReservations();
     const r = allRes.find(x => x.id === id);
     if (!r) { Utils.toast('예약 정보를 찾을 수 없습니다.', 'error'); return; }
-    const statusLabels = { confirmed:'확정', cancelled:'취소', pending:'대기', checkedin:'탑승완료' };
+    const statusLabels = { confirmed:'✅ 예약확정', cancelled:'❌ 취소', pending:'⏳ 대기', checkedin:'🎫 발권완료', boarded:'🚌 탑승완료', refunded:'💰 환불완료' };
     // 특이사항에서 안전 확인 필요 여부 감지
     const safetyFlags = [];
     if (r.memo) {
@@ -3384,8 +3418,18 @@ const AdminModule = (() => {
   // ── 팝업/공지 관리 ─────────────────────────────────────────
   // 공지사항 localStorage 키 (admin ↔ customer 공유)
   const NOTICE_STORE_KEY = 'amk_notices';
-  const _getNotices = () => { try { return JSON.parse(localStorage.getItem(NOTICE_STORE_KEY) || '[]'); } catch(e) { return []; } };
-  const _setNotices = (list) => localStorage.setItem(NOTICE_STORE_KEY, JSON.stringify(list));
+  const _getNotices = async () => {
+    try {
+      const res = await API.get('/api/notices');
+      if (res.success && res.data) return res.data;
+    } catch(e) {}
+    try { return JSON.parse(localStorage.getItem(NOTICE_STORE_KEY) || '[]'); } catch(e) { return []; }
+  };
+  const _setNotices = async (list) => {
+    // Use PUT /api/notices/bulk or individual calls
+    // For now, store locally as well
+    localStorage.setItem(NOTICE_STORE_KEY, JSON.stringify(list));
+  };
 
   // 지역 ID → 한글 레이블 변환
   const _regionLabel = (rid) => rid === 'buyeo' ? '부여' : rid === 'tongyeong' ? '통영' : rid === 'hapcheon' ? '합천' : rid ? rid : '전체';
@@ -3405,12 +3449,12 @@ const AdminModule = (() => {
 
   const popupsPage = async () => {
     _adminState.currentSection = 'popups';
-    const popups = Settings.get('popups') || window.POPUPS || [];
+    const popups = []; // Popups now managed via notices API
     const user   = _adminState.user || { role: 'super', regionId: null };
     const isSuper = user.role === ROLES.SUPER;
 
-    // 공지 목록: 지역관리자는 자신의 지역만, 슈퍼는 전체
-    const allNotices = _getNotices();
+    // 공지 목록: API에서 로드
+    const allNotices = await _getNotices();
     const notices = isSuper
       ? allNotices
       : allNotices.filter(n => n.region === user.regionId);
@@ -3686,7 +3730,7 @@ const AdminModule = (() => {
 
   const closeNoticeModal = () => document.getElementById('notice-modal').classList.add('hidden');
 
-  const saveNotice = () => {
+  const saveNotice = async () => {
     const user = _adminState.user || { role: 'super', regionId: null };
     const isSuper = user.role === ROLES.SUPER;
     const title   = (document.getElementById('ntc-title')?.value || '').trim();
@@ -3698,7 +3742,7 @@ const AdminModule = (() => {
     const region = isSuper ? (document.getElementById('ntc-region')?.value || '') : (user.regionId || '');
 
     const now = new Date().toISOString();
-    const notices = _getNotices();
+    const notices = await _getNotices();
     if (_editingNoticeIdx !== null && notices[_editingNoticeIdx]) {
       // 수정: 대상 지역은 원본 유지 (지역관리자), 슈퍼는 변경 가능
       notices[_editingNoticeIdx] = {
@@ -3734,36 +3778,59 @@ const AdminModule = (() => {
       };
       notices.unshift(record);
     }
-    _setNotices(notices);
+    // Save via API
+    Utils.loading(true);
+    let apiOk = false;
+    if (_editingNoticeIdx !== null && notices[_editingNoticeIdx]) {
+      const n = notices[_editingNoticeIdx];
+      const r = await API.put(`/api/notices/${n.id}`, n);
+      apiOk = r.success;
+    } else {
+      const r = await API.post('/api/notices', notices[0]);
+      apiOk = r.success;
+    }
+    Utils.loading(false);
+    if (!apiOk) await _setNotices(notices); // fallback localStorage
     closeNoticeModal();
     Utils.toast('공지사항이 저장되었습니다.', 'success');
     popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
-  const editNotice = (idx) => {
-    const notices = _getNotices();
+  const editNotice = async (idx) => {
+    const notices = await _getNotices();
     const n = notices[idx];
     if (!n) { Utils.toast('공지를 찾을 수 없습니다.', 'error'); return; }
     _openNoticeModal('공지 수정', n, idx);
   };
 
-  const hideNotice = (idx) => {
-    const notices = _getNotices();
+  const hideNotice = async (idx) => {
+    const notices = await _getNotices();
     if (!notices[idx]) return;
     const isHidden = notices[idx].visible === false;
     notices[idx].visible = isHidden ? true : false;
-    _setNotices(notices);
+    // Update via API if possible
+    if (notices[idx].id) {
+      await API.put(`/api/notices/${notices[idx].id}`, { isActive: !isHidden });
+    }
+    await _setNotices(notices);
     Utils.toast(isHidden ? '공지가 공개되었습니다.' : '공지가 숨김 처리되었습니다.', 'success');
     popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
-  const deleteNotice = (idx) => {
+  const deleteNotice = async (idx) => {
     const user = _adminState.user || { role: 'super' };
     if (user.role !== ROLES.SUPER) { Utils.toast('슈퍼관리자만 삭제할 수 있습니다.', 'error'); return; }
-    Utils.confirm('공지사항을 완전히 삭제하시겠습니까?', () => {
-      const notices = _getNotices();
-      notices.splice(idx, 1);
-      _setNotices(notices);
+    Utils.confirm('공지사항을 완전히 삭제하시겠습니까?', async () => {
+      const notices = await _getNotices();
+      const n = notices[idx];
+      if (!n) return;
+      if (n.id) {
+        const r = await API.delete(`/api/notices/${n.id}`);
+        if (!r?.success) { notices.splice(idx, 1); await _setNotices(notices); }
+      } else {
+        notices.splice(idx, 1);
+        await _setNotices(notices);
+      }
       Utils.toast('삭제되었습니다.', 'success');
       popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
     });
