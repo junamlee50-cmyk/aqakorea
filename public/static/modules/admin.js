@@ -3081,10 +3081,15 @@ const AdminModule = (() => {
           </span>
         </td>
         <td class="px-3 py-2 text-center whitespace-nowrap">
-          <button onclick="AdminModule.viewReservation('${r.id}')" class="text-blue-600 hover:underline text-xs mr-1">상세</button>
-          ${r.status !== 'cancelled'
-            ? `<button onclick="AdminModule.cancelReservation('${r.id}','${r._dbId||r.id}')" class="text-red-500 hover:underline text-xs">취소</button>`
-            : `<span class="text-xs text-gray-400">${r.isRefunded?'환불완료':'환불전'}</span>`}
+          <div class="flex gap-1 justify-center flex-wrap">
+            <button onclick="AdminModule.viewReservation('${r.id}')" class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded hover:bg-blue-100">상세</button>
+            ${r.status === 'confirmed'
+              ? `<button onclick="AdminModule.issueWristbandFromReservation('${r._dbId||r.id}','${r.id}')" class="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded hover:bg-green-100">🎫 발권</button>`
+              : ''}
+            ${r.status !== 'cancelled' && r.status !== 'boarded'
+              ? `<button onclick="AdminModule.cancelReservation('${r.id}','${r._dbId||r.id}')" class="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded hover:bg-red-100">취소</button>`
+              : `<span class="text-xs text-gray-400">${r.status==='boarded'?'탑승완료':r.isRefunded?'환불완료':'환불전'}</span>`}
+          </div>
         </td>
       </tr>
     `).join('');
@@ -3353,6 +3358,68 @@ const AdminModule = (() => {
     );
   };
 
+  // ── 예약에서 직접 발권 ──────────────────────────────────
+  const issueWristbandFromReservation = async (dbId, displayId) => {
+    // 예약 정보 조회
+    Utils.loading(true);
+    const res = await API.get(`/api/reservations/ticket/${displayId}`);
+    Utils.loading(false);
+    if (!res.success) { Utils.toast('예약 정보 조회 실패', 'error'); return; }
+    const r = res.data;
+    const typeLabel = { adult:'성인', child:'소아', infant:'유아', senior:'경로' };
+    const pd = r.paxDetail || [];
+    const types = pd.length ? pd : [{ type:'adult', count: r.pax||1 }];
+
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold text-green-700">🎫 손목밴드 발권</h3></div>
+      <div class="modal-body space-y-3 pt-2">
+        <div class="bg-green-50 rounded-lg p-3 text-sm space-y-1">
+          <div class="flex justify-between"><span class="text-gray-500">예약번호</span><span class="font-mono font-bold text-blue-600">${r.reservationNo}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">예약자</span><span class="font-bold">${r.name}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">지역/일자</span><span>${r.regionName} ${r.date}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">회차</span><span>${r.time||'-'} 출발</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">인원</span><span>${r.pax}명</span></div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 font-medium block mb-1">발권 권종 선택</label>
+          <select id="issue-wb-type" class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400">
+            ${types.map(t=>`<option value="${t.type}">${typeLabel[t.type]||t.type} (${t.count}명)</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 font-medium block mb-1">발권 수량</label>
+          <input type="number" id="issue-wb-count" value="${r.pax||1}" min="1" max="${r.pax||10}"
+            class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400">
+        </div>
+        <div class="flex gap-2">
+          <button onclick="Utils.closeModal()" class="flex-1 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">취소</button>
+          <button onclick="AdminModule._doIssueWristbandFromRes('${dbId}','${r.time||''}','${r.regionName||''}')"
+            class="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-green-700">🎫 발권하기</button>
+        </div>
+      </div>`);
+  };
+
+  const _doIssueWristbandFromRes = async (reservationId, round, regionName) => {
+    const type  = document.getElementById('issue-wb-type')?.value || 'adult';
+    const count = parseInt(document.getElementById('issue-wb-count')?.value || '1');
+    const user  = Store.get('adminUser') || {};
+    Utils.closeModal();
+    Utils.loading(true);
+    const res = await API.post('/api/wristbands/issue', {
+      reservationId, round, type, count,
+      issuedBy: user.name || '관리자',
+    });
+    Utils.loading(false);
+    if (res.success) {
+      const ids = res.data?.wristbandIds || [];
+      Utils.toast(`발권 완료! 밴드 ${ids.length}개 발급 (${ids.join(', ')})`, 'success', 4000);
+      // 예약 목록 새로고침
+      reservationsPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      Utils.toast('발권 실패: ' + (res.error||''), 'error');
+    }
+  };
+
   const cancelReservation = (id, dbId) => {
     Utils.confirm(`예약 ${id}를 취소하시겠습니까?\n취소 후에는 환불 정책에 따라 처리됩니다.`, async () => {
       // API 취소 처리
@@ -3461,12 +3528,17 @@ const AdminModule = (() => {
         <td class="px-3 py-2 text-xs text-gray-500 text-center whitespace-nowrap">${(w.issuedAt||'').slice(0,16)}</td>
         <td class="px-3 py-2 text-xs text-gray-500 text-center">${w.issuedBy||'-'}</td>
         <td class="px-3 py-2 text-center">
-          <div class="flex gap-1 justify-center">
+          <div class="flex gap-1 justify-center flex-wrap">
             <button onclick="event.stopPropagation(); AdminModule.showWristbandDetail('${w.id}')"
               class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100">상세</button>
             ${w.status==='active'?`
-            <button onclick="event.stopPropagation(); AdminModule.voidWristband('${w.id}')"
-              class="text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100">무효화</button>`:''}
+            <button onclick="event.stopPropagation(); AdminModule.voidWristband('${w.id}','${w.reservationId}')"
+              class="text-xs bg-red-50 text-red-600 px-2 py-1 rounded hover:bg-red-100">무효화</button>
+            <button onclick="event.stopPropagation(); AdminModule.reissueWristband('${w.id}','${w.reservationId}','${w.round}','${w.type}')"
+              class="text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-100">재발급</button>`:''}
+            ${w.status==='voided'?`
+            <button onclick="event.stopPropagation(); AdminModule.reissueWristband('${w.id}','${w.reservationId}','${w.round}','${w.type}')"
+              class="text-xs bg-yellow-50 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-100">재발급</button>`:''}
           </div>
         </td>
       </tr>`) .join('')
@@ -3619,12 +3691,21 @@ const AdminModule = (() => {
         ${passengersHtml}
         ${logsHtml}
         ${w.status==='active'?`
-        <div class="flex gap-2 pt-2 border-t">
-          <button onclick="Utils.closeModal(); AdminModule.voidWristband('${w.id}')"
+        <div class="flex gap-2 pt-2 border-t flex-wrap">
+          <button onclick="Utils.closeModal(); AdminModule.voidWristband('${w.id}','${w.reservationId}')"
             class="flex-1 bg-red-50 text-red-600 py-2 rounded-lg text-sm font-medium hover:bg-red-100">🚫 무효화</button>
+          <button onclick="Utils.closeModal(); AdminModule.reissueWristband('${w.id}','${w.reservationId}','${w.round}','${w.type}')"
+            class="flex-1 bg-yellow-50 text-yellow-700 py-2 rounded-lg text-sm font-medium hover:bg-yellow-100">🔄 재발급</button>
           <button onclick="Utils.closeModal()"
             class="flex-1 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">닫기</button>
-        </div>`:`<button onclick="Utils.closeModal()" class="w-full border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 mt-2">닫기</button>`}
+        </div>`
+        : w.status==='voided'?`
+        <div class="flex gap-2 pt-2 border-t">
+          <button onclick="Utils.closeModal(); AdminModule.reissueWristband('${w.id}','${w.reservationId}','${w.round}','${w.type}')"
+            class="flex-1 bg-yellow-50 text-yellow-700 py-2 rounded-lg text-sm font-medium hover:bg-yellow-100">🔄 재발급</button>
+          <button onclick="Utils.closeModal()"
+            class="flex-1 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">닫기</button>
+        </div>` : `<button onclick="Utils.closeModal()" class="w-full border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 mt-2">닫기</button>`}
       </div>`);
   };
 
@@ -3671,8 +3752,59 @@ const AdminModule = (() => {
       </div>`, { size: 'max-w-3xl' });
   };
 
+  // ── 재발급 ────────────────────────────────────────────────
+  const reissueWristband = (originalId, reservationId, round, type) => {
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold text-yellow-700">🔄 손목밴드 재발급</h3></div>
+      <div class="modal-body space-y-3 pt-2">
+        <div class="bg-yellow-50 rounded-lg p-3 text-sm">
+          <div class="text-yellow-700 font-bold mb-1">원본 밴드: <span class="font-mono">${originalId}</span></div>
+          <div class="text-xs text-yellow-600">원본 밴드는 자동으로 무효화됩니다.</div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 font-medium block mb-1">재발급 사유 <span class="text-red-400">*</span></label>
+          <select id="reissue-reason-select" class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-yellow-400 mb-2"
+            onchange="document.getElementById('reissue-reason-custom').style.display=this.value==='직접입력'?'block':'none'">
+            <option value="훼손">훼손으로 인한 재발급</option>
+            <option value="분실">분실로 인한 재발급</option>
+            <option value="오발급">오발급 정정</option>
+            <option value="직접입력">직접 입력</option>
+          </select>
+          <input id="reissue-reason-custom" type="text" placeholder="재발급 사유 직접 입력"
+            class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-yellow-400 hidden">
+        </div>
+        <div class="flex gap-2">
+          <button onclick="Utils.closeModal()" class="flex-1 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">취소</button>
+          <button onclick="AdminModule._doReissueWristband('${originalId}','${reservationId}','${round}','${type}')"
+            class="flex-1 bg-yellow-500 text-white py-2 rounded-lg text-sm font-bold hover:bg-yellow-600">재발급 처리</button>
+        </div>
+      </div>`);
+  };
+
+  const _doReissueWristband = async (originalId, reservationId, round, type) => {
+    const sel = document.getElementById('reissue-reason-select')?.value;
+    const custom = document.getElementById('reissue-reason-custom')?.value?.trim();
+    const reason = sel === '직접입력' ? (custom||'사유없음') : sel;
+    const user = Store.get('adminUser') || {};
+    Utils.closeModal();
+    Utils.loading(true);
+    const res = await API.post('/api/wristbands/reissue', {
+      originalId, reason,
+      issuedBy: user.name || '관리자',
+      reservationId, round, type,
+    });
+    Utils.loading(false);
+    if (res.success) {
+      const newId = res.data?.newId || '';
+      Utils.toast(`재발급 완료! 새 밴드: ${newId}`, 'success', 4000);
+      wristbandsPage().then(html => { document.getElementById('app').innerHTML = html; });
+    } else {
+      Utils.toast('재발급 실패: ' + (res.error||''), 'error');
+    }
+  };
+
   // ── 무효화 ────────────────────────────────────────────────
-  const voidWristband = (wbId) => {
+  const voidWristband = (wbId, reservationId) => {
     const user = Store.get('adminUser') || {};
     Utils.modal(`
       <div class="modal-header"><h3 class="font-bold text-red-600">🚫 손목밴드 무효화</h3></div>
@@ -3709,6 +3841,7 @@ const AdminModule = (() => {
     Utils.closeModal();
     Utils.loading(true);
     const res = await API.post('/api/wristbands/void', { wristbandId: wbId, reason, voidedBy: user.name||'관리자' });
+    const _resvId = window._voidReservationId || '';
     Utils.loading(false);
     if (res.success) {
       Utils.toast('무효화 완료 — 이 밴드는 더 이상 사용할 수 없습니다.', 'success', 3000);
@@ -6610,8 +6743,8 @@ const backupPage = async () => {
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare, cancelFareApproval,
     updateSeatRatio, saveSeatRatio, saveSensConfig, testSms, _doTestSms,
-    showWristbandDetail, searchWristbands, voidWristband, _doVoidWristband, scanCheckWristband,
-    viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter,
+    showWristbandDetail, searchWristbands, voidWristband, _doVoidWristband, scanCheckWristband, reissueWristband, _doReissueWristband,
+    viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter, issueWristbandFromReservation, _doIssueWristbandFromRes,
     saveWristbandText,
     addPopup, editPopup, savePopup, deletePopup,
     addNotice, editNotice, saveNotice, hideNotice, deleteNotice, closeNoticeModal,
