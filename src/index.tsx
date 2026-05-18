@@ -305,6 +305,7 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <script src="/static/modules/admin.js"></script>
 <script src="/static/modules/stats.js"></script>
 <script src="/static/modules/seo.js"></script>
+<script src="/static/modules/ticket.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>`

@@ -139,6 +139,9 @@
       return CustomerPages.bookingCheck ? CustomerPages.bookingCheck(params) : CustomerPages._404();
     });
 
+    // ── 탑승권 QR 확인 페이지 ─────────────────────────────────
+    Router.add('/ticket/:reservationNo', async (params) => TicketPage.show(params.reservationNo));
+
     // ── 404 ───────────────────────────────────────────────
     Router.add('*', CustomerPages._404);
   };

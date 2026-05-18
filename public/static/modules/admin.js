@@ -426,6 +426,66 @@ const AdminModule = (() => {
     if (overlay) overlay.classList.add('hidden');
   };
 
+  // ── SENS 설정 저장 ────────────────────────────────────────
+  const saveSensConfig = async () => {
+    const accessKey  = document.getElementById('sens-access-key')?.value?.trim();
+    const secretKey  = document.getElementById('sens-secret-key')?.value?.trim();
+    const serviceId  = document.getElementById('sens-service-id')?.value?.trim();
+    const senderPhone = document.getElementById('sens-sender')?.value?.trim();
+    const enabled    = document.getElementById('sens-enabled')?.checked || false;
+    if (!accessKey || !serviceId || !senderPhone) {
+      Utils.toast('Access Key / Service ID / 발신번호는 필수입니다', 'warning'); return;
+    }
+    const body = { accessKey, serviceId, senderPhone, enabled };
+    if (secretKey) body.secretKey = secretKey;
+    Utils.loading(true);
+    const res = await API.post('/api/sms-settings/config', body);
+    Utils.loading(false);
+    if (res.success) {
+      Utils.toast('SENS 설정이 저장되었습니다' + (enabled ? ' (자동 발송 활성화)' : ' (비활성)'), 'success', 3000);
+    } else {
+      Utils.toast('저장 실패: ' + (res.error || ''), 'error');
+    }
+  };
+
+  const testSms = async () => {
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold text-lg">테스트 문자 발송</h3></div>
+      <div class="modal-body space-y-3 pt-2">
+        <div>
+          <label class="text-xs text-gray-500 font-medium block mb-1">수신번호</label>
+          <input id="test-sms-phone" type="tel" placeholder="010-1234-5678"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 font-medium block mb-1">메시지</label>
+          <textarea id="test-sms-msg" rows="3"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none">[아쿠아모빌리티코리아] 테스트 메시지입니다.</textarea>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button onclick="Utils.closeModal()" class="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50">취소</button>
+          <button onclick="AdminModule._doTestSms()" class="flex-1 bg-green-600 text-white rounded-lg py-2 text-sm font-bold hover:bg-green-700">발송</button>
+        </div>
+      </div>`);
+  };
+
+  const _doTestSms = async () => {
+    const phone = document.getElementById('test-sms-phone')?.value?.trim();
+    const message = document.getElementById('test-sms-msg')?.value?.trim();
+    if (!phone) { Utils.toast('수신번호를 입력하세요', 'warning'); return; }
+    Utils.closeModal();
+    Utils.loading(true);
+    const res = await API.post('/api/sms-settings/test', { phone, message });
+    Utils.loading(false);
+    if (res.success) {
+      Utils.toast('테스트 문자 발송 완료!', 'success', 3000);
+    } else if (res.reason === 'not_configured') {
+      Utils.toast('SENS 설정을 먼저 저장하고 활성화해주세요', 'warning', 4000);
+    } else {
+      Utils.toast('발송 실패: ' + JSON.stringify(res.error || ''), 'error', 4000);
+    }
+  };
+
   const navigate = (section) => {
     _adminState.currentSection = section;
     _adminState.mobileOpen = false; // 모바일에서 메뉴 클릭 시 사이드바 닫기
@@ -3993,8 +4053,80 @@ const AdminModule = (() => {
           </div>
         </div>`).join('') || '<div class="col-span-3 text-center py-4 text-gray-400 text-sm">아직 발송 내역이 없습니다.</div>';
 
+      // SENS 설정 로드
+      let sensConfig = {};
+      try {
+        const cfgRes = await API.get('/api/sms-settings/config');
+        sensConfig = cfgRes.success ? cfgRes.data : {};
+      } catch(e) {}
+
       const contentHtml = `
         <div class="space-y-5">
+
+          <!-- SENS API 설정 카드 -->
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-cog text-gray-400"></i>
+                <span class="font-semibold text-sm text-gray-700">Naver Cloud SENS 설정</span>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold ${sensConfig.enabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">
+                ${sensConfig.enabled ? '✅ 활성화' : '⚠️ 미설정'}
+              </span>
+            </div>
+            <div class="p-5 space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs text-gray-500 font-medium block mb-1">Access Key</label>
+                  <input id="sens-access-key" type="text" placeholder="Naver Cloud Access Key"
+                    value="${sensConfig.accessKey || ''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 font-medium block mb-1">Secret Key</label>
+                  <input id="sens-secret-key" type="password" placeholder="Secret Key (변경 시만 입력)"
+                    class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 font-medium block mb-1">Service ID</label>
+                  <input id="sens-service-id" type="text" placeholder="ncp:sms:kr:xxxxx"
+                    value="${sensConfig.serviceId || ''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 font-medium block mb-1">발신번호</label>
+                  <input id="sens-sender" type="text" placeholder="01012345678"
+                    value="${sensConfig.senderPhone || ''}"
+                    class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+              </div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="sens-enabled" ${sensConfig.enabled ? 'checked' : ''}
+                    class="w-4 h-4 rounded accent-blue-600">
+                  <span class="text-sm text-gray-700">SMS 자동 발송 활성화</span>
+                </label>
+                <div class="flex gap-2 ml-auto">
+                  <button onclick="AdminModule.saveSensConfig()"
+                    class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 font-medium">
+                    💾 설정 저장
+                  </button>
+                  <button onclick="AdminModule.testSms()"
+                    class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium">
+                    📱 테스트 발송
+                  </button>
+                </div>
+              </div>
+              <div class="text-xs text-gray-400 bg-blue-50 rounded-lg p-3 space-y-1">
+                <div class="font-medium text-blue-600 mb-1">📌 SENS 설정 방법</div>
+                <div>① Naver Cloud Console → SENS → SMS 서비스 생성</div>
+                <div>② 발신번호 등록 (사업자번호 인증 필요)</div>
+                <div>③ IAM Access Key / Secret Key 발급 후 위에 입력</div>
+                <div>④ "활성화" 체크 후 저장 → 예약/발권/탑승 시 자동 발송</div>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-4 gap-3">
             <div class="bg-white rounded-xl p-4 shadow-sm text-center border border-gray-100 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
               onclick="AdminModule.showSmsDetail('all')">
@@ -6188,7 +6320,7 @@ const backupPage = async () => {
     switchRecMode, calcRecAutoTimes,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare, cancelFareApproval,
-    updateSeatRatio, saveSeatRatio,
+    updateSeatRatio, saveSeatRatio, saveSensConfig, testSms, _doTestSms,
     viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter,
     saveWristbandText,
     addPopup, editPopup, savePopup, deletePopup,
