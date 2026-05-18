@@ -121,6 +121,7 @@
     Router.add('/admin/popups',       _adminGuard(AdminModule.popupsPage));
     Router.add('/admin/terms',        _adminGuard(AdminModule.termsPage));
     Router.add('/admin/seo',          _adminGuard(AdminModule.seoManagePage));
+    Router.add('/admin/sms',          _adminGuard(AdminModule.smsPage));
     Router.add('/admin/regions',      _adminGuard(AdminModule.regionsPage));
     Router.add('/admin/settlement',   _adminGuard(AdminModule.settlementPage));
     Router.add('/admin/admins',       _adminGuard(AdminModule.adminsPage));

@@ -67,6 +67,7 @@ const AdminModule = (() => {
       { icon: 'fas fa-bullhorn', label: '팝업/공지 관리', section: 'popups' },
       { icon: 'fas fa-file-contract', label: '약관/환불정책', section: 'terms' },
       { icon: 'fas fa-search', label: 'SEO 관리', section: 'seo' },
+      { icon: 'fas fa-sms', label: 'SMS 관리', section: 'sms' },
       { icon: 'fas fa-chart-bar', label: '통계/보고서', section: 'stats-admin' },
       { icon: 'fas fa-calculator', label: '정산 관리', section: 'settlement' },
       { icon: 'fas fa-users-cog', label: '관리자 계정', section: 'admins' },
@@ -86,7 +87,7 @@ const AdminModule = (() => {
       { icon: 'fas fa-qrcode', label: '손목밴드', section: 'wristbands' },
       { icon: 'fas fa-bullhorn', label: '팝업/공지', section: 'popups' },
       { icon: 'fas fa-file-contract', label: '약관/환불정책', section: 'terms' },
-      { icon: 'fas fa-search', label: 'SEO 관리', section: 'seo' },
+      { icon: 'fas fa-sms', label: 'SMS 발송', section: 'sms' },
       { icon: 'fas fa-calculator', label: '정산 관리', section: 'settlement' },
       { icon: 'fas fa-chart-bar', label: '통계', section: 'stats-admin' },
       { icon: 'fas fa-map-marked-alt', label: '여행가이드 관리', section: 'travel-guides' },
@@ -3835,6 +3836,245 @@ const AdminModule = (() => {
   const previewTerms = () => Utils.toast('약관 미리보기 창 열기 (구현 중)', 'info');
 
   // ── SEO 관리 ───────────────────────────────────────────────
+  // ── SMS 발송 관리 ────────────────────────────────────────
+  const smsPage = async () => {
+    _adminState.currentSection = 'sms';
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super';
+    const myRegionId = user.regionId || null;
+    const RNAMES = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
+
+    let reservations = [];
+    try {
+      const res = await API.get('/api/reservations?limit=500' + (myRegionId && !isSuper ? '&regionId='+myRegionId : ''));
+      reservations = (res.data||[]).filter(r=>r.status!=='cancelled'&&r.status!=='refunded');
+    } catch(e) {}
+
+    let schedules = [];
+    try {
+      const sr = await API.get('/api/schedules' + (myRegionId && !isSuper ? '?regionId='+myRegionId : ''));
+      schedules = sr.data||[];
+    } catch(e) {}
+
+    const smsHistory = JSON.parse(localStorage.getItem('amk_sms_history')||'[]');
+    const myHistory = isSuper ? smsHistory : smsHistory.filter(h=>h.regionId===myRegionId);
+    const uniquePhones = [...new Set(reservations.map(r=>r.phone).filter(Boolean))].length;
+    const regionLabel = isSuper ? '전체 지역' : (RNAMES[myRegionId]||myRegionId||'');
+
+    const historyRows = (rows) => rows.length ? `
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="bg-gray-50">
+            ${['발송일시','지역','유형','내용','수신자수','발송자'].map(h=>`<th class="px-3 py-2 text-xs text-gray-500 font-medium text-left">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody class="divide-y divide-gray-100">
+            ${rows.slice().reverse().slice(0,15).map(h=>`
+              <tr class="hover:bg-gray-50">
+                <td class="px-3 py-2 text-xs text-gray-500">${(h.sentAt||'').slice(0,16).replace('T',' ')}</td>
+                <td class="px-3 py-2"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">${RNAMES[h.regionId]||h.regionId||'전체'}</span></td>
+                <td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs ${h.type==='emergency'?'bg-red-100 text-red-600':h.type==='weather'?'bg-yellow-100 text-yellow-700':'bg-green-100 text-green-700'}">${{emergency:'긴급',weather:'기상',info:'일반',reservation:'예약'}[h.type]||h.type}</span></td>
+                <td class="px-3 py-2 text-xs text-gray-600 max-w-xs truncate">${h.message||''}</td>
+                <td class="px-3 py-2 text-center font-medium text-blue-700">${h.count||0}명</td>
+                <td class="px-3 py-2 text-xs text-gray-500">${h.sender||'-'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '<div class="text-center py-6 text-gray-400 text-sm">발송 이력 없음</div>';
+
+    const contentHtml = `
+      <div class="space-y-5">
+
+        ${isSuper ? `
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <i class="fas fa-chart-line text-blue-600"></i>
+            <h2 class="font-bold text-gray-800">전체 SMS 발송 현황</h2>
+          </div>
+          <div class="grid grid-cols-4 gap-3 mb-4">
+            <div class="bg-white rounded-xl p-3 shadow-sm text-center">
+              <div class="font-bold text-blue-700 text-xl">${smsHistory.length}건</div>
+              <div class="text-xs text-gray-500">총 발송건수</div>
+            </div>
+            <div class="bg-white rounded-xl p-3 shadow-sm text-center">
+              <div class="font-bold text-green-700 text-xl">${smsHistory.filter(h=>(h.sentAt||'').startsWith(new Date().toISOString().slice(0,7))).length}건</div>
+              <div class="text-xs text-gray-500">이번달 발송</div>
+            </div>
+            <div class="bg-white rounded-xl p-3 shadow-sm text-center">
+              <div class="font-bold text-purple-700 text-xl">${[...new Set(smsHistory.map(h=>h.regionId))].filter(Boolean).length}개</div>
+              <div class="text-xs text-gray-500">발송 지역수</div>
+            </div>
+            <div class="bg-white rounded-xl p-3 shadow-sm text-center">
+              <div class="font-bold text-orange-700 text-xl">${smsHistory.reduce((s,h)=>s+(h.count||0),0)}명</div>
+              <div class="text-xs text-gray-500">총 수신자수</div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl p-4 shadow-sm">
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">최근 발송 이력 (전체)</h3>
+            ${historyRows(smsHistory)}
+          </div>
+        </div>` : ''}
+
+        <div class="bg-white rounded-xl shadow-sm p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <i class="fas fa-paper-plane text-green-500"></i>
+            <h2 class="font-bold text-gray-800">SMS 작성 및 발송</h2>
+            <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">${regionLabel}</span>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="space-y-4">
+              <label class="block text-sm font-semibold text-gray-700"><i class="fas fa-users text-blue-500 mr-1"></i>수신자 선택</label>
+              <div class="space-y-2">
+                <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-blue-50">
+                  <input type="radio" name="sms-target" value="all" checked onchange="AdminModule.updateSmsPreview()" class="text-blue-600">
+                  <div class="flex-1"><div class="font-medium text-sm">전체 예약자</div><div class="text-xs text-gray-500">중복 전화번호 제외</div></div>
+                  <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">${uniquePhones}명</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-blue-50">
+                  <input type="radio" name="sms-target" value="schedule" onchange="AdminModule.updateSmsPreview(); document.getElementById('sms-schedule-filter').classList.remove('hidden')" class="text-blue-600">
+                  <div><div class="font-medium text-sm">특정 회차 예약자</div><div class="text-xs text-gray-500">날짜/회차 선택</div></div>
+                </label>
+                <div id="sms-schedule-filter" class="hidden ml-6 space-y-2 p-3 bg-gray-50 rounded-lg">
+                  <input type="date" id="sms-date" value="${new Date().toISOString().slice(0,10)}" onchange="AdminModule.updateSmsPreview()"
+                    class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                  <select id="sms-schedule" onchange="AdminModule.updateSmsPreview()"
+                    class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- 회차 선택 --</option>
+                    ${schedules.map(s=>`<option value="${s.id}">${s.time} 회차 (정원 ${s.capacity}명)</option>`).join('')}
+                  </select>
+                </div>
+                <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-blue-50">
+                  <input type="radio" name="sms-target" value="custom" onchange="AdminModule.updateSmsPreview(); document.getElementById('sms-custom-filter').classList.remove('hidden')" class="text-blue-600">
+                  <div><div class="font-medium text-sm">직접 입력</div><div class="text-xs text-gray-500">특정 번호 직접 지정</div></div>
+                </label>
+                <div id="sms-custom-filter" class="hidden ml-6 p-3 bg-gray-50 rounded-lg">
+                  <textarea id="sms-custom-phones" rows="3" placeholder="010-1234-5678&#10;010-9876-5432&#10;(줄바꿈으로 구분)"
+                    class="w-full border rounded-lg px-3 py-2 text-sm outline-none resize-none focus:ring-2 focus:ring-blue-500"
+                    oninput="AdminModule.updateSmsPreview()"></textarea>
+                </div>
+              </div>
+              <div class="text-xs text-blue-600 font-medium p-2 bg-blue-50 rounded-lg">
+                예상 수신자: <span id="sms-count-num" class="font-bold text-blue-800">${uniquePhones}</span>명
+              </div>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2"><i class="fas fa-tag text-purple-500 mr-1"></i>메시지 유형</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button onclick="AdminModule.setSmsTemplate('reservation','%5B%EC%95%84%EC%BF%A0%EC%95%84%EB%AA%A8%EB%B9%8C%EB%A6%AC%ED%8B%B0%5D%20%EC%98%88%EC%95%BD%EC%9D%B4%20%ED%99%95%EC%A0%95%EB%90%98%EC%97%88%EC%8A%B5%EB%8B%88%EB%8B%A4.%0A%EC%9D%BC%EC%8B%9C%3A%20%7B%EB%82%A0%EC%A7%9C%7D%20%7B%ED%9A%8C%EC%B0%A8%7D%0A%ED%83%91%EC%8A%B9%20%EC%A6%89%EC%8B%9C%20%ED%99%95%EC%9D%B8%20%EB%B6%80%ED%83%81%EB%93%9C%EB%A6%BD%EB%8B%88%EB%8B%A4.')"
+                    class="p-2 border-2 rounded-lg text-sm font-medium hover:border-green-400 hover:bg-green-50 text-left">📋 예약 안내</button>
+                  <button onclick="AdminModule.setSmsTemplate('weather','%5B%EC%95%84%EC%BF%A0%EC%95%84%EB%AA%A8%EB%B9%8C%EB%A6%AC%ED%8B%B0%5D%20%EA%B8%B0%EC%83%81%EC%95%85%ED%99%94%EB%A1%9C%20%EC%98%A4%EB%8A%98%20%EC%9A%B4%ED%96%89%EC%9D%B4%20%EC%B7%A8%EC%86%8C%EB%90%98%EC%97%88%EC%8A%B5%EB%8B%88%EB%8B%A4.%0A%EC%A0%84%EC%95%A1%20%ED%99%98%EB%B6%88%20%EC%B2%98%EB%A6%AC%EB%90%A9%EB%8B%88%EB%8B%A4.%20%EB%B6%88%ED%8E%B8%EC%9D%84%20%EB%93%9C%EB%A0%A4%20%EC%A3%84%EC%86%A1%ED%95%A9%EB%8B%88%EB%8B%A4.')"
+                    class="p-2 border-2 rounded-lg text-sm font-medium hover:border-yellow-400 hover:bg-yellow-50 text-left">🌧 기상 취소</button>
+                  <button onclick="AdminModule.setSmsTemplate('emergency','%5B%EC%95%84%EC%BF%A0%EC%95%84%EB%AA%A8%EB%B9%8C%EB%A6%AC%ED%8B%B0%5D%20%EA%B8%B4%EA%B8%89%20%EC%95%88%EB%82%B4%3A%0A')"
+                    class="p-2 border-2 rounded-lg text-sm font-medium hover:border-red-400 hover:bg-red-50 text-left">🚨 긴급 공지</button>
+                  <button onclick="AdminModule.setSmsTemplate('info','%5B%EC%95%84%EC%BF%A0%EC%95%84%EB%AA%A8%EB%B9%8C%EB%A6%AC%ED%8B%B0%5D%20')"
+                    class="p-2 border-2 rounded-lg text-sm font-medium hover:border-blue-400 hover:bg-blue-50 text-left">📢 일반 안내</button>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-sm font-semibold text-gray-700">메시지 내용</label>
+                  <span id="sms-char-count" class="text-xs text-gray-400">0 / 90자</span>
+                </div>
+                <textarea id="sms-message" rows="5" placeholder="발송할 메시지를 입력하세요."
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  oninput="AdminModule.updateSmsCharCount()"></textarea>
+                <div class="flex justify-between mt-1">
+                  <p class="text-xs text-gray-400">※ 90자 초과 시 장문(LMS) 발송</p>
+                  <span id="sms-type-badge" class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">단문(SMS)</span>
+                </div>
+              </div>
+              <div class="bg-gray-900 rounded-xl p-4">
+                <div class="text-xs text-gray-400 mb-2"><i class="fas fa-mobile-alt mr-1"></i>미리보기</div>
+                <div class="bg-gray-800 rounded-lg p-3 text-sm text-white min-h-12" id="sms-preview">메시지를 입력하면 미리보기가 표시됩니다.</div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-5 pt-4 border-t">
+            <p class="text-xs text-gray-400"><i class="fas fa-info-circle text-blue-400 mr-1"></i>PG 연동 전까지는 발송 이력만 저장됩니다.</p>
+            <div class="flex gap-2">
+              <button onclick="AdminModule.previewSms()" class="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1">
+                <i class="fas fa-eye"></i> 최종 확인
+              </button>
+              <button onclick="AdminModule.sendSms('${myRegionId||'all'}')" class="bg-green-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-green-700 flex items-center gap-2 font-medium">
+                <i class="fas fa-paper-plane"></i> 발송
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm p-5">
+          <h3 class="font-semibold text-gray-800 mb-4 text-sm"><i class="fas fa-history text-gray-500 mr-2"></i>내 발송 이력</h3>
+          ${historyRows(myHistory)}
+        </div>
+      </div>
+    `;
+    return renderAdminLayout('sms', contentHtml, 'SMS 발송 관리');
+  };
+
+  const updateSmsCharCount = () => {
+    const msg = document.getElementById('sms-message')?.value || '';
+    const len = msg.length;
+    const el = document.getElementById('sms-char-count');
+    const badge = document.getElementById('sms-type-badge');
+    const preview = document.getElementById('sms-preview');
+    if (el) el.textContent = len + ' / 90자 ' + (len > 90 ? '(장문)' : '(단문)');
+    if (badge) { badge.textContent = len > 90 ? '장문(LMS)' : '단문(SMS)'; badge.className = 'text-xs px-2 py-0.5 rounded-full ' + (len > 90 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'); }
+    if (preview) preview.textContent = msg || '메시지를 입력하면 미리보기가 표시됩니다.';
+  };
+
+  const updateSmsPreview = () => {
+    const target = document.querySelector('input[name="sms-target"]:checked')?.value || 'all';
+    const countEl = document.getElementById('sms-count-num');
+    if (!countEl) return;
+    if (target === 'custom') {
+      const phones = (document.getElementById('sms-custom-phones')?.value||'').split('\n').filter(p=>p.trim());
+      countEl.textContent = phones.length;
+    }
+    updateSmsCharCount();
+  };
+
+  const setSmsTemplate = (type, encodedMsg) => {
+    try {
+      const msg = decodeURIComponent(encodedMsg);
+      const el = document.getElementById('sms-message');
+      if (el) { el.value = msg; updateSmsCharCount(); }
+    } catch(e) {}
+  };
+
+  const previewSms = () => {
+    const msg = document.getElementById('sms-message')?.value?.trim();
+    const countEl = document.getElementById('sms-count-num');
+    const count = parseInt(countEl?.textContent||'0');
+    if (!msg) { Utils.toast('메시지를 입력하세요.', 'error'); return; }
+    Utils.confirm(
+      `📱 발송 확인\n\n수신자: ${count}명\n\n내용:\n${msg}\n\n발송하시겠습니까?`,
+      () => { /* confirmed */ }
+    );
+  };
+
+  const sendSms = (regionId) => {
+    const msg = document.getElementById('sms-message')?.value?.trim();
+    if (!msg) { Utils.toast('메시지를 입력하세요.', 'error'); return; }
+    const countEl = document.getElementById('sms-count-num');
+    const count = parseInt(countEl?.textContent||'0');
+    const target = document.querySelector('input[name="sms-target"]:checked')?.value || 'all';
+    const typeMap = {'reservation':'reservation','weather':'weather','emergency':'emergency'};
+    const user = _adminState.user || {};
+    const history = JSON.parse(localStorage.getItem('amk_sms_history')||'[]');
+    history.push({
+      sentAt: new Date().toISOString(),
+      regionId: regionId || user.regionId || 'all',
+      type: msg.includes('기상') ? 'weather' : msg.includes('긴급') ? 'emergency' : msg.includes('예약') ? 'reservation' : 'info',
+      message: msg,
+      count,
+      target,
+      sender: user.name || '관리자',
+    });
+    localStorage.setItem('amk_sms_history', JSON.stringify(history));
+    Utils.toast('✅ ' + count + '명에게 발송 완료 (이력 저장)', 'success');
+    setTimeout(() => smsPage().then(html => { document.getElementById('app').innerHTML = html; }), 1500);
+  };
+
   const seoManagePage = async () => {
     _adminState.currentSection = 'seo';
     const regions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
@@ -5403,6 +5643,7 @@ const backupPage = async () => {
       'popups': () => popupsPage(),
       'terms': () => termsPage(),
       'seo': () => seoManagePage(),
+      'sms': () => smsPage(),
       'regions': () => regionsPage(),
       'settlement': () => settlementPage(),
       'admins': () => adminsPage(),
@@ -5442,7 +5683,7 @@ const backupPage = async () => {
     addPopup, editPopup, savePopup, deletePopup,
     addNotice, editNotice, saveNotice, hideNotice, deleteNotice, closeNoticeModal,
     showTermsTab, saveTerms, previewTerms,
-    selectSeoRegion, saveSeoGlobal, saveSeoSettings,
+    selectSeoRegion, saveSeoGlobal, saveSeoSettings, smsPage, sendSms, setSmsTemplate, updateSmsCharCount, updateSmsPreview, previewSms,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
     addAdmin, resetPassword, deleteAdmin,
