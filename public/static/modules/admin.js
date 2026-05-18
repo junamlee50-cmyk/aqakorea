@@ -3876,10 +3876,10 @@ const AdminModule = (() => {
                 <div>
                   <label class="block text-xs font-medium text-gray-600 mb-1">
                     <i class="fab fa-google text-red-500 mr-1"></i>Google Search Console 인증 코드
-                    <span class="text-gray-400 font-normal ml-1">(meta content 값만 입력)</span>
+                    <span class="text-gray-400 font-normal ml-1">(google-site-verification= 뒤의 코드값만)</span>
                   </label>
-                  <input id="seo-google-verify" type="text" placeholder="예: abc123xyz..."
-                    value="${sc.googleVerification||''}"
+                  <input id="seo-google-verify" type="text" placeholder="예: googlee9064f654e79faa3"
+                    value="${sc.googleVerification || (typeof SEO_CONFIG !== 'undefined' ? SEO_CONFIG.searchConsole?.googleVerification : '') || ''}"
                     class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
                 <div>
