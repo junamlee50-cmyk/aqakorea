@@ -91,6 +91,7 @@ const buildMeta = (opts: {
     <meta property="kakao:image" content="${ogImage}">
     <!-- 네이버 블로그 -->
     <meta name="naver-site-verification" content="${SEO_CONFIG.searchConsole.naverVerification}">
+    <meta name="naver-site-verification" content="f5f90f2781e988017912f00d108f8f2ab81ab84b">
     ${SEO_CONFIG.searchConsole.googleVerification ? `<meta name="google-site-verification" content="${SEO_CONFIG.searchConsole.googleVerification}">` : ''}
     <!-- 구조화 데이터 -->
     <script type="application/ld+json">${JSON.stringify(schemas.length === 1 ? schemas[0] : schemas)}</script>
@@ -100,6 +101,13 @@ const buildMeta = (opts: {
 
 // ============================================================
 // Google Search Console 인증 파일
+// 네이버 www 버전 인증 파일
+app.get('/naverc38252f7348d19a29771d1159ff3a6a8.html', (c) => {
+  return c.text('naverc38252f7348d19a29771d1159ff3a6a8', 200, {
+    'Content-Type': 'text/html; charset=utf-8',
+  });
+});
+
 app.get('/googlee9064f654e79faa3.html', (c) => {
   return c.text('google-site-verification: googlee9064f654e79faa3.html', 200, {
     'Content-Type': 'text/html; charset=utf-8',
