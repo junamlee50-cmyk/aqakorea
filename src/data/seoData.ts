@@ -36,7 +36,7 @@ export const SEO_CONFIG = {
   },
   // 분석 도구 코드 (관리자에서 수정 가능)
   analytics: {
-    gaId: '', // Google Analytics 4 ID
+    gaId: 'G-7VVFG9GT2Q', // Google Analytics 4 측정 ID
     naverAnalyticsId: '', // 네이버 애널리틱스 ID
     kakaoPixelId: '',
     metaPixelId: '',

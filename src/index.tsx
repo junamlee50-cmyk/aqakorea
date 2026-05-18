@@ -93,6 +93,19 @@ const buildMeta = (opts: {
     <meta name="naver-site-verification" content="${SEO_CONFIG.searchConsole.naverVerification}">
     <meta name="naver-site-verification" content="f5f90f2781e988017912f00d108f8f2ab81ab84b">
     ${SEO_CONFIG.searchConsole.googleVerification ? `<meta name="google-site-verification" content="${SEO_CONFIG.searchConsole.googleVerification}">` : ''}
+    ${SEO_CONFIG.analytics.gaId ? `
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${SEO_CONFIG.analytics.gaId}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${SEO_CONFIG.analytics.gaId}', {
+        page_title: document.title,
+        page_location: window.location.href,
+        send_page_view: true
+      });
+    </script>` : ''}
     <!-- 구조화 데이터 -->
     <script type="application/ld+json">${JSON.stringify(schemas.length === 1 ? schemas[0] : schemas)}</script>
     <meta property="article:modified_time" content="${today}">
