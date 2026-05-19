@@ -14,7 +14,8 @@ const CustomerPages = {
     const today = Utils.today();
     setTimeout(() => {
       Navbar.init();
-      PopupManager.show('all');
+      // 메인 홈에서는 '전체' 대상 팝업만 표시 (region='' 인 것만)
+      PopupManager.show('');
       _loadGuides('all');
     }, 100);
     return `
@@ -552,7 +553,12 @@ ${Footer.render()}
 
     // 요금은 API(region.fares)에서 직접 사용
 
-    setTimeout(() => { Navbar.init(); CustomerPages.initRegionPage(region, schedules); }, 100);
+    setTimeout(() => {
+      Navbar.init();
+      CustomerPages.initRegionPage(region, schedules);
+      // 해당 지역 팝업 + 전체 팝업 표시
+      PopupManager.show(regionId);
+    }, 100);
     return `
 ${Navbar.render('reservation')}
 <div style="padding-top:64px">
@@ -2360,28 +2366,37 @@ ${Footer.render()}`;
     const urlParams = new URLSearchParams(window.location.search);
     const detailId  = (params && params.noticeId) || urlParams.get('id') || '';
 
-    // localStorage에서 공지 데이터 로드 (amk_notices)
+    // API에서 공지 로드 (localStorage 폴백)
     const today = new Date().toISOString().slice(0, 10);
-    const allNotices = (() => {
-      try { return JSON.parse(localStorage.getItem('amk_notices') || '[]'); } catch(e) { return []; }
-    })();
+    let allNotices = [];
+    try {
+      const noticeRes = await API.get('/api/notices?is_active=1');
+      if (noticeRes.success && noticeRes.data?.length) {
+        allNotices = noticeRes.data;
+      }
+    } catch(e) {}
+    // API 실패 시 localStorage 폴백
+    if (!allNotices.length) {
+      try { allNotices = JSON.parse(localStorage.getItem('amk_notices') || '[]'); } catch(e) {}
+    }
 
-    // 고객 표시 기준 필터링:
-    // - visible !== false (숨김 아님)
-    // - startDate 이전이 아님
-    // - endDate 이후가 아님
+    // 고객 표시 기준 필터링
     const notices = allNotices
       .filter(n => {
-        if (n.visible === false) return false;
-        if (n.startDate && today < n.startDate) return false;
-        if (n.endDate   && today > n.endDate)   return false;
+        // DB 공지: is_active=1, localStorage 공지: visible!==false
+        if (n.is_active === 0 || n.visible === false) return false;
+        const sd = n.startDate || n.start_date || '';
+        const ed = n.endDate   || n.end_date   || '';
+        if (sd && today < sd) return false;
+        if (ed && today > ed) return false;
         return true;
       })
-      // 상단고정 우선, 그 다음 최신순
       .sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1;
-        if (!a.pinned && b.pinned) return 1;
-        return (b.createdAt || b.date || '').localeCompare(a.createdAt || a.date || '');
+        const ap = a.pinned || a.sort_order === 0;
+        const bp = b.pinned || b.sort_order === 0;
+        if (ap && !bp) return -1;
+        if (!ap && bp) return 1;
+        return (b.createdAt || b.created_at || b.date || '').localeCompare(a.createdAt || a.created_at || a.date || '');
       });
 
     setTimeout(() => {

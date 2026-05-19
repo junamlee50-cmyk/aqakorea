@@ -4046,10 +4046,18 @@ const AdminModule = (() => {
             <div><label class="block text-xs font-medium text-gray-700 mb-1">내용</label><textarea id="pop-content" rows="4" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea></div>
             <div class="grid grid-cols-2 gap-3">
               <div><label class="block text-xs font-medium text-gray-700 mb-1">대상 지역</label>
-                <select id="pop-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                  <option value="">전체</option>
-                  ${(window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
-                </select>
+                ${(() => {
+                  const u = _adminState.user || Store.get('adminUser') || {};
+                  if (u.role === 'regional' && u.regionId) {
+                    const rName = (window.REGIONS||[]).find(r=>r.id===u.regionId)?.name || u.regionId;
+                    return `<input type="hidden" id="pop-region" value="${u.regionId}">
+                    <div class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600">${rName} (고정)</div>`;
+                  }
+                  return `<select id="pop-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="">전체</option>
+                    ${(window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+                  </select>`;
+                })()}
               </div>
               <div><label class="block text-xs font-medium text-gray-700 mb-1">유형</label>
                 <select id="pop-type" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
@@ -4086,9 +4094,13 @@ const AdminModule = (() => {
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">대상 지역</label>
-                <select id="ntc-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" ${!isSuper ? 'disabled' : ''}>
-                  ${regionOptions}
-                </select>
+                ${isSuper
+                  ? `<select id="ntc-region" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                      ${regionOptions}
+                    </select>`
+                  : `<input type="hidden" id="ntc-region" value="${user.regionId||''}">
+                     <div class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600">${_regionLabel(user.regionId)} (고정)</div>`
+                }
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">공지 유형</label>
@@ -4232,7 +4244,7 @@ const AdminModule = (() => {
         title,
         content,
         type:       document.getElementById('ntc-type')?.value || 'general',
-        region:     isSuper ? region : notices[_editingNoticeIdx].region,
+        region:     region,  // 지역관리자는 hidden input으로 자기 지역 고정
         startDate:  document.getElementById('ntc-startDate')?.value || '',
         endDate:    document.getElementById('ntc-endDate')?.value   || '',
         important:  document.getElementById('ntc-important')?.checked || false,

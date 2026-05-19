@@ -581,11 +581,17 @@ const PopupManager = {
   },
 
   // 지역 범위 체크: 팝업 region 필드 vs 현재 페이지 regionId
-  // region='' or 'all' → 전체 표시 / 특정값 → 해당 지역 페이지만
+  // 메인홈(regionId=''): region='' 전체 팝업만 표시
+  // 지역예약페이지(regionId='tongyeong'): region='' 전체 OR region='tongyeong' 지역 팝업 모두 표시
   _matchesRegion(popup, regionId) {
     const pr = popup.region || '';
-    if (!pr || pr === 'all' || pr === '') return true;
-    return pr === regionId;
+    const isGlobal = !pr || pr === 'all';
+    if (!regionId || regionId === '' || regionId === 'all') {
+      // 메인홈: 전체 팝업만 (region='' 인 것만)
+      return isGlobal;
+    }
+    // 지역 예약 페이지: 전체 팝업 + 해당 지역 팝업
+    return isGlobal || pr === regionId;
   },
 
   // "다시 보지 않기" (localStorage 영구)
