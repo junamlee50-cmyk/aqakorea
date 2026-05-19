@@ -168,24 +168,58 @@ const Utils = {
     return overlay;
   },
   closeModal: () => { document.querySelector('.modal-overlay')?.remove(); },
-  // 확인 다이얼로그
+  // 확인 다이얼로그 — innerHTML onclick 대신 addEventListener로 이벤트 직접 등록
   confirm: (msg, onYes, opts={}) => {
     const title = opts.title || '확인';
     const confirmText = opts.confirmText || '확인';
     const cancelText = opts.cancelText !== undefined ? opts.cancelText : '취소';
-    const cancelBtn = cancelText
-      ? `<button onclick="Utils.closeModal()" class="btn-outline px-6 py-2 text-sm">${cancelText}</button>`
-      : '';
-    // 콜백을 전역에 임시 저장해서 인라인 onclick에서 호출
-    const cbKey = '_confirmCb_' + Date.now();
-    window[cbKey] = () => { Utils.closeModal(); if (onYes) onYes(); delete window[cbKey]; };
-    const overlay = Utils.modal(`
-      <div class="modal-header"><h3 class="font-bold text-lg">${title}</h3></div>
-      <div class="modal-body"><div class="text-gray-700">${msg}</div></div>
-      <div class="modal-footer">
-        ${cancelBtn}
-        <button onclick="window['${cbKey}']()" class="btn-primary px-6 py-2 text-sm">${confirmText}</button>
-      </div>`);
+
+    // 오버레이 직접 생성 (innerHTML 인라인 onclick 우회)
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    const box = document.createElement('div');
+    box.className = 'modal-box';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    header.innerHTML = `<h3 class="font-bold text-lg">${title}</h3>`;
+
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    body.innerHTML = `<div class="text-gray-700">${msg}</div>`;
+
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+
+    if (cancelText) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn-outline px-6 py-2 text-sm';
+      cancelBtn.textContent = cancelText;
+      cancelBtn.addEventListener('click', (e) => { e.stopPropagation(); overlay.remove(); });
+      footer.appendChild(cancelBtn);
+    }
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn-primary px-6 py-2 text-sm';
+    confirmBtn.textContent = confirmText;
+    confirmBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      overlay.remove();
+      if (onYes) onYes();
+    });
+    footer.appendChild(confirmBtn);
+
+    box.appendChild(header);
+    box.appendChild(body);
+    box.appendChild(footer);
+    overlay.appendChild(box);
+
+    // 배경 클릭 시 닫기 (box 클릭은 버블링 차단)
+    box.addEventListener('click', (e) => e.stopPropagation());
+    overlay.addEventListener('click', () => overlay.remove());
+
+    document.body.appendChild(overlay);
   },
   // 로딩
   loading: (show) => {
