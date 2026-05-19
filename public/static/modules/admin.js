@@ -4391,12 +4391,18 @@ const AdminModule = (() => {
   };
 
   const deleteNotice = async (idx) => {
-    const user = _adminState.user || { role: 'super' };
-    if (user.role !== ROLES.SUPER) { Utils.toast('슈퍼관리자만 삭제할 수 있습니다.', 'error'); return; }
+    const user = _adminState.user || Store.get('adminUser') || { role: 'super' };
+    const isSuper = user.role === ROLES.SUPER;
+    const notices = await _getNotices();
+    const n = notices[idx];
+    if (!n) return;
+    // 권한 체크: 슈퍼는 전체 삭제 가능 / 지역관리자는 자기 지역 공지만 삭제 가능
+    if (!isSuper) {
+      if (n.region && n.region !== '' && n.region !== user.regionId) {
+        Utils.toast('해당 지역 관리자만 삭제할 수 있습니다.', 'error'); return;
+      }
+    }
     Utils.confirm('공지사항을 완전히 삭제하시겠습니까?', async () => {
-      const notices = await _getNotices();
-      const n = notices[idx];
-      if (!n) return;
       if (n.id) {
         const r = await API.delete(`/api/notices/${n.id}`);
         if (!r?.success) { notices.splice(idx, 1); await _setNotices(notices); }

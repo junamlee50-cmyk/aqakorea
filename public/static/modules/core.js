@@ -176,16 +176,16 @@ const Utils = {
     const cancelBtn = cancelText
       ? `<button onclick="Utils.closeModal()" class="btn-outline px-6 py-2 text-sm">${cancelText}</button>`
       : '';
-    const uid = 'confirm-yes-' + Date.now();
-    Utils.modal(`
+    // 콜백을 전역에 임시 저장해서 인라인 onclick에서 호출
+    const cbKey = '_confirmCb_' + Date.now();
+    window[cbKey] = () => { Utils.closeModal(); if (onYes) onYes(); delete window[cbKey]; };
+    const overlay = Utils.modal(`
       <div class="modal-header"><h3 class="font-bold text-lg">${title}</h3></div>
       <div class="modal-body"><div class="text-gray-700">${msg}</div></div>
       <div class="modal-footer">
         ${cancelBtn}
-        <button id="${uid}" class="btn-primary px-6 py-2 text-sm">${confirmText}</button>
+        <button onclick="window['${cbKey}']()" class="btn-primary px-6 py-2 text-sm">${confirmText}</button>
       </div>`);
-    const btn = document.getElementById(uid);
-    if (btn) btn.onclick = () => { Utils.closeModal(); if (onYes) onYes(); };
   },
   // 로딩
   loading: (show) => {
