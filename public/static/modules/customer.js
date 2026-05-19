@@ -579,7 +579,7 @@ ${Footer.render()}
       ${{general:'공지',operation:'운행안내',fare:'요금안내',suspend:'운휴',safety:'안전',info:'안내',warning:'주의'}[n.type]||'공지'}
     </span>
     <span class="flex-1 truncate font-medium">${n.title}</span>
-    <a href="/notices?id=${n.id}" class="flex-shrink-0 text-blue-200 hover:text-white text-xs underline">자세히</a>
+    <a href="/notice?id=${n.id}" data-link class="flex-shrink-0 text-blue-200 hover:text-white text-xs underline">자세히</a>
   </div>`).join('')}
 </div>` : '';
 

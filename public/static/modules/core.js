@@ -650,7 +650,7 @@ const PopupManager = {
       // 관리자 등록 팝업 필터링
       toShow = localPopups.filter(p => {
         const pid = p.id || (p.title + (p.startDate||''));
-        return (p.isActive !== false) &&
+        return (p.isActive !== false && p.is_active !== 0) &&
           !PopupManager._isForeverHidden(pid) &&
           !PopupManager._isTodayHidden(pid) &&
           PopupManager._inDateRange(p) &&
@@ -664,19 +664,22 @@ const PopupManager = {
       }));
     }
 
-    // ② localStorage 팝업이 없으면 서버 API 폴백
+    // ② localStorage 팝업이 없으면 서버 API 폴백 (notices API 사용)
     if (toShow.length === 0) {
       try {
-        const res = await API.get(`/api/popups?region=${regionId}`);
+        const POPUP_TYPES = new Set(['popup','normal','urgent','event','banner']);
+        const res = await API.get('/api/notices?is_active=1');
         if (res.success && res.data?.length) {
           const sessionHidden = JSON.parse(sessionStorage.getItem('amk_popups_hidden')||'[]');
           toShow = res.data.filter(p =>
-            p.active !== false &&
+            POPUP_TYPES.has(p.type) &&
+            (p.isActive !== false && p.is_active !== 0) &&
             !sessionHidden.includes(p.id) &&
             !PopupManager._isForeverHidden(p.id) &&
             !PopupManager._isTodayHidden(p.id) &&
             PopupManager._inDateRange(p) &&
-            PopupManager._matchesDevice(p)
+            PopupManager._matchesDevice(p) &&
+            PopupManager._matchesRegion(p, regionId)  // ← 지역 필터 추가
           );
         }
       } catch(e) {}

@@ -4006,8 +4006,7 @@ const AdminModule = (() => {
         <td class="px-4 py-3 text-xs text-center text-gray-400">${n.createdAt ? n.createdAt.slice(0,10) : (n.date||'-')}</td>
         <td class="px-4 py-3 text-center whitespace-nowrap">
           <button onclick="AdminModule.editNotice(${realIdx})" class="text-blue-600 hover:underline text-xs mr-1">수정</button>
-          <button onclick="AdminModule.hideNotice(${realIdx})" class="text-amber-500 hover:underline text-xs mr-1">${n.visible===false?'공개':'숨김'}</button>
-          ${isSuper ? `<button onclick="AdminModule.deleteNotice(${realIdx})" class="text-red-500 hover:underline text-xs">삭제</button>` : ''}
+          <button onclick="AdminModule.deleteNotice(${realIdx})" class="text-red-500 hover:underline text-xs">삭제</button>
         </td>
       </tr>`;
     }).join('') || '<tr><td colspan="6" class="text-center py-4 text-gray-500">공지가 없습니다.</td></tr>';
