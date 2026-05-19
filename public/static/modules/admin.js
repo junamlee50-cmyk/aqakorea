@@ -3931,15 +3931,28 @@ const AdminModule = (() => {
 
   const popupsPage = async () => {
     _adminState.currentSection = 'popups';
-    const popups = []; // Popups now managed via notices API
-    const user   = _adminState.user || { role: 'super', regionId: null };
+    const user   = _adminState.user || Store.get('adminUser') || { role: 'super', regionId: null };
     const isSuper = user.role === ROLES.SUPER;
 
-    // 공지 목록: API에서 로드
+    // 팝업/공지 목록: DB(notices API)에서 로드
     const allNotices = await _getNotices();
-    const notices = isSuper
-      ? allNotices
-      : allNotices.filter(n => n.region === user.regionId);
+    const POPUP_TYPES  = new Set(['popup','normal','urgent','event','banner']);
+    const NOTICE_TYPES = new Set(['general','operation','fare','suspend','safety','info','warning']);
+
+    // DB 팝업
+    const dbPopups = allNotices.filter(n => POPUP_TYPES.has(n.type));
+    // localStorage 팝업 (이전 방식 폴백 + 미마이그레이션 데이터)
+    const localPopups = (() => { try { return JSON.parse(JSON.stringify(Settings.get('popups') || [])); } catch(e) { return []; } })();
+    // 중복 제거: DB에 이미 있는 id는 local에서 제외
+    const dbIds = new Set(dbPopups.map(p => p.id));
+    const onlyLocalPopups = localPopups.filter(p => !dbIds.has(p.id));
+    // 합치기
+    const allPopups = [...dbPopups, ...onlyLocalPopups];
+    const popups = isSuper ? allPopups : allPopups.filter(n => !n.region || n.region==='' || n.region===user.regionId);
+
+    // 공지
+    const allNoticeList = allNotices.filter(n => NOTICE_TYPES.has(n.type) || (!POPUP_TYPES.has(n.type) && !NOTICE_TYPES.has(n.type) ? false : NOTICE_TYPES.has(n.type)));
+    const notices = isSuper ? allNoticeList : allNoticeList.filter(n => !n.region || n.region==='' || n.region===user.regionId);
 
     // 노출수/클릭수 통계 로드
     const popupStats = (() => { try { return JSON.parse(localStorage.getItem('amk_popup_stats')||'{}'); } catch(e) { return {}; } })();
@@ -3954,7 +3967,7 @@ const AdminModule = (() => {
         <td class="px-4 py-3 text-sm text-center">${regionLabel}</td>
         <td class="px-4 py-3 text-sm text-center text-gray-500">${p.startDate||'-'} ~ ${p.endDate||'-'}</td>
         <td class="px-4 py-3 text-center">
-          <span class="px-2 py-0.5 rounded-full text-xs ${p.isActive?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${p.isActive?'노출중':'비노출'}</span>
+          <span class="px-2 py-0.5 rounded-full text-xs ${(p.isActive!==false&&p.is_active!==0)?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">${(p.isActive!==false&&p.is_active!==0)?'노출중':'비노출'}</span>
         </td>
         <td class="px-4 py-3 text-center text-xs">
           <span class="text-blue-600 font-medium">${stat.impressions}</span>회 /
@@ -4158,31 +4171,98 @@ const AdminModule = (() => {
 
   let _editingPopupIdx = null;
   const addPopup = () => { _editingPopupIdx = null; document.getElementById('popup-modal-title').textContent='팝업 추가'; ['pop-title','pop-content'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.getElementById('popup-modal').classList.remove('hidden'); };
-  const editPopup = (idx) => { _editingPopupIdx = idx; document.getElementById('popup-modal-title').textContent='팝업 수정'; const p=(Settings.get('popups')||window.POPUPS||[])[idx]; if(!p)return; document.getElementById('pop-title').value=p.title||''; document.getElementById('pop-content').value=p.content||''; document.getElementById('popup-modal').classList.remove('hidden'); };
-  const savePopup = () => {
-    const title = document.getElementById('pop-title')?.value; if(!title){Utils.toast('제목을 입력하세요','error');return;}
-    let popups = JSON.parse(JSON.stringify(Settings.get('popups')||window.POPUPS||[]));
-    const startDate = document.getElementById('pop-start')?.value||'';
-    // id: 수정 시 기존 id 유지, 신규 시 고유 id 생성
-    const existingId = (_editingPopupIdx !== null && popups[_editingPopupIdx]?.id) ? popups[_editingPopupIdx].id : null;
+  const editPopup = async (idx) => {
+    _editingPopupIdx = idx;
+    document.getElementById('popup-modal-title').textContent = '팝업 수정';
+    const allNotices = await _getNotices();
+    const POPUP_TYPES = new Set(['popup','normal','urgent','event','banner']);
+    const popupList = allNotices.filter(n => POPUP_TYPES.has(n.type));
+    const p = popupList[idx];
+    if (!p) return;
+    document.getElementById('pop-title').value   = p.title   || '';
+    document.getElementById('pop-content').value = p.content || '';
+    const regionEl = document.getElementById('pop-region');
+    if (regionEl && regionEl.tagName === 'SELECT') regionEl.value = p.region || '';
+    const typeEl = document.getElementById('pop-type');
+    if (typeEl) typeEl.value = p.type || 'normal';
+    const startEl = document.getElementById('pop-start');
+    if (startEl) startEl.value = p.startDate || p.start_date || '';
+    const endEl = document.getElementById('pop-end');
+    if (endEl) endEl.value = p.endDate || p.end_date || '';
+    const activeEl = document.getElementById('pop-active');
+    if (activeEl) activeEl.checked = p.isActive !== false && p.is_active !== 0;
+    document.getElementById('popup-modal').classList.remove('hidden');
+  };
+  const savePopup = async () => {
+    const title = document.getElementById('pop-title')?.value?.trim();
+    if (!title) { Utils.toast('제목을 입력하세요', 'error'); return; }
+    const user = _adminState.user || Store.get('adminUser') || {};
+    const isSuper = user.role === ROLES.SUPER;
+    // 지역: 지역관리자는 자기지역 고정
+    const region = isSuper
+      ? (document.getElementById('pop-region')?.value || '')
+      : (user.regionId || '');
     const pData = {
-      id: existingId || `popup-${Date.now()}`,
       title,
-      content: document.getElementById('pop-content')?.value||'',
-      region: document.getElementById('pop-region')?.value||'',
-      type: document.getElementById('pop-type')?.value||'normal',
-      startDate,
-      endDate: document.getElementById('pop-end')?.value||'',
-      isActive: document.getElementById('pop-active')?.checked !== false,
+      content:   document.getElementById('pop-content')?.value || '',
+      region,
+      type:      document.getElementById('pop-type')?.value || 'normal',
+      startDate: document.getElementById('pop-start')?.value || '',
+      endDate:   document.getElementById('pop-end')?.value   || '',
+      isActive:  document.getElementById('pop-active')?.checked !== false,
+      is_active: document.getElementById('pop-active')?.checked !== false ? 1 : 0,
       allowHideToday: true,
     };
-    if(_editingPopupIdx!==null) popups[_editingPopupIdx]=pData; else popups.push(pData);
-    Settings.set('popups', popups);
     document.getElementById('popup-modal').classList.add('hidden');
+    Utils.loading(true);
+    let ok = false;
+    // 수정 vs 신규
+    const allNotices = await _getNotices();
+    const POPUP_TYPES = new Set(['popup','normal','urgent','event','banner']);
+    const popupList = allNotices.filter(n => POPUP_TYPES.has(n.type));
+    if (_editingPopupIdx !== null && popupList[_editingPopupIdx]) {
+      const existId = popupList[_editingPopupIdx].id;
+      const res = await API.put(`/api/notices/${existId}`, pData);
+      ok = res.success;
+    } else {
+      const res = await API.post('/api/notices', { ...pData, id: `popup-${Date.now()}` });
+      ok = res.success;
+    }
+    Utils.loading(false);
+    if (!ok) {
+      // localStorage 폴백
+      let localPopups = JSON.parse(JSON.stringify(Settings.get('popups') || []));
+      if (_editingPopupIdx !== null) localPopups[_editingPopupIdx] = pData; else localPopups.push(pData);
+      Settings.set('popups', localPopups);
+    }
     Utils.toast('팝업이 저장되었습니다.', 'success');
-    popupsPage().then(html=>{document.getElementById('app').innerHTML=html;});
+    popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
-  const deletePopup = (idx) => { Utils.confirm('팝업을 삭제하시겠습니까?',()=>{ let p=JSON.parse(JSON.stringify(Settings.get('popups')||window.POPUPS||[])); p.splice(idx,1); Settings.set('popups',p); Utils.toast('삭제되었습니다.','success'); popupsPage().then(html=>{document.getElementById('app').innerHTML=html;}); }); };
+
+  const deletePopup = async (idx) => {
+    Utils.confirm('팝업을 삭제하시겠습니까?', async () => {
+      const allNotices = await _getNotices();
+      const POPUP_TYPES = new Set(['popup','normal','urgent','event','banner']);
+      const dbPopups = allNotices.filter(n => POPUP_TYPES.has(n.type));
+      const localPopups = (() => { try { return JSON.parse(JSON.stringify(Settings.get('popups')||[])); } catch(e){ return []; } })();
+      const dbIds = new Set(dbPopups.map(p=>p.id));
+      const onlyLocal = localPopups.filter(p=>!dbIds.has(p.id));
+      const allPopups = [...dbPopups, ...onlyLocal];
+      const target = allPopups[idx];
+      Utils.loading(true);
+      if (target?.id && dbIds.has(target.id)) {
+        await API.delete(`/api/notices/${target.id}`);
+      } else {
+        // localStorage에서 삭제
+        const localIdx = localPopups.findIndex(p => p.id === target?.id);
+        if (localIdx >= 0) localPopups.splice(localIdx, 1);
+        Settings.set('popups', localPopups);
+      }
+      Utils.loading(false);
+      Utils.toast('삭제되었습니다.', 'success');
+      popupsPage().then(html => { document.getElementById('app').innerHTML = html; });
+    });
+  };
 
   // ── 공지사항 CRUD ────────────────────────────────────────────
   let _editingNoticeIdx = null;

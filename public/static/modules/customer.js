@@ -553,6 +553,36 @@ ${Footer.render()}
 
     // 요금은 API(region.fares)에서 직접 사용
 
+    // 지역 공지 배너: 해당지역 + 전체 공지 로드
+    const NOTICE_TYPES = new Set(['general','operation','fare','suspend','safety','info','warning']);
+    let regionNotices = [];
+    try {
+      const nRes = await API.get(`/api/notices?is_active=1`);
+      const today = new Date().toISOString().slice(0,10);
+      regionNotices = (nRes.data || []).filter(n => {
+        if (!NOTICE_TYPES.has(n.type)) return false; // 팝업 제외
+        const nr = n.region || '';
+        if (nr && nr !== 'all' && nr !== regionId) return false; // 다른지역 제외
+        const sd = n.startDate || n.start_date || '';
+        const ed = n.endDate   || n.end_date   || '';
+        if (sd && today < sd) return false;
+        if (ed && today > ed) return false;
+        return true;
+      }).slice(0, 3); // 최대 3개
+    } catch(e) {}
+
+    const noticeBannerHtml = regionNotices.length ? `
+<div class="bg-blue-600 text-white">
+  ${regionNotices.map(n => `
+  <div class="max-w-5xl mx-auto px-4 py-2 flex items-center gap-3 text-sm border-b border-blue-500 last:border-0">
+    <span class="flex-shrink-0 bg-blue-500 text-white text-xs font-bold px-2 py-0.5 rounded">
+      ${{general:'공지',operation:'운행안내',fare:'요금안내',suspend:'운휴',safety:'안전',info:'안내',warning:'주의'}[n.type]||'공지'}
+    </span>
+    <span class="flex-1 truncate font-medium">${n.title}</span>
+    <a href="/notices?id=${n.id}" class="flex-shrink-0 text-blue-200 hover:text-white text-xs underline">자세히</a>
+  </div>`).join('')}
+</div>` : '';
+
     setTimeout(() => {
       Navbar.init();
       CustomerPages.initRegionPage(region, schedules);
@@ -578,6 +608,7 @@ ${Navbar.render('reservation')}
     </div>
   </div>
 </section>
+${noticeBannerHtml}
 
 <!-- 예약 메인 -->
 <div class="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
