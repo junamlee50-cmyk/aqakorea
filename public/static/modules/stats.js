@@ -1664,8 +1664,45 @@ const StatsModule = (() => {
 
   // 월간 보고서 PDF
   const exportMonthlyPDF = () => {
-    Utils.toast('PDF 출력 준비 중... 인쇄 다이얼로그가 열립니다.', 'info');
-    setTimeout(() => window.print(), 600);
+    const user = (typeof Store !== 'undefined' && Store.get('adminUser')) || {};
+    const isRegional = user.role === 'regional' && user.regionId;
+
+    // 선택된 지역·월
+    const selRegion = document.getElementById('mr-region-sel')?.value || 'all';
+    const selMonth  = document.getElementById('mr-month-sel')?.value
+      || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const [selYear, selMon] = selMonth.split('-');
+    const periodLabel = `${selYear}년 ${parseInt(selMon)}월`;
+
+    // 출력 지역 결정
+    let sampleKeys;
+    if (isRegional) {
+      sampleKeys = [user.regionId].filter(k => MONTHLY_SAMPLE[k]);
+    } else if (selRegion === 'all') {
+      sampleKeys = Object.keys(MONTHLY_SAMPLE);
+    } else {
+      sampleKeys = [selRegion].filter(k => MONTHLY_SAMPLE[k]);
+    }
+    if (!sampleKeys.length) sampleKeys = Object.keys(MONTHLY_SAMPLE);
+
+    Utils.toast('월간 보고서 PDF 준비 중...', 'info');
+    setTimeout(() => {
+      try {
+        const params = {
+          type: 'monthly', user,
+          sampleKeys, periodLabel,
+          orgName: '아쿠아모빌리티코리아',
+          startDate: `${selYear}-${selMon}-01`,
+          endDate: `${selYear}-${selMon}-30`,
+          seal: false
+        };
+        const html = _buildPDFReport(params);
+        _openPrintWindow('월간 운영보고서', null, html);
+      } catch(e) {
+        console.error('exportMonthlyPDF error:', e);
+        Utils.toast('PDF 생성 중 오류가 발생했습니다.', 'error');
+      }
+    }, 400);
   };
 
   // 월간 보고서 엑셀 (CSV) — 권한별 지역 + 선택 월 반영
@@ -2077,16 +2114,61 @@ const StatsModule = (() => {
     return html;
   };
 
+  // ── 공통: 새 창에서 인쇄 미리보기 열기 ───────────────────
+  // fullHtml이 있으면 그 전체 HTML을 그대로 사용, 없으면 titleStr+bodyHtml 조합
+  const _openPrintWindow = (titleStr, bodyHtml, fullHtml) => {
+    const pw = window.open('', '_blank', 'width=1000,height=800');
+    if (!pw) { Utils.toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요.', 'error'); return; }
+    const now = new Date().toLocaleString('ko-KR');
+    if (fullHtml) {
+      // 보고서 전체 HTML (표지+본문 포함) — 인쇄/닫기 버튼을 상단에 삽입
+      const btnBar = `<div class="no-print" style="position:fixed;top:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;gap:10px;align-items:center;z-index:9999;">
+  <button onclick="window.print()" style="background:#2563eb;color:#fff;padding:8px 20px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;">🖨️ 인쇄 / PDF 저장</button>
+  <button onclick="window.close()" style="background:#6b7280;color:#fff;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;">✕ 닫기</button>
+  <span style="color:#94a3b8;font-size:12px;">인쇄 대화상자에서 '대상 → PDF로 저장' 선택 | ${titleStr}</span>
+</div><div style="margin-top:52px;"></div>`;
+      // fullHtml의 <body> 태그 바로 다음에 btnBar 삽입
+      const injected = fullHtml.replace(/<body>/i, `<body>${btnBar}`);
+      pw.document.write(injected);
+    } else {
+      pw.document.write(`<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<title>${titleStr}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  @media print { .no-print { display:none!important; } body { background:#fff; } }
+  body { font-family:'Malgun Gothic','Noto Sans KR',sans-serif; background:#f9fafb; padding:24px; }
+  @page { size:A4; margin:15mm; }
+</style>
+</head><body>
+<div class="no-print" style="margin-bottom:16px;display:flex;gap:8px;">
+  <button onclick="window.print()" style="background:#2563eb;color:#fff;padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;">🖨️ 인쇄 / PDF 저장</button>
+  <button onclick="window.close()" style="background:#e5e7eb;color:#374151;padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;">✕ 닫기</button>
+  <span style="color:#6b7280;font-size:12px;line-height:36px;">인쇄 대화상자에서 '대상 → PDF로 저장' 선택</span>
+</div>
+<h1 style="font-size:18px;font-weight:bold;margin-bottom:6px;color:#1f2937;">${titleStr}</h1>
+<p style="color:#6b7280;font-size:11px;margin-bottom:18px;">생성일시: ${now}</p>
+${bodyHtml || ''}
+</body></html>`);
+    }
+    pw.document.close();
+  };
+
   // ── 액션 핸들러 ────────────────────────────────────────────
   const exportPDF = () => {
-    // PDF = 인쇄 다이얼로그에서 "PDF로 저장" 선택
-    Utils.toast('브라우저 인쇄 창에서 "PDF로 저장"을 선택하세요.', 'info');
-    setTimeout(() => window.print(), 500);
+    const titleStr = '아쿠아모빌리티 통계보고서';
+    const statsArea = document.getElementById('stats-content');
+    const bodyHtml = statsArea ? statsArea.innerHTML : '<p>내용 없음</p>';
+    _openPrintWindow(titleStr, bodyHtml);
   };
 
   const printCurrentTab = () => {
-    Utils.toast('인쇄 다이얼로그가 열립니다.', 'info');
-    setTimeout(() => window.print(), 400);
+    const titleStr = '아쿠아모빌리티 통계보고서';
+    const statsArea = document.getElementById('stats-content');
+    const bodyHtml = statsArea ? statsArea.innerHTML : '<p>내용 없음</p>';
+    _openPrintWindow(titleStr, bodyHtml);
   };
 
   const exportExcel = async () => {
@@ -2119,29 +2201,38 @@ const StatsModule = (() => {
     }
   };
 
-  // 보고서 저장 (로컬 HTML 파일로 저장)
+  // 보고서 저장 (현재 탭 전체를 새 창 미리보기 + HTML 다운로드)
   const saveReport = () => {
     try {
       const statsArea = document.getElementById('stats-content');
       if (!statsArea) { Utils.toast('저장할 내용이 없습니다.', 'error'); return; }
-      const title = `아쿠아모빌리티 통계보고서_${new Date().toISOString().slice(0,10)}`;
+      const tabLabels = {
+        sales:'매출 통계', passengers:'승객 현황', operations:'운영 통계',
+        marketing:'마케팅', wristbands:'손목밴드', monthly:'월간 운영보고서', report:'보고서 생성'
+      };
+      const tabLabel = tabLabels[_currentTab] || '통계';
+      const title = `아쿠아모빌리티 ${tabLabel}_${new Date().toISOString().slice(0,10)}`;
+      const bodyHtml = statsArea.innerHTML;
+      // 1) 새 창 미리보기
+      _openPrintWindow(title, bodyHtml);
+      // 2) HTML 파일 다운로드
       const htmlContent = `<!DOCTYPE html>
 <html lang="ko"><head>
 <meta charset="UTF-8"><title>${title}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<style>body{font-family:'Noto Sans KR',sans-serif;padding:20px;background:#f9fafb}</style>
+<style>@page{size:A4;margin:15mm}body{font-family:'Malgun Gothic','Noto Sans KR',sans-serif;padding:20px;background:#f9fafb}</style>
 </head><body>
-<h1 style="font-size:20px;font-weight:bold;margin-bottom:16px;color:#1f2937;">${title}</h1>
-<p style="color:#6b7280;font-size:12px;margin-bottom:20px;">생성일시: ${new Date().toLocaleString('ko-KR')}</p>
-${statsArea.innerHTML}
+<h1 style="font-size:18px;font-weight:bold;margin-bottom:6px;color:#1f2937;">${title}</h1>
+<p style="color:#6b7280;font-size:11px;margin-bottom:18px;">생성일시: ${new Date().toLocaleString('ko-KR')}</p>
+${bodyHtml}
 </body></html>`;
       const blob = new Blob([htmlContent],{type:'text/html;charset=utf-8'});
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${title}.html`;
-      a.click();
-      Utils.toast('✅ 보고서가 HTML 파일로 저장되었습니다.', 'success');
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      Utils.toast('✅ 보고서 미리보기 창을 열고 HTML 파일을 저장했습니다. (미리보기 창에서 PDF로도 저장 가능)', 'success');
     } catch(e) {
       Utils.toast('저장 실패: '+e.message, 'error');
     }
@@ -2299,18 +2390,63 @@ ${statsArea.innerHTML}
   };
 
     const generateReport = (type, btnEl, settings = {}) => {
-    const labels = {
-      daily: '일별 보고서', weekly: '주간 보고서', monthly: '월간 보고서', annual: '연간 보고서',
+    const labelMap = {
+      monthly:'월간 운영보고서', quarterly:'분기별 실적보고서',
+      settlement:'정산 확인서', passengers:'승객 현황보고서',
+      seo:'SEO 성과보고서', safety:'안전 운행 보고서',
+      daily: '일별 보고서', weekly: '주간 보고서', annual: '연간 보고서',
     };
-    const label = labels[type] || type;
+    const label = labelMap[type] || type || '운영보고서';
     if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>생성중...'; }
     Utils.toast(`${label} 생성 중...`, 'info');
+
     setTimeout(() => {
-      if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = label; }
-      // 인쇄 창으로 PDF 저장 안내
-      Utils.toast(`${label} 준비 완료 — 인쇄 창에서 PDF로 저장하세요.`, 'success');
-      setTimeout(() => window.print(), 800);
-    }, 1200);
+      try {
+        const user = Store.get('adminUser') || {};
+        const isRegional = user.role === 'regional' && user.regionId;
+        let sampleKeys = settings.regions;
+        if (!sampleKeys || !sampleKeys.length) {
+          sampleKeys = isRegional ? [user.regionId] : ['tongyeong','buyeo','hapcheon'];
+        }
+        // MONTHLY_SAMPLE에 없는 키 필터링
+        sampleKeys = sampleKeys.filter(k => MONTHLY_SAMPLE[k]);
+        if (!sampleKeys.length) sampleKeys = ['tongyeong','buyeo','hapcheon'];
+
+        const format   = settings.format || 'pdf';
+        const startDate= settings.startDate || '';
+        const endDate  = settings.endDate   || '';
+        const orgName  = settings.orgName   || '아쿠아모빌리티코리아';
+        const seal     = settings.seal      || false;
+
+        const now = new Date();
+        const y   = startDate ? startDate.slice(0,4) : now.getFullYear();
+        const m   = startDate ? startDate.slice(5,7) : String(now.getMonth()+1).padStart(2,'0');
+        const periodLabel = startDate && endDate
+          ? `${startDate} ~ ${endDate}`
+          : `${y}년 ${m}월`;
+
+        const params = { type, user, sampleKeys, periodLabel, orgName, startDate, endDate, seal };
+
+        if (format === 'pdf' || format === 'print') {
+          const html = _buildPDFReport(params);
+          _openPrintWindow(label, null, html);
+        } else if (format === 'excel' || format === 'xlsx') {
+          _buildXLSXReport(params);
+        } else if (format === 'csv') {
+          _buildCSVReport && _buildCSVReport(params);
+        } else {
+          const html = _buildPDFReport(params);
+          _openPrintWindow(label, null, html);
+        }
+
+        if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = label; }
+        Utils.toast(`${label} 준비 완료!`, 'success');
+      } catch(e) {
+        console.error('generateReport error:', e);
+        if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = label; }
+        Utils.toast('보고서 생성 중 오류가 발생했습니다.', 'error');
+      }
+    }, 800);
   };
 
   const scheduleReport = () => {
