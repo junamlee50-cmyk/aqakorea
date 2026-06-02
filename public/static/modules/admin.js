@@ -1072,11 +1072,11 @@ const AdminModule = (() => {
     const regionTabsHtml = allRegions.map(r => {
       const cnt = allVehicles.filter(v => v.regionId === r.id).length;
       const cls = activeFilter === r.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600';
-      return '<button onclick="AdminModule.vehiclesPage(\'' + r.id + '\')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ' + cls + '">' + r.name + ' (' + cnt + '대)</button>';
+      return '<button onclick="AdminModule.filterVehicles(\'' + r.id + '\')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ' + cls + '">' + r.name + ' (' + cnt + '대)</button>';
     }).join('');
     const filterTabs = (user.role !== 'regional')
       ? '<div class="flex gap-2 flex-wrap">'
-        + '<button onclick="AdminModule.vehiclesPage(\'all\')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ' + allTabActive + '">전체 (' + allVehicles.length + '대)</button>'
+        + '<button onclick="AdminModule.filterVehicles(\'all\')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ' + allTabActive + '">전체 (' + allVehicles.length + '대)</button>'
         + regionTabsHtml
         + '</div>'
       : '';
@@ -1250,6 +1250,11 @@ const AdminModule = (() => {
   const closeVehicleModal = () => {
     const m = document.getElementById('vehicle-modal');
     if(m) m.classList.add('hidden');
+  };
+
+  // 지역 필터 탭 클릭 → 페이지 재렌더링
+  const filterVehicles = (regionId) => {
+    vehiclesPage(regionId).then(html => { document.getElementById('app').innerHTML = html; });
   };
 
   // ── 일정 관리 ──────────────────────────────────────────────
@@ -6871,7 +6876,7 @@ const backupPage = async () => {
     selectPartnerRegion, addPartner, editPartner, savePartner, deletePartner,
     // 액션
     doLogin, logout, navigate, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, approveFare, fillLogin,
-    addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal,
+    addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal, filterVehicles,
     selectScheduleRegion, addSchedule, editSchedule, saveSchedule, toggleScheduleStatus,
     deleteSchedule, showRecurringModal, addRecTime, generateRecurring, updateSeatPreview,
     showAutoScheduleModal, previewAutoSchedule, confirmAutoSchedule, switchDispatchMode,
