@@ -1,20 +1,13 @@
 module.exports = {
   apps: [
     {
-      name: 'webapp',
-      script: 'npx',
-      args: 'wrangler pages dev dist --ip 0.0.0.0 --port 3000',
-      cwd: '/home/user/webapp',
-      env: {
-        NODE_ENV: 'development',
-        PORT: 3000,
-      },
-      watch: false,
-      instances: 1,
-      exec_mode: 'fork',
+      name: 'aqakorea',
+      script: 'bash',
+      args: '-c "cd /home/work/.openclaw/workspace/aqakorea && script -q -c \'./node_modules/.bin/wrangler pages dev ./dist --port 3000 --compatibility-date=2024-12-18 --ip 0.0.0.0\' /dev/null"',
+      cwd: '/home/work/.openclaw/workspace/aqakorea',
       autorestart: true,
-      max_restarts: 5,
-      restart_delay: 2000,
-    },
-  ],
+      restart_delay: 3000,
+      max_restarts: 10,
+    }
+  ]
 };
