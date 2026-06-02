@@ -6031,7 +6031,10 @@ const AdminModule = (() => {
   // ── 관리자 계정 관리 ───────────────────────────────────────
   const adminsPage = async () => {
     _adminState.currentSection = 'admins';
-    const admins = window.ADMIN_USERS || [];
+    const aRes = await API.get('/api/admin/users');
+    const rawAdmins = (aRes.success && aRes.data) ? aRes.data : (window.ADMIN_USERS || []);
+    // region_id → regionId 정규화
+    const admins = rawAdmins.map(a => ({ ...a, regionId: a.regionId || a.region_id || null, id: a.username || a.id }));
 
     const rows = admins.map((a, i) => `
       <tr class="hover:bg-gray-50">
