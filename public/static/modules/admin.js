@@ -651,7 +651,8 @@ const AdminModule = (() => {
   };
 
   // ── 지역 대시보드 (지역별 독립 데이터) ───────────────────────
-  const _REGION_DASH_DATA = {
+  // NOTE: _REGION_DASH_DATA 하드코딩 제거됨 — regionDashboard에서 실시간 API 호출로 대체
+  const _REGION_DASH_DATA_UNUSED = {  // 참조 삭제됨
     tongyeong: {
       todayRes: 248, todayGoal: 300, todaySales: 8680000, onlineSales: 6944000,
       remainSeats: 42, remainRound: '14:00 회차', wristbands: 221, wristbandRate: 89,
@@ -726,8 +727,21 @@ const AdminModule = (() => {
       ? user.regionId
       : (params?.regionId || _adminState.selectedRegion || 'tongyeong');
 
-    const regions = (window.REGIONS || []).filter(r => r.status !== 'hidden');
-    // 지역 데이터가 없을 때도 지역명을 표시할 수 있도록 폴백 처리
+    const todayStr = new Date().toISOString().split('T')[0];
+    const fmtWon = (v) => (v||0).toLocaleString('ko-KR');
+
+    // ── 실시간 API 병렬 호출 ──────────────────────────────────────
+    const [regRes, statsRes, resRes, schRes, wbStatsRes] = await Promise.all([
+      API.get('/api/regions'),
+      API.get(`/api/stats/${regionId}`),
+      API.get(`/api/reservations?regionId=${regionId}&date=${todayStr}&limit=5`),
+      API.get(`/api/schedules/${regionId}?date=${todayStr}`),
+      API.get(`/api/wristbands/stats?regionId=${regionId}&date=${todayStr}`),
+    ]);
+
+    const regions = (regRes.success && regRes.data ? regRes.data : (window.REGIONS||[])).filter(r => r.status !== 'hidden');
+    if (regRes.success && regRes.data) window.REGIONS = regRes.data;
+
     const region = regions.find(r => r.id === regionId) || {
       id: regionId,
       name: regionId === 'buyeo' ? '부여' : regionId === 'tongyeong' ? '통영' : regionId === 'hapcheon' ? '합천' : regionId,
@@ -735,9 +749,40 @@ const AdminModule = (() => {
       customerService: '1588-0000',
     };
 
-    const d = _REGION_DASH_DATA[regionId] || _REGION_DASH_DATA.tongyeong;
+    // 통계 데이터
+    const stats = (statsRes.success && statsRes.data) || {};
+    const todayPax  = stats.today?.pax  || 0;
+    const todayCnt  = stats.today?.cnt  || 0;
+    const todayRev  = stats.today?.revenue || 0;
+    const totalCnt  = stats.total?.cnt  || 0;
+    const totalRev  = stats.total?.revenue || 0;
+
+    // 스케줄 (오늘 예약 건수 포함)
+    const schedules = (schRes.success && schRes.data) ? schRes.data : [];
+    const totalCap    = schedules.reduce((s, sc) => s + (sc.capacity || 0), 0);
+    const totalBooked = schedules.reduce((s, sc) => s + (sc.booked  || 0), 0);
+    const totalAvail  = schedules.reduce((s, sc) => s + (sc.available || 0), 0);
+
+    // 손목밴드 통계
+    const wbStats   = (wbStatsRes.success && wbStatsRes.data) || {};
+    const wbIssued  = wbStats.issued  || 0;
+    const wbBoarded = wbStats.boarded || 0;
+    const wbRate    = wbIssued > 0 ? Math.round(wbBoarded / wbIssued * 100) : 0;
+
+    // 최근 예약
+    const recentResList = (resRes.success && resRes.data) ? resRes.data : [];
+
+    // 이번달 일별 매출 (stats.daily)
+    const dailyData = stats.daily || [];
+    const monthRevArr = Array.from({length: new Date().getDate()}, (_, i) => {
+      const d = String(i+1).padStart(2,'0');
+      const dateStr = `${todayStr.slice(0,7)}-${d}`;
+      const row = dailyData.find(r => r.date === dateStr);
+      return row ? (row.revenue || 0) : 0;
+    });
+    const maxRev = Math.max(...monthRevArr, 1);
+
     const today = new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'short'});
-    const fmtWon = (v) => v.toLocaleString('ko-KR');
 
     // 지역관리자는 자기 지역만 / 슈퍼는 전 지역 선택 가능
     const regionSelector = (user.role === 'regional')
@@ -752,16 +797,19 @@ const AdminModule = (() => {
           </select>
         </div>`;
 
-    // 회차별 상황 테이블 행
-    const roundRows = d.schedules.map(s => {
-      const pct = Math.round(s.booked / s.capacity * 100);
-      const isFull = s.status === 'full' || s.booked >= s.capacity;
+    // 회차별 상황 테이블 행 (실제 API 스케줄 데이터)
+    const roundRows = schedules.map((s, idx) => {
+      const booked = s.booked || 0;
+      const cap = s.capacity || 0;
+      const pct = cap > 0 ? Math.round(booked / cap * 100) : 0;
+      const isFull = s.isSoldout || booked >= cap;
+      const label = `${idx+1}회차`;
       return `
         <tr class="hover:bg-gray-50">
-          <td class="px-4 py-3 text-sm font-medium">${s.label} <span class="text-gray-400">(${s.time})</span></td>
+          <td class="px-4 py-3 text-sm font-medium">${label} <span class="text-gray-400">(${s.time})</span></td>
           <td class="px-4 py-3 text-center">
-            <span class="text-sm font-bold ${isFull?'text-red-600':'text-blue-600'}">${s.booked}</span>
-            <span class="text-gray-400 text-xs"> / ${s.capacity}석</span>
+            <span class="text-sm font-bold ${isFull?'text-red-600':'text-blue-600'}">${booked}</span>
+            <span class="text-gray-400 text-xs"> / ${cap}석</span>
           </td>
           <td class="px-4 py-3">
             <div class="flex items-center gap-2">
@@ -779,40 +827,58 @@ const AdminModule = (() => {
         </tr>`;
     }).join('');
 
-    // 최근 예약 행
-    const resRows = d.recentRes.map(r => `
-      <tr class="hover:bg-gray-50">
-        <td class="px-3 py-2 text-xs font-mono text-blue-600">${r.no}</td>
-        <td class="px-3 py-2 text-sm">${r.name}</td>
-        <td class="px-3 py-2 text-sm text-center">${r.count}명</td>
-        <td class="px-3 py-2 text-sm text-right">₩${r.amount.toLocaleString()}</td>
-        <td class="px-3 py-2 text-center">
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='checkedin'?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'}">
-            ${r.status==='confirmed'?'확정':r.status==='checkedin'?'탑승완료':'대기'}
-          </span>
-        </td>
-      </tr>`).join('');
+    // 최근 예약 행 (실제 API 데이터)
+    const statusLabelMap = {confirmed:'✅ 확정', checkedin:'🎫 발권', boarded:'🚌 탑승', cancelled:'❌ 취소', refunded:'💰 환불'};
+    const statusClsMap   = {confirmed:'bg-green-100 text-green-700', checkedin:'bg-blue-100 text-blue-700', boarded:'bg-indigo-100 text-indigo-700', cancelled:'bg-red-100 text-red-600', refunded:'bg-gray-100 text-gray-500'};
+    const resRows = recentResList.length === 0
+      ? `<tr><td colspan="5" class="px-3 py-6 text-center text-gray-400 text-sm">오늘 예약이 없습니다</td></tr>`
+      : recentResList.map(r => {
+          const nameDisplay = r.name ? r.name.slice(0,1) + '**' : '-';
+          return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-3 py-2 text-xs font-mono text-blue-600 cursor-pointer hover:underline" onclick="AdminModule.viewReservation('${r.id}')">${r.reservationNo||r.id?.slice(0,8)}</td>
+            <td class="px-3 py-2 text-sm">${nameDisplay}</td>
+            <td class="px-3 py-2 text-sm text-center">${r.pax||0}명</td>
+            <td class="px-3 py-2 text-sm text-right">₩${(r.totalPrice||0).toLocaleString()}</td>
+            <td class="px-3 py-2 text-center">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClsMap[r.status]||'bg-gray-100 text-gray-600'}">
+                ${statusLabelMap[r.status]||r.status}
+              </span>
+            </td>
+          </tr>`;
+        }).join('');
 
-    // 알림 행
+    // 알림 (저좌석 경고 동적 생성)
+    const alertItems_arr = [];
+    schedules.forEach((s, idx) => {
+      const avail = s.available || 0;
+      const cap   = s.capacity  || 0;
+      if (avail > 0 && avail <= 5) {
+        alertItems_arr.push({ type:'warning', msg:`${idx+1}회차(${s.time}) 잔여석 ${avail}석만 남았습니다.`, time:'' });
+      }
+      if (s.isSoldout) {
+        alertItems_arr.push({ type:'info', msg:`${idx+1}회차(${s.time}) 매진되었습니다.`, time:'' });
+      }
+    });
+    if (totalBooked > 0 && totalBooked >= totalCap * 0.9) {
+      alertItems_arr.push({ type:'success', msg:`오늘 전체 좌석 점유율 ${Math.round(totalBooked/totalCap*100)}% 달성!`, time:'' });
+    }
     const alertIcons = { warning:'fas fa-exclamation-triangle text-amber-500', info:'fas fa-info-circle text-blue-500', success:'fas fa-check-circle text-green-500' };
-    const alertItems = d.alerts.map(a => `
+    const alertItems = alertItems_arr.map(a => `
       <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
         <i class="${alertIcons[a.type]||alertIcons.info} mt-0.5 flex-shrink-0"></i>
         <div class="flex-1">
           <p class="text-sm text-gray-800">${a.msg}</p>
-          <p class="text-xs text-gray-400 mt-0.5">${a.time}</p>
+          ${a.time ? `<p class="text-xs text-gray-400 mt-0.5">${a.time}</p>` : ''}
         </div>
       </div>`).join('');
 
-    // 월별 매출 미니차트 (bar-style CSS)
-    const monthLabels = ['1','2','3','4','5','6','7','8','9','10','11','12'];
-    const maxSales = Math.max(...d.monthSales);
-    const salesBars = d.monthSales.map((v, i) => {
-      const h = Math.round(v / maxSales * 60);
+    // 이번달 일별 매출 차트 (bar-style CSS)
+    const salesBars = monthRevArr.map((v, i) => {
+      const h = Math.round(v / maxRev * 60);
       return `<div class="flex flex-col items-center gap-1">
-        <div class="text-xs text-gray-400" style="font-size:10px">${(v/10000).toFixed(0)}만</div>
-        <div class="w-5 bg-blue-500 rounded-t" style="height:${h}px;min-height:4px"></div>
-        <div class="text-gray-400" style="font-size:10px">${monthLabels[i]}</div>
+        <div class="w-4 bg-blue-400 rounded-t hover:bg-blue-600 transition-colors" style="height:${h}px;min-height:${v>0?4:2}px;opacity:${v>0?1:0.3}"></div>
+        <div class="text-gray-400" style="font-size:9px">${i+1}</div>
       </div>`;
     }).join('');
 
@@ -838,10 +904,10 @@ const AdminModule = (() => {
             <span class="w-5 h-5 bg-blue-500 rounded text-white flex items-center justify-center text-xs">①</span>예약현황
           </h2>
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            ${statCard('fas fa-calendar-check','오늘 예약',`${d.todayRes}명`,`목표 ${d.todayGoal}명`,'blue')}
-            ${statCard('fas fa-won-sign','오늘 매출',`₩${fmtWon(d.todaySales)}`,`온라인 ₩${fmtWon(d.onlineSales)}`,'green')}
-            ${statCard('fas fa-chair','잔여 좌석',`${d.remainSeats}석`,d.remainRound,'purple')}
-            ${statCard('fas fa-qrcode','손목밴드',`${d.wristbands}개`,`체크인 대비 ${d.wristbandRate}%`,'orange')}
+            ${statCard('fas fa-calendar-check','오늘 예약',`${todayPax}명`,`전체 ${todayCnt}건`,'blue')}
+            ${statCard('fas fa-won-sign','오늘 매출',`₩${fmtWon(todayRev)}`,`전체 ₩${fmtWon(totalRev)}`,'green')}
+            ${statCard('fas fa-chair','잔여 좌석',`${totalAvail}석`,`전체 ${totalCap}석 중`,'purple')}
+            ${statCard('fas fa-qrcode','손목밴드',`${wbIssued}개`,`탑승완료 ${wbRate}%`,'orange')}
           </div>
         </section>
 
@@ -853,15 +919,17 @@ const AdminModule = (() => {
               <span class="w-5 h-5 bg-green-500 rounded text-white flex items-center justify-center text-xs">②</span>운행현황
             </h2>
             <div class="space-y-3">
-              ${d.schedules.map(s => {
-                const pct = Math.round(s.booked / s.capacity * 100);
-                const isFull = s.status === 'full' || s.booked >= s.capacity;
+              ${schedules.length === 0 ? '<p class="text-gray-400 text-sm text-center py-4">스케줄 없음</p>' : schedules.map((s, idx) => {
+                const booked = s.booked || 0;
+                const cap    = s.capacity || 0;
+                const pct    = cap > 0 ? Math.round(booked / cap * 100) : 0;
+                const isFull = s.isSoldout || booked >= cap;
                 return `<div class="flex items-center gap-3">
                   <div class="w-16 text-xs font-medium text-gray-700">${s.time}</div>
                   <div class="flex-1">
                     <div class="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>${s.label}</span>
-                      <span>${s.booked}/${s.capacity}석 (${pct}%)</span>
+                      <span>${idx+1}회차</span>
+                      <span>${booked}/${cap}석 (${pct}%)</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2.5">
                       <div class="h-2.5 rounded-full transition-all ${isFull?'bg-red-500':pct>70?'bg-amber-400':'bg-green-500'}" style="width:${pct}%"></div>
@@ -896,17 +964,19 @@ const AdminModule = (() => {
             <span class="w-5 h-5 bg-cyan-500 rounded text-white flex items-center justify-center text-xs">④</span>좌석현황
           </h2>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            ${d.schedules.map(s => {
-              const avail = s.capacity - s.booked;
-              const pct = Math.round(s.booked / s.capacity * 100);
+            ${schedules.map((s, idx) => {
+              const booked = s.booked    || 0;
+              const cap    = s.capacity  || 0;
+              const avail  = s.available ?? Math.max(0, cap - booked);
+              const pct    = cap > 0 ? Math.round(booked / cap * 100) : 0;
               return `<div class="border rounded-xl p-4 text-center">
-                <div class="text-xs text-gray-500 mb-1">${s.label} (${s.time})</div>
+                <div class="text-xs text-gray-500 mb-1">${idx+1}회차 (${s.time})</div>
                 <div class="text-2xl font-black ${avail===0?'text-red-500':'text-blue-600'}">${avail}</div>
                 <div class="text-xs text-gray-400">잔여석</div>
                 <div class="mt-2 w-full bg-gray-200 rounded-full h-1.5">
                   <div class="h-1.5 rounded-full bg-blue-400" style="width:${pct}%"></div>
                 </div>
-                <div class="text-xs text-gray-400 mt-1">${s.booked}/${s.capacity}</div>
+                <div class="text-xs text-gray-400 mt-1">${booked}/${cap}</div>
               </div>`;
             }).join('')}
           </div>
@@ -921,10 +991,10 @@ const AdminModule = (() => {
             </h2>
             <div class="space-y-3 mb-4">
               ${[
-                {label:'총 탑승 인원',  val:`${d.wristbands}명`, color:'blue'},
-                {label:'체크인 완료',   val:`${d.wristbands}명`, color:'green'},
-                {label:'체크인 대기',   val:`${d.todayRes - d.wristbands}명`, color:'amber'},
-                {label:'탑승 완료율',   val:`${d.wristbandRate}%`, color:'purple'},
+                {label:'수배 발급',  val:`${wbIssued}개`, color:'blue'},
+                {label:'탑승 완료',   val:`${wbBoarded}명`, color:'green'},
+                {label:'탑승 대기',   val:`${Math.max(0, wbIssued - wbBoarded)}명`, color:'amber'},
+                {label:'탑승 완료율',   val:`${wbRate}%`, color:'purple'},
               ].map(i=>`
                 <div class="flex justify-between items-center py-2 border-b border-gray-100">
                   <span class="text-sm text-gray-600">${i.label}</span>
@@ -943,9 +1013,9 @@ const AdminModule = (() => {
             </h2>
             <div class="space-y-2 mb-4">
               ${[
-                {label:'오늘 총 매출',   val:`₩${fmtWon(d.todaySales)}`},
-                {label:'온라인 매출',    val:`₩${fmtWon(d.onlineSales)}`},
-                {label:'현장 매출',     val:`₩${fmtWon(d.todaySales - d.onlineSales)}`},
+                {label:'오늘 총 매출',   val:`₩${fmtWon(todayRev)}`},
+                {label:'온라인 예약 건',    val:`${todayCnt}건`},
+                {label:'오늘 총 탑승',     val:`${todayPax}명`},
               ].map(i=>`
                 <div class="flex justify-between items-center py-2 border-b border-gray-100">
                   <span class="text-sm text-gray-600">${i.label}</span>
