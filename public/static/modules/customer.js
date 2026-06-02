@@ -515,6 +515,8 @@ ${Footer.render()}
         status: 'active',
         course: s.course || `${region.name} 수륙양용 코스`,
         vehicle: s.vehicle || '',
+        vehicleName: s.vehicleName || '',
+        roundNum: s.roundNum || 0,
         days: s.days || s.operatingDays || [],
         duration: s.duration || 45,
       };
@@ -1178,18 +1180,24 @@ ${Footer.render()}
       listEl.innerHTML = '<div class="col-span-2 text-center text-gray-400 py-6 text-sm"><i class="fas fa-calendar-times text-2xl mb-2 block"></i>이 날짜(' + dayOfWeek + '요일)에 운행하는 회차가 없습니다.</div>';
       return;
     }
-    listEl.innerHTML = filtered.map(s => `
+    listEl.innerHTML = filtered.map(s => {
+      const roundLabel = s.roundNum ? s.roundNum + '회차' : '';
+      const vehicleLabel = s.vehicleName ? s.vehicleName : '';
+      const subLabel = [roundLabel, vehicleLabel].filter(Boolean).join(' · ');
+      return `
       <div class="schedule-card ${s.status==='soldout'?'soldout':''}" data-schedule-id="${s.id}" onclick="CustomerPages.selectSchedule('${s.id}', this)">
-        <div class="flex justify-between items-start mb-2">
+        <div class="flex justify-between items-start mb-1">
           <span class="schedule-card-time">${s.time}</span>
           <span class="text-xs ${s.status==='soldout'?'text-red-500 font-bold':'text-green-600 font-bold'}">
             ${s.status==='soldout'?'매진':s.onlineBooked>=s.online?'온라인 마감':'잔여 '+(s.online-s.onlineBooked)+'석'}
           </span>
         </div>
+        ${subLabel ? '<div class="text-xs text-blue-600 font-medium mb-1">'+subLabel+'</div>' : ''}
         <div class="text-xs text-gray-500">${(s.course||'').split('→')[0].trim()} 출발</div>
         <div class="seat-bar mt-2"><div class="seat-bar-fill ${(s.onlineBooked/s.online)>0.8?'danger':(s.onlineBooked/s.online)>0.6?'warning':''}" style="width:${Math.min(100,Math.round(s.onlineBooked/s.online*100))}%"></div></div>
         <div class="text-xs text-gray-400 mt-1">온라인 예약 ${s.online-s.onlineBooked}/${s.online}석</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   },
 
   selectSchedule: (id, el) => {
@@ -1198,8 +1206,15 @@ ${Footer.render()}
     el.classList.add('selected');
     CustomerPages._state.scheduleId = id;
     const timeEl = el.querySelector('.schedule-card-time');
+    // 회차정보: schedule 객체에서 라벨 조합
+    const sch = (CustomerPages._allSchedules||[]).find(s => s.id === id);
+    const roundPart = sch && sch.roundNum ? sch.roundNum + '회차' : '';
+    const vehiclePart = sch && sch.vehicleName ? sch.vehicleName : '';
+    const extra = [roundPart, vehiclePart].filter(Boolean).join(' ');
     const sumTime = document.getElementById('sum-time');
-    if (sumTime && timeEl) sumTime.textContent = timeEl.textContent + ' 회차';
+    if (sumTime && timeEl) {
+      sumTime.textContent = timeEl.textContent.trim() + (extra ? ' (' + extra + ')' : ' 회차');
+    }
     CustomerPages.updateSummary();
   },
 

@@ -596,12 +596,13 @@ const FieldModule = {
       {id:'senior', label:'경로', price:25000},
       {id:'free', label:'무료/초대권', price:0},
     ];
-    const roundOptions = schedules.map(s => {
+    const roundOptions = schedules.map((s, idx) => {
       const remain = (s.offlineCapacity||s.offline||0) - (s.bookedOffline||s.offlineBooked||0);
       const soldout = remain <= 0;
-      return `<option value="${s.id}" data-time="${s.time}" data-region="${regionId}" ${soldout?'disabled':''}>
-        ${s.time} ${soldout?'(매진)':'(현장잔여 '+remain+'석)'}
-      </option>`;
+      const roundNum = s.roundNum || (idx + 1);
+      const vehiclePart = s.vehicleName ? ' ' + s.vehicleName : '';
+      const label = s.time + ' (' + roundNum + '회차' + vehiclePart + ')' + (soldout ? ' - 매진' : ' - 현장잔여 ' + remain + '석');
+      return '<option value="' + s.id + '" data-time="' + s.time + '" data-region="' + regionId + '" data-vehicle="' + (s.vehicleName||'') + '" data-round="' + roundNum + '"' + (soldout?' disabled':'') + '>' + label + '</option>';
     }).join('') || '<option>등록된 회차 없음</option>';
     Utils.modal(`
       <div class="modal-header">

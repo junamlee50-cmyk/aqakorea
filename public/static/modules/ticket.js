@@ -105,7 +105,7 @@ const TicketPage = {
         </div>
         <div class="flex justify-between items-center py-2 border-b border-gray-100">
           <span class="text-gray-500 text-sm">회차</span>
-          <span class="font-bold text-navy-800">${r.time || '-'} 출발</span>
+          <span class="font-bold text-navy-800">${r.scheduleLabel || (r.time ? r.time + ' 출발' : '-')}</span>
         </div>
         <div class="flex justify-between items-center py-2 border-b border-gray-100">
           <span class="text-gray-500 text-sm">예약자</span>

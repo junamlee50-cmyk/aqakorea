@@ -1022,7 +1022,7 @@ const AdminModule = (() => {
   // ── 차량 관리 ──────────────────────────────────────────────
   const vehiclesPage = async (filterRegion) => {
     _adminState.currentSection = 'vehicles';
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _adminState.user || Store.get('adminUser') || { role: 'super', regionId: null };
 
     // 지역 목록 로드
     const regRes = await API.get('/api/regions');
@@ -1030,20 +1030,17 @@ const AdminModule = (() => {
     if (regRes.success && regRes.data) window.REGIONS = regRes.data;
 
     const vRes = await API.get('/api/vehicles');
-    let allVehicles = (vRes.success && vRes.data) ? vRes.data : [];
+    const allVehicles = (vRes.success && Array.isArray(vRes.data)) ? vRes.data : [];
 
-    // 지역관리자는 본인 지역만, 슈퍼는 선택 필터 적용
-    let activeFilter = filterRegion;
+    // 필터 결정: 지역관리자=본인공정, 슈퍼=파라미터 or 'all'
+    let activeFilter;
     if (user.role === 'regional' && user.regionId) {
-      allVehicles = allVehicles.filter(v => v.regionId === user.regionId);
-      activeFilter = user.regionId; // 지역관리자는 고정
+      activeFilter = user.regionId;
     } else {
-      // 슈퍼: 이전 선택 유지
-      if (!activeFilter) activeFilter = _adminState.vehicleRegionFilter || 'all';
-      _adminState.vehicleRegionFilter = activeFilter;
+      activeFilter = (typeof filterRegion === 'string' && filterRegion) ? filterRegion : 'all';
     }
 
-    const vehicles = (activeFilter && activeFilter !== 'all')
+    const vehicles = activeFilter !== 'all'
       ? allVehicles.filter(v => v.regionId === activeFilter)
       : allVehicles;
 
@@ -1231,7 +1228,7 @@ const AdminModule = (() => {
     if (res.success) {
       closeVehicleModal();
       Utils.toast('차량이 저장되었습니다.', 'success');
-      vehiclesPage(_adminState.vehicleRegionFilter).then(html => { document.getElementById('app').innerHTML = html; });
+      vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
     } else {
       Utils.toast(res.message || '저장 중 오류가 발생했습니다.', 'error');
     }
@@ -1244,7 +1241,7 @@ const AdminModule = (() => {
       Utils.closeModal();
       if (res.success) {
         Utils.toast('삭제되었습니다.', 'success');
-        vehiclesPage(_adminState.vehicleRegionFilter).then(html => { document.getElementById('app').innerHTML = html; });
+        vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
       } else {
         Utils.toast(res.message || '삭제 중 오류가 발생했습니다.', 'error');
       }
