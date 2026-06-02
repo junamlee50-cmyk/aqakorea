@@ -1020,15 +1020,32 @@ const AdminModule = (() => {
   };
 
   // ── 차량 관리 ──────────────────────────────────────────────
-  const vehiclesPage = async () => {
+  const vehiclesPage = async (filterRegion) => {
     _adminState.currentSection = 'vehicles';
     const user = _adminState.user || { role: 'super', regionId: null };
+
+    // 지역 목록 로드
+    const regRes = await API.get('/api/regions');
+    const allRegions = (regRes.success && regRes.data ? regRes.data : (window.REGIONS||[])).filter(r => r.status !== 'hidden');
+    if (regRes.success && regRes.data) window.REGIONS = regRes.data;
+
     const vRes = await API.get('/api/vehicles');
-    let vehicles = (vRes.success && vRes.data) ? vRes.data : [];
-    // 지역관리자는 본인 지역 차량만 표시
+    let allVehicles = (vRes.success && vRes.data) ? vRes.data : [];
+
+    // 지역관리자는 본인 지역만, 슈퍼는 선택 필터 적용
+    let activeFilter = filterRegion;
     if (user.role === 'regional' && user.regionId) {
-      vehicles = vehicles.filter(v => v.regionId === user.regionId);
+      allVehicles = allVehicles.filter(v => v.regionId === user.regionId);
+      activeFilter = user.regionId; // 지역관리자는 고정
+    } else {
+      // 슈퍼: 이전 선택 유지
+      if (!activeFilter) activeFilter = _adminState.vehicleRegionFilter || 'all';
+      _adminState.vehicleRegionFilter = activeFilter;
     }
+
+    const vehicles = (activeFilter && activeFilter !== 'all')
+      ? allVehicles.filter(v => v.regionId === activeFilter)
+      : allVehicles;
 
     const rows = vehicles.map((v, i) => `
       <tr class="hover:bg-gray-50">
@@ -1053,14 +1070,38 @@ const AdminModule = (() => {
       </tr>
     `).join('') || '<tr><td colspan="8" class="text-center py-4 text-gray-500 text-sm">차량이 없습니다.</td></tr>';
 
+    // 지역 필터 탭 (슈퍼관리자만 표시)
+    const filterTabs = (user.role !== 'regional') ? `
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="AdminModule.vehiclesPage('all')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilter==='all'?'bg-blue-600 text-white shadow-sm':'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'}">
+          전체 (${allVehicles.length}대)
+        </button>
+        ${allRegions.map(r => {
+          const cnt = allVehicles.filter(v => v.regionId === r.id).length;
+          const isActive = activeFilter === r.id;
+          return `<button onclick="AdminModule.vehiclesPage('${r.id}')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isActive?'bg-blue-600 text-white shadow-sm':'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'}">
+            ${r.name} (${cnt}대)
+          </button>`;
+        }).join('')}
+      </div>` : '';
+
     const content = `
       <div class="space-y-4">
-        <div class="flex justify-between items-center">
-          <h2 class="font-semibold text-gray-800">차량 목록</h2>
+        <div class="flex justify-between items-center flex-wrap gap-3">
+          <h2 class="font-semibold text-gray-800">차량 목록
+            <span class="ml-2 text-sm font-normal text-gray-500">
+              ${activeFilter && activeFilter !== 'all'
+                ? `${allRegions.find(r=>r.id===activeFilter)?.name||activeFilter} &middot; ${vehicles.length}대`
+                : `전체 ${allVehicles.length}대`}
+            </span>
+          </h2>
           <button onclick="AdminModule.addVehicle()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
             <i class="fas fa-plus"></i> 차량 추가
           </button>
         </div>
+
+        ${filterTabs}
+
         <div class="bg-white rounded-xl shadow-sm overflow-hidden">
           <div class="overflow-x-auto">
             <table class="admin-table w-full">
@@ -1191,7 +1232,7 @@ const AdminModule = (() => {
     if (res.success) {
       closeVehicleModal();
       Utils.toast('차량이 저장되었습니다.', 'success');
-      vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
+      vehiclesPage(_adminState.vehicleRegionFilter).then(html => { document.getElementById('app').innerHTML = html; });
     } else {
       Utils.toast(res.message || '저장 중 오류가 발생했습니다.', 'error');
     }
@@ -1204,7 +1245,7 @@ const AdminModule = (() => {
       Utils.closeModal();
       if (res.success) {
         Utils.toast('삭제되었습니다.', 'success');
-        vehiclesPage().then(html => { document.getElementById('app').innerHTML = html; });
+        vehiclesPage(_adminState.vehicleRegionFilter).then(html => { document.getElementById('app').innerHTML = html; });
       } else {
         Utils.toast(res.message || '삭제 중 오류가 발생했습니다.', 'error');
       }
@@ -6797,7 +6838,7 @@ const backupPage = async () => {
     const pageMap = {
       'hq-dashboard': () => hqDashboard(),
       'region-dashboard': () => regionDashboard(params),
-      'vehicles': () => vehiclesPage(),
+      'vehicles': () => vehiclesPage(_adminState.vehicleRegionFilter),
       'schedules': () => schedulesPage(),
       'fares': () => faresPage(),
       'seats': () => seatsPage(),
