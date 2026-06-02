@@ -1071,19 +1071,18 @@ const AdminModule = (() => {
     `).join('') || '<tr><td colspan="8" class="text-center py-4 text-gray-500 text-sm">차량이 없습니다.</td></tr>';
 
     // 지역 필터 탭 (슈퍼관리자만 표시)
-    const filterTabs = (user.role !== 'regional') ? `
-      <div class="flex gap-2 flex-wrap">
-        <button onclick="AdminModule.vehiclesPage('all')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilter==='all'?'bg-blue-600 text-white shadow-sm':'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'}">
-          전체 (${allVehicles.length}대)
-        </button>
-        ${allRegions.map(r => {
-          const cnt = allVehicles.filter(v => v.regionId === r.id).length;
-          const isActive = activeFilter === r.id;
-          return `<button onclick="AdminModule.vehiclesPage('${r.id}')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isActive?'bg-blue-600 text-white shadow-sm':'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600'}">
-            ${r.name} (${cnt}대)
-          </button>`;
-        }).join('')}
-      </div>` : '';
+    const allTabActive = activeFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600';
+    const regionTabsHtml = allRegions.map(r => {
+      const cnt = allVehicles.filter(v => v.regionId === r.id).length;
+      const cls = activeFilter === r.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600';
+      return '<button onclick="AdminModule.vehiclesPage(\'' + r.id + '\')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ' + cls + '">' + r.name + ' (' + cnt + '대)</button>';
+    }).join('');
+    const filterTabs = (user.role !== 'regional')
+      ? '<div class="flex gap-2 flex-wrap">'
+        + '<button onclick="AdminModule.vehiclesPage(\'all\')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ' + allTabActive + '">전체 (' + allVehicles.length + '대)</button>'
+        + regionTabsHtml
+        + '</div>'
+      : '';
 
     const content = `
       <div class="space-y-4">
