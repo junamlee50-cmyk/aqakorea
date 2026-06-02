@@ -287,29 +287,12 @@ const AdminModule = (() => {
               </button>
             </div>
 
-            <!-- 데모 계정 안내 -->
-            <div class="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <p class="text-xs font-semibold text-gray-600 mb-2"><i class="fas fa-info-circle mr-1 text-blue-500"></i>데모 계정 안내</p>
-              <div class="grid grid-cols-2 gap-1 text-xs text-gray-500">
-                <button onclick="AdminModule.fillLogin('admin','admin1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
-                  🔑 admin / admin1234 <span class="text-blue-500">(슈퍼관리자)</span>
-                </button>
-                <button onclick="AdminModule.fillLogin('tongyeong','tong1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
-                  🗺️ tongyeong / tong1234 <span class="text-green-500">(통영관리자)</span>
-                </button>
-                <button onclick="AdminModule.fillLogin('buyeo','buye1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
-                  🗺️ buyeo / buye1234 <span class="text-green-500">(부여관리자)</span>
-                </button>
-                <button onclick="AdminModule.fillLogin('hapcheon','hapc1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
-                  🗺️ hapcheon / hapc1234 <span class="text-green-500">(합천관리자)</span>
-                </button>
-                <button onclick="AdminModule.fillLogin('field01','field1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
-                  🖥️ field01 / field1234 <span class="text-orange-500">(현장매표소)</span>
-                </button>
-                <button onclick="AdminModule.fillLogin('account','acct1234')" class="text-left hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50">
-                  💰 account / acct1234 <span class="text-purple-500">(회계담당)</span>
-                </button>
-              </div>
+            <!-- 로그인 안내 -->
+            <div class="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+              <p class="text-xs text-blue-700 flex items-center gap-1">
+                <i class="fas fa-info-circle"></i>
+                관리자 계정은 본사에서 별도 발급합니다. 문의: <strong>aquamobility@gmail.com</strong>
+              </p>
             </div>
           </div>
           <p class="text-center text-gray-500 text-xs mt-4">
@@ -328,7 +311,7 @@ const AdminModule = (() => {
     if (pwEl) pwEl.value = pw;
   };
 
-  const doLogin = () => {
+  const doLogin = async () => {
     // 실패 횟수 제한
     const failCount = parseInt(sessionStorage.getItem('amk_fail_count') || '0');
     if (failCount >= 5) {
@@ -340,35 +323,51 @@ const AdminModule = (() => {
     const pw = document.getElementById('admin-pw')?.value;
     if (!id || !pw) { Utils.toast('아이디와 비밀번호를 입력하세요', 'error'); return; }
 
-    const account = DEMO_ACCOUNTS.find(a => a.id === id && a.pw === pw);
-    if (!account) {
-      sessionStorage.setItem('amk_fail_count', String(failCount + 1));
-      const remain = 5 - (failCount + 1);
-      Utils.toast(`아이디 또는 비밀번호가 올바르지 않습니다. (${failCount + 1}/5회, 남은 시도: ${remain}회)`, 'error');
-      return;
-    }
-
-    // 로그인 성공
-    sessionStorage.setItem('amk_fail_count', '0');
-    _adminState.loggedIn = true;
-    _adminState.user = { id: account.id, name: account.name, role: account.role, regionId: account.regionId, regionName: account.regionName || account.regionId || '' };
-    _adminState.selectedRegion = account.regionId || null;
-    Store.set('adminUser', _adminState.user);
-    Store.set('adminLoginTime', Date.now());
+    Utils.loading(true);
     try {
-      localStorage.setItem('amk_admin_user', JSON.stringify(_adminState.user));
-      localStorage.setItem('amk_admin_login_time', String(Date.now()));
-    } catch(e) {}
-    _addAccessLog(account.id, '로그인 성공');
-    Utils.toast(`${account.name}으로 로그인되었습니다.`, 'success');
+      // ★ DB API 로그인 (하드코딩 제거)
+      const res = await API.post('/api/admin/login', { username: id, password: pw });
+      Utils.loading(false);
 
-    // 권한별 리다이렉트
-    if (account.role === ROLES.STAFF) {
-      Router.go('/field');
-    } else if (account.role === ROLES.REGIONAL) {
-      Router.go('/admin/region-dashboard');
-    } else {
-      Router.go('/admin/dashboard');
+      if (!res.success) {
+        sessionStorage.setItem('amk_fail_count', String(failCount + 1));
+        const remain = 5 - (failCount + 1);
+        Utils.toast(`아이디 또는 비밀번호가 올바르지 않습니다. (${failCount+1}/5회, 남은 시도: ${remain}회)`, 'error');
+        return;
+      }
+
+      const u = res.data;
+      // 로그인 성공
+      sessionStorage.setItem('amk_fail_count', '0');
+      _adminState.loggedIn = true;
+      _adminState.user = {
+        id: u.username || u.id,
+        name: u.name,
+        role: u.role,
+        regionId: u.regionId || null,
+        regionName: u.regionName || u.regionId || '',
+      };
+      _adminState.selectedRegion = u.regionId || null;
+      Store.set('adminUser', _adminState.user);
+      Store.set('adminLoginTime', Date.now());
+      try {
+        localStorage.setItem('amk_admin_user', JSON.stringify(_adminState.user));
+        localStorage.setItem('amk_admin_login_time', String(Date.now()));
+      } catch(e) {}
+      _addAccessLog(u.username || u.id, '로그인 성공');
+      Utils.toast(`${u.name}으로 로그인되었습니다.`, 'success');
+
+      // 권한별 리다이렉트
+      if (u.role === ROLES.STAFF) {
+        Router.go('/field');
+      } else if (u.role === ROLES.REGIONAL) {
+        Router.go('/admin/region-dashboard');
+      } else {
+        Router.go('/admin/dashboard');
+      }
+    } catch(e) {
+      Utils.loading(false);
+      Utils.toast('로그인 중 오류가 발생했습니다.', 'error');
     }
   };
 
@@ -650,73 +649,6 @@ const AdminModule = (() => {
     hqDashboard().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
-  // ── 지역 대시보드 (지역별 독립 데이터) ───────────────────────
-  // NOTE: _REGION_DASH_DATA 하드코딩 제거됨 — regionDashboard에서 실시간 API 호출로 대체
-  const _REGION_DASH_DATA_UNUSED = {  // 참조 삭제됨
-    tongyeong: {
-      todayRes: 248, todayGoal: 300, todaySales: 8680000, onlineSales: 6944000,
-      remainSeats: 42, remainRound: '14:00 회차', wristbands: 221, wristbandRate: 89,
-      schedules: [
-        { time:'10:00', capacity:45, booked:38, status:'active', label:'1회차' },
-        { time:'12:00', capacity:45, booked:45, status:'full',   label:'2회차' },
-        { time:'14:00', capacity:45, booked:3,  status:'active', label:'3회차' },
-        { time:'15:30', capacity:45, booked:0,  status:'active', label:'4회차' },
-      ],
-      recentRes: [
-        {no:'AMK-20250511-T001',name:'김**',count:4,amount:140000,status:'confirmed'},
-        {no:'AMK-20250511-T002',name:'이**',count:2,amount:70000, status:'confirmed'},
-        {no:'AMK-20250511-T003',name:'박**',count:6,amount:210000,status:'checkedin'},
-        {no:'AMK-20250511-T004',name:'최**',count:3,amount:105000,status:'pending'},
-      ],
-      monthSales: [320,410,280,520,490,600,380,720,650,580,460,390],
-      alerts: [
-        { type:'warning', msg:'3회차 좌석 3석만 남아 있습니다.', time:'12:35' },
-        { type:'info',    msg:'오늘 단체 예약(20명) 입금 확인이 필요합니다.', time:'11:20' },
-        { type:'success', msg:'이번 주 예약률 94% 달성!', time:'09:00' },
-      ],
-    },
-    buyeo: {
-      todayRes: 312, todayGoal: 350, todaySales: 10920000, onlineSales: 8736000,
-      remainSeats: 38, remainRound: '15:30 회차', wristbands: 287, wristbandRate: 92,
-      schedules: [
-        { time:'10:00', capacity:45, booked:45, status:'full',   label:'1회차' },
-        { time:'13:00', capacity:45, booked:40, status:'active', label:'2회차' },
-        { time:'15:30', capacity:45, booked:7,  status:'active', label:'3회차' },
-      ],
-      recentRes: [
-        {no:'RES-2025-052668',name:'김**',count:3,amount:90000, status:'confirmed'},
-        {no:'AMK-20250511-B002',name:'박**',count:5,amount:175000,status:'checkedin'},
-        {no:'AMK-20250511-B003',name:'이**',count:2,amount:70000, status:'confirmed'},
-        {no:'AMK-20250511-B004',name:'정**',count:4,amount:140000,status:'pending'},
-      ],
-      monthSales: [280,360,420,510,590,680,520,810,760,690,540,470],
-      alerts: [
-        { type:'success', msg:'오늘 목표 인원 89% 달성 중', time:'13:10' },
-        { type:'info',    msg:'15:30 회차 잔여석 38석', time:'12:55' },
-        { type:'warning', msg:'우천 예보로 내일 운행 여부 확인 필요', time:'10:30' },
-      ],
-    },
-    hapcheon: {
-      todayRes: 95, todayGoal: 150, todaySales: 3325000, onlineSales: 2660000,
-      remainSeats: 55, remainRound: '16:00 회차', wristbands: 82, wristbandRate: 86,
-      schedules: [
-        { time:'10:30', capacity:40, booked:30, status:'active', label:'1회차' },
-        { time:'13:30', capacity:40, booked:25, status:'active', label:'2회차' },
-        { time:'16:00', capacity:40, booked:0,  status:'active', label:'3회차' },
-      ],
-      recentRes: [
-        {no:'AMK-20250511-H001',name:'오**',count:4,amount:140000,status:'confirmed'},
-        {no:'AMK-20250511-H002',name:'강**',count:2,amount:70000, status:'confirmed'},
-        {no:'AMK-20250511-H003',name:'윤**',count:3,amount:105000,status:'checkedin'},
-        {no:'AMK-20250511-H004',name:'장**',count:1,amount:35000, status:'pending'},
-      ],
-      monthSales: [60,85,110,130,145,170,120,190,175,155,125,100],
-      alerts: [
-        { type:'warning', msg:'오늘 목표 대비 63%로 저조합니다.', time:'13:00' },
-        { type:'info',    msg:'주말 단체 투어 10명 예약 접수', time:'11:45' },
-      ],
-    },
-  };
 
   const regionDashboard = async (params) => {
     _adminState.currentSection = 'region-dashboard';
