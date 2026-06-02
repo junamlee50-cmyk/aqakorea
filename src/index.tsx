@@ -192,7 +192,36 @@ app.get('/sitemap.xml', (c) => {
 })
 
 // ============================================================
-// API Routes
+// API Proxy → 백엔드(Express 3001) 로 전달
+// Cloudflare Pages 배포 시에는 Caddy /api/* → 3001 프록시가 담당
+// 로컬 wrangler dev 시에도 /api/* 요청이 이 Worker를 거치므로 여기서 프록시
+// ============================================================
+const BACKEND_URL = 'http://127.0.0.1:3001'
+
+app.all('/api/*', async (c) => {
+  const url = new URL(c.req.url)
+  const target = BACKEND_URL + url.pathname + url.search
+  try {
+    const init: RequestInit = {
+      method: c.req.method,
+      headers: { 'content-type': c.req.header('content-type') || 'application/json' },
+    }
+    if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+      init.body = await c.req.text()
+    }
+    const resp = await fetch(target, init)
+    const text = await resp.text()
+    return new Response(text, {
+      status: resp.status,
+      headers: { 'content-type': resp.headers.get('content-type') || 'application/json' },
+    })
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message, target }, 502)
+  }
+})
+
+// ============================================================
+// Legacy mock routes (fallback - kept for reference only)
 // ============================================================
 // 고객 API: hidden 지역 제외
 app.get('/api/regions', (c) => {
