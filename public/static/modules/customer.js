@@ -736,48 +736,85 @@ ${noticeBannerHtml}
         <div class="mb-6">
           <div class="flex items-center gap-2 mb-3">
             <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">3</div>
-            <h3 class="font-semibold text-navy-800 text-sm">특별할인 <span class="text-xs text-gray-500 font-normal">(해당자만, 현장 신분증 확인)</span></h3>
+            <h3 class="font-semibold text-navy-800 text-sm">특별할인 <span class="text-xs text-gray-500 font-normal">(해당자만, 현장 서류 확인 필수)</span></h3>
           </div>
           <div class="pl-8">
             <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
-              <div class="text-xs text-green-700 font-semibold mb-3">🎫 아래 대상자는 10% 할인 (탑승 시 증명서 확인)</div>
-              <div class="grid grid-cols-2 gap-2" id="special-discount-grid">
-                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="military" class="accent-green-500"> <span class="text-sm">🪖 군인</span>
-                </label>
-                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="police" class="accent-green-500"> <span class="text-sm">👮 경찰</span>
-                </label>
-                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="coast_guard" class="accent-green-500"> <span class="text-sm">⚓ 해양경찰</span>
-                </label>
-                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="fire" class="accent-green-500"> <span class="text-sm">🚒 소방관</span>
-                </label>
-                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="local" class="accent-green-500"> <span class="text-sm">🏠 지역민</span>
-                </label>
-                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="senior" class="accent-green-500"> <span class="text-sm">👴 노인(65세+)</span>
-                </label>
-                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition col-span-2" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="disabled" class="accent-green-500"> <span class="text-sm">♿ 장애인</span>
-                </label>
-                <label class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer col-span-2" onclick="CustomerPages.onSpecialDiscountChange()">
-                  <input type="radio" name="special_discount" value="" checked class="accent-gray-400"> <span class="text-sm text-gray-500">해당 없음</span>
-                </label>
+              <div class="text-xs text-green-700 font-semibold mb-1">🎫 아래 대상자 10% 할인 — 탑승 시 관련 서류 지참 필수</div>
+              <div class="text-xs text-gray-500 mb-3">서류 미제출 시 할인율 제외, 차액 현장 결제</div>
+
+              <!-- 제복공무원 그룹 (가족 포함) -->
+              <div class="mb-3">
+                <div class="text-xs font-bold text-indigo-700 mb-1">🪖 제복공무원 <span class="font-normal text-gray-500">(본인 + 직계가족 포함)</span></div>
+                <div class="text-xs text-gray-400 mb-2">필요서류: 공무원증 + 주민등록등본 또는 가족관계증명서</div>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                    <input type="radio" name="special_discount" value="military" class="accent-indigo-500"> <span class="text-sm">🪖 군인</span>
+                  </label>
+                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                    <input type="radio" name="special_discount" value="police" class="accent-indigo-500"> <span class="text-sm">👮 육상경찰</span>
+                  </label>
+                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                    <input type="radio" name="special_discount" value="coast_guard" class="accent-indigo-500"> <span class="text-sm">⚓ 해양경찰</span>
+                  </label>
+                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                    <input type="radio" name="special_discount" value="fire" class="accent-indigo-500"> <span class="text-sm">🚒 소방공무원</span>
+                  </label>
+                </div>
+
+                <!-- 가족 인원 선택 (제복공무원 선택 시 노출) -->
+                <div id="family-discount-area" class="hidden mt-3 bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+                  <div class="text-xs font-semibold text-indigo-700 mb-1">👨‍👩‍👧‍👦 직계가족 동반 할인</div>
+                  <div class="text-xs text-gray-500 mb-2">총 몇 명에게 할인을 적용하시겠습니까? (본인 포함)</div>
+                  <div class="flex items-center gap-3 mb-2">
+                    <button type="button" onclick="CustomerPages.adjustFamilyCount(-1)"
+                      class="w-9 h-9 rounded-full bg-white border border-indigo-300 text-indigo-600 font-bold text-xl flex items-center justify-center hover:bg-indigo-100 select-none">−</button>
+                    <div class="text-center min-w-[60px]">
+                      <span class="text-2xl font-black text-indigo-700" id="family-count">1</span>
+                      <span class="text-sm text-indigo-500">명</span>
+                    </div>
+                    <button type="button" onclick="CustomerPages.adjustFamilyCount(1)"
+                      class="w-9 h-9 rounded-full bg-white border border-indigo-300 text-indigo-600 font-bold text-xl flex items-center justify-center hover:bg-indigo-100 select-none">+</button>
+                  </div>
+                  <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-800 leading-relaxed">
+                    ⚠️ <strong>현장 제출 서류:</strong><br>
+                    · 공무원 신분증 (군인증·경찰증·소방관증·해양경찰증)<br>
+                    · 주민등록등본 <strong>또는</strong> 가족관계증명서<br>
+                    서류 미제출 또는 직계가족 범위 초과 시 <strong>차액 현장 결제</strong>
+                  </div>
+                </div>
               </div>
+
+              <!-- 개인 대상 그룹 (본인만) -->
+              <div class="border-t border-green-200 pt-3 mb-2">
+                <div class="text-xs font-bold text-green-700 mb-1">👤 개인 대상 <span class="font-normal text-gray-500">(본인만 할인 / 신분증 확인)</span></div>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                    <input type="radio" name="special_discount" value="local" class="accent-green-500"> <span class="text-sm">🏠 지역민</span>
+                  </label>
+                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                    <input type="radio" name="special_discount" value="senior" class="accent-green-500"> <span class="text-sm">👴 노인(65세+)</span>
+                  </label>
+                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition col-span-2" onclick="CustomerPages.onSpecialDiscountChange()">
+                    <input type="radio" name="special_discount" value="disabled" class="accent-green-500"> <span class="text-sm">♿ 장애인</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 해당없음 -->
+              <label class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer" onclick="CustomerPages.onSpecialDiscountChange()">
+                <input type="radio" name="special_discount" value="" checked class="accent-gray-400"> <span class="text-sm text-gray-500">해당 없음</span>
+              </label>
+
               <!-- 증명번호 입력 -->
               <div id="special-discount-input" class="hidden mt-3">
                 <div class="text-xs text-gray-500 mb-1" id="special-discount-hint"></div>
                 <input type="text" id="inp-special-id" placeholder="증명번호 입력 (선택사항)"
                   class="w-full border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
-                <div class="text-xs text-orange-500 mt-1">⚠️ 탑승 시 증명서 미제시 시 차액을 현장 결제하셔야 합니다.</div>
               </div>
             </div>
           </div>
         </div>
-
         <!-- 섹션 4: 특이사항 -->
         <div class="mb-6">
           <div class="flex items-center gap-2 mb-3">
@@ -1360,10 +1397,15 @@ ${Footer.render()}
     `;
   },
 
+  // 제복공무원 타입 (가족 포함 대상)
+  _UNIFORM_TYPES: ['military','police','coast_guard','fire'],
+
   onSpecialDiscountChange: () => {
     const selected = document.querySelector('input[name="special_discount"]:checked')?.value || '';
-    const inputArea = document.getElementById('special-discount-input');
-    const hint = document.getElementById('special-discount-hint');
+    const inputArea    = document.getElementById('special-discount-input');
+    const familyArea   = document.getElementById('family-discount-area');
+    const hint         = document.getElementById('special-discount-hint');
+    const isUniform    = CustomerPages._UNIFORM_TYPES.includes(selected);
     const hintMap = {
       military:    '군번 입력 (예: 22-76012345)',
       police:      '경찰관번호 입력 (예: 경123456)',
@@ -1373,6 +1415,20 @@ ${Footer.render()}
       senior:      '생년월일 입력 (예: 19590101) — 65세 이상만 해당',
       disabled:    '장애인등록번호 입력',
     };
+
+    // 제복공무원 → 가족 선택 영역 표시
+    if (familyArea) {
+      if (isUniform) familyArea.classList.remove('hidden');
+      else           familyArea.classList.add('hidden');
+    }
+    // 비제복공무원 선택 시 가족수 초기화
+    if (!isUniform) {
+      const fc = document.getElementById('family-count');
+      if (fc) fc.textContent = '1';
+      CustomerPages._state.familyCount = 1;
+    }
+
+    // 증명번호 입력 표시
     if (selected && inputArea && hint) {
       inputArea.classList.remove('hidden');
       hint.textContent = hintMap[selected] || '';
@@ -1381,6 +1437,16 @@ ${Footer.render()}
     } else if (inputArea) {
       inputArea.classList.add('hidden');
     }
+    CustomerPages.updateSummary();
+  },
+
+  adjustFamilyCount: (delta) => {
+    const s = CustomerPages._state;
+    const totalPax = Object.values(s.fares || {}).reduce((acc,f) => acc + (f.count||0), 0);
+    const max = Math.max(totalPax, 1);
+    s.familyCount = Math.min(max, Math.max(1, (s.familyCount || 1) + delta));
+    const el = document.getElementById('family-count');
+    if (el) el.textContent = s.familyCount;
     CustomerPages.updateSummary();
   },
 
@@ -1410,20 +1476,25 @@ ${Footer.render()}
       }
     } catch(e) { /* 할인 API 오류 시 무시 */ }
 
-    // 특별할인 (제복공무원/지역민/노인/장애인) 10%
+    // 특별할인 (제복공무원: 가족 포함 / 개인: 본인만) 10%
     const specialType = document.querySelector('input[name="special_discount"]:checked')?.value || '';
     const specialLabelMap = {
-      military: '🪖 군인', police: '👮 경찰', coast_guard: '⚓ 해양경찰',
-      fire: '🚒 소방관', local: '🏠 지역민', senior: '👴 노인(65세+)', disabled: '♿ 장애인',
+      military: '🪖 군인', police: '👮 육상경찰', coast_guard: '⚓ 해양경찰',
+      fire: '🚒 소방공무원', local: '🏠 지역민', senior: '👴 노인(65세+)', disabled: '♿ 장애인',
     };
     if (specialType && specialLabelMap[specialType]) {
       const sdRate = 10;
-      const sdAmount = Math.floor(finalTotal * sdRate / 100);
+      const isUniform = CustomerPages._UNIFORM_TYPES.includes(specialType);
+      const familyCount = isUniform ? (CustomerPages._state.familyCount || 1) : 1;
+      const perPersonPrice = pax > 0 ? Math.round(finalTotal / pax) : 0;
+      const discountPersons = Math.min(familyCount, pax);
+      const sdAmount = Math.floor(perPersonPrice * discountPersons * sdRate / 100);
       finalTotal = finalTotal - sdAmount;
-      CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount };
+      CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount, familyCount: discountPersons, isUniform };
+      const familyNote = isUniform && discountPersons > 1 ? ` (${discountPersons}명)` : '';
       discountHtml += `
         <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
-          <span>${specialLabelMap[specialType]} 할인 ${sdRate}% (현장 증명서 확인)</span>
+          <span>${specialLabelMap[specialType]} 할인 ${sdRate}%${familyNote} <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
           <span style="font-weight:700;">-₩${Utils.num(sdAmount)}</span>
         </div>`;
     } else {
@@ -1535,10 +1606,12 @@ ${Footer.render()}
       groupDiscountRate:    gd?.discountRate    || 0,
       groupDiscountAmount:  gd?.discountAmount  || 0,
       groupDiscountLabel:   gd?.discountLabel   || '',
-      specialDiscountType:  specialType,
-      specialDiscountId:    specialId,
-      specialDiscountRate:  sd?.rate   || 0,
-      specialDiscountAmount:sd?.amount || 0,
+      specialDiscountType:    specialType,
+      specialDiscountId:      specialId,
+      specialDiscountRate:    sd?.rate        || 0,
+      specialDiscountAmount:  sd?.amount      || 0,
+      specialDiscountFamily:  sd?.familyCount || 1,
+      specialDiscountIsUniform: sd?.isUniform || false,
       name, phone, email: document.getElementById('inp-email')?.value,
       source: s.source,
       passengers,
