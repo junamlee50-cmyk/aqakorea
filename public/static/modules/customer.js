@@ -762,25 +762,22 @@ ${noticeBannerHtml}
                   </label>
                 </div>
 
-                <!-- 가족 인원 선택 (제복공무원 선택 시 노출) -->
+                <!-- 제복공무원 가족 할인 안내 (선택 시 노출) -->
                 <div id="family-discount-area" class="hidden mt-3 bg-indigo-50 border border-indigo-200 rounded-xl p-3">
-                  <div class="text-xs font-semibold text-indigo-700 mb-1">👨‍👩‍👧‍👦 직계가족 동반 할인</div>
-                  <div class="text-xs text-gray-500 mb-2">총 몇 명에게 할인을 적용하시겠습니까? (본인 포함)</div>
-                  <div class="flex items-center gap-3 mb-2">
-                    <button type="button" onclick="CustomerPages.adjustFamilyCount(-1)"
-                      class="w-9 h-9 rounded-full bg-white border border-indigo-300 text-indigo-600 font-bold text-xl flex items-center justify-center hover:bg-indigo-100 select-none">−</button>
-                    <div class="text-center min-w-[60px]">
-                      <span class="text-2xl font-black text-indigo-700" id="family-count">1</span>
-                      <span class="text-sm text-indigo-500">명</span>
-                    </div>
-                    <button type="button" onclick="CustomerPages.adjustFamilyCount(1)"
-                      class="w-9 h-9 rounded-full bg-white border border-indigo-300 text-indigo-600 font-bold text-xl flex items-center justify-center hover:bg-indigo-100 select-none">+</button>
+                  <div class="text-xs font-semibold text-indigo-700 mb-2">👨‍👩‍👧‍👦 직계가족 전원 10% 할인 적용</div>
+                  <div class="bg-white border border-indigo-100 rounded-lg px-3 py-2.5 text-xs text-gray-700 leading-relaxed mb-2">
+                    본인을 포함한 <strong>직계가족 모두</strong>에게 10% 할인이 적용됩니다.<br>
+                    예약 인원 전원이 직계가족이면 전원 할인됩니다.
                   </div>
-                  <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-800 leading-relaxed">
-                    ⚠️ <strong>현장 제출 서류:</strong><br>
-                    · 공무원 신분증 (군인증·경찰증·소방관증·해양경찰증)<br>
-                    · 주민등록등본 <strong>또는</strong> 가족관계증명서<br>
-                    서류 미제출 또는 직계가족 범위 초과 시 <strong>차액 현장 결제</strong>
+                  <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2.5 text-xs text-yellow-800 leading-relaxed">
+                    <div class="font-bold mb-1">📋 탑승 시 현장 제출 서류 (필수)</div>
+                    <div class="space-y-0.5">
+                      <div>· <strong>공무원 신분증</strong> (군인증 / 경찰증 / 소방관증 / 해양경찰증)</div>
+                      <div>· <strong>주민등록등본</strong> 또는 <strong>가족관계증명서</strong></div>
+                    </div>
+                    <div class="mt-2 pt-2 border-t border-yellow-300 text-yellow-900">
+                      ⚠️ 서류 미제출 또는 직계가족이 아닌 경우 해당 인원의 <strong>할인 취소 후 차액 현장 결제</strong>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1421,12 +1418,7 @@ ${Footer.render()}
       if (isUniform) familyArea.classList.remove('hidden');
       else           familyArea.classList.add('hidden');
     }
-    // 비제복공무원 선택 시 가족수 초기화
-    if (!isUniform) {
-      const fc = document.getElementById('family-count');
-      if (fc) fc.textContent = '1';
-      CustomerPages._state.familyCount = 1;
-    }
+
 
     // 증명번호 입력 표시
     if (selected && inputArea && hint) {
@@ -1440,15 +1432,7 @@ ${Footer.render()}
     CustomerPages.updateSummary();
   },
 
-  adjustFamilyCount: (delta) => {
-    const s = CustomerPages._state;
-    const totalPax = Object.values(s.fares || {}).reduce((acc,f) => acc + (f.count||0), 0);
-    const max = Math.max(totalPax, 1);
-    s.familyCount = Math.min(max, Math.max(1, (s.familyCount || 1) + delta));
-    const el = document.getElementById('family-count');
-    if (el) el.textContent = s.familyCount;
-    CustomerPages.updateSummary();
-  },
+
 
   updateSummary: async () => {
     const fares = CustomerPages._state.fares;
@@ -1485,13 +1469,13 @@ ${Footer.render()}
     if (specialType && specialLabelMap[specialType]) {
       const sdRate = 10;
       const isUniform = CustomerPages._UNIFORM_TYPES.includes(specialType);
-      const familyCount = isUniform ? (CustomerPages._state.familyCount || 1) : 1;
+      // 제복공무원: 예약 전원 할인 / 개인대상: 본인 1명만
+      const discountPersons = isUniform ? pax : 1;
       const perPersonPrice = pax > 0 ? Math.round(finalTotal / pax) : 0;
-      const discountPersons = Math.min(familyCount, pax);
       const sdAmount = Math.floor(perPersonPrice * discountPersons * sdRate / 100);
       finalTotal = finalTotal - sdAmount;
       CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount, familyCount: discountPersons, isUniform };
-      const familyNote = isUniform && discountPersons > 1 ? ` (${discountPersons}명)` : '';
+      const familyNote = isUniform ? ` (예약 ${discountPersons}명 전원)` : ' (본인 1명)';
       discountHtml += `
         <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
           <span>${specialLabelMap[specialType]} 할인 ${sdRate}%${familyNote} <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
