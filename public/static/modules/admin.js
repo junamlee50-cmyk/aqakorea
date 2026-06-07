@@ -3131,7 +3131,11 @@ const AdminModule = (() => {
         <td class="px-3 py-2 text-sm text-center whitespace-nowrap">${r.date}</td>
         <td class="px-3 py-2 text-sm text-center">${r.schedule}</td>
         <td class="px-3 py-2 text-sm text-center">${r.totalPassengers}명</td>
-        <td class="px-3 py-2 text-right text-sm font-medium whitespace-nowrap">₩${r.totalAmount.toLocaleString()}</td>
+        <td class="px-3 py-2 text-right text-sm font-medium whitespace-nowrap">
+          ₩${r.totalAmount.toLocaleString()}
+          ${r.groupDiscountRate > 0 ? `<div class="text-xs text-green-600 font-normal">단체${r.groupDiscountRate}%↓</div>` : ''}
+          ${r.specialDiscountType ? `<div class="text-xs text-blue-600 font-normal">${{'military':'🪖군인','police':'👮경찰','coast_guard':'⚓해양경','fire':'🚒소방','local':'🏠지역민','senior':'👴노인','disabled':'♿장애'}[r.specialDiscountType]||r.specialDiscountType}${r.specialDiscountRate||10}%↓ <span class="text-orange-500">⚠️</span></div>` : ''}
+        </td>
         <td class="px-3 py-2 text-center text-xs text-gray-500">${r.payMethod}</td>
         <td class="px-3 py-2 text-center">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium ${payColors[r.paymentStatus]||'bg-gray-100 text-gray-600'}">
@@ -3185,6 +3189,14 @@ const AdminModule = (() => {
           adultCnt: r.paxDetail?.find(p=>p.type==='adult')?.count || r.pax || 1,
           childCnt: r.paxDetail?.find(p=>p.type==='child')?.count || 0,
           totalAmount: r.totalPrice || 0,
+          originalPrice: r.originalPrice || r.totalPrice || 0,
+          groupDiscountRate:    r.groupDiscountRate    || 0,
+          groupDiscountAmount:  r.groupDiscountAmount  || 0,
+          specialDiscountType:  r.specialDiscountType  || null,
+          specialDiscountId:    r.specialDiscountId    || null,
+          specialDiscountRate:  r.specialDiscountRate  || 0,
+          specialDiscountAmount:r.specialDiscountAmount|| 0,
+          specialDiscountFamily:r.specialDiscountFamily|| 1,
           payMethod: r.paymentMethod || '온라인결제',
           paymentStatus: r.paymentStatus || 'paid',
           source: r.channel || '온라인',
@@ -3220,7 +3232,16 @@ const AdminModule = (() => {
     const tbody = document.getElementById('res-tbody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8 text-gray-400">검색 중...</td></tr>';
 
-    const pool = await _loadRealReservations(filters);
+    let pool = await _loadRealReservations(filters);
+
+    // 할인 필터 (클라이언트 사이드)
+    const fDiscount = document.getElementById('res-filter-discount')?.value || '';
+    const UNIFORM = ['military','police','coast_guard','fire'];
+    if (fDiscount === 'group')      pool = pool.filter(r => r.groupDiscountRate > 0);
+    else if (fDiscount === 'special') pool = pool.filter(r => r.specialDiscountType);
+    else if (fDiscount === 'need_check') pool = pool.filter(r => UNIFORM.includes(r.specialDiscountType));
+    else if (fDiscount)             pool = pool.filter(r => r.specialDiscountType === fDiscount);
+
     const countEl = document.getElementById('res-result-count');
     if (countEl) countEl.textContent = `검색 결과 ${pool.length}건`;
     if (tbody) tbody.innerHTML = _renderReservationRows(pool);
@@ -3279,6 +3300,22 @@ const AdminModule = (() => {
                 <option value="pending">⏳ 대기</option>
                 <option value="cancelled">❌ 취소</option>
                 <option value="refunded">💰 환불완료</option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-gray-500 font-medium">할인 유형</label>
+              <select id="res-filter-discount" class="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[120px]">
+                <option value="">전체</option>
+                <option value="group">단체할인</option>
+                <option value="special">특별할인(전체)</option>
+                <option value="military">🪖 군인</option>
+                <option value="police">👮 육상경찰</option>
+                <option value="coast_guard">⚓ 해양경찰</option>
+                <option value="fire">🚒 소방공무원</option>
+                <option value="local">🏠 지역민</option>
+                <option value="senior">👴 노인</option>
+                <option value="disabled">♿ 장애인</option>
+                <option value="need_check">⚠️ 서류확인 필요</option>
               </select>
             </div>
             <div class="flex flex-col gap-1 flex-1 min-w-[160px]">

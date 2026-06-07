@@ -805,7 +805,139 @@ const StatsModule = (() => {
           </table>
         </div>
       </div>
+
+      <!-- 할인 현황 통계 (DB 기반) -->
+      <div class="bg-white rounded-xl shadow-sm p-5 mt-6" id="discount-stats-section">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-tag text-green-500"></i>
+          <h3 class="font-semibold text-gray-800 text-sm">할인 현황</h3>
+          ${isRegional ? `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">${regionLabel}</span>` : ''}
+        </div>
+        <div id="discount-stats-body"><div class="text-center py-6 text-gray-400 text-sm">불러오는 중...</div></div>
+      </div>
     `;
+
+    // 할인 통계 비동기 로드
+    (async () => {
+      try {
+        const res = await API.get('/api/reservations?limit=500');
+        const allRes = (res.data || []).filter(r => r.status !== 'cancelled');
+        const myRes  = isRegional ? allRes.filter(r => r.regionId === myRegionId) : allRes;
+
+        const UNIFORM = ['military','police','coast_guard','fire'];
+        const SPECIAL_LABEL = {
+          military:'🪖 군인', police:'👮 육상경찰', coast_guard:'⚓ 해양경찰',
+          fire:'🚒 소방공무원', local:'🏠 지역민', senior:'👴 노인(65세+)', disabled:'♿ 장애인',
+        };
+
+        // 단체할인 집계
+        const groupRes     = myRes.filter(r => (r.groupDiscountRate||0) > 0);
+        const groupTotal   = groupRes.reduce((s,r) => s + (r.groupDiscountAmount||0), 0);
+
+        // 특별할인 집계
+        const specialRes   = myRes.filter(r => r.specialDiscountType);
+        const specialTotal = specialRes.reduce((s,r) => s + (r.specialDiscountAmount||0), 0);
+
+        // 서류확인 필요 (제복공무원)
+        const needCheck    = specialRes.filter(r => UNIFORM.includes(r.specialDiscountType));
+
+        // 특별할인 유형별
+        const typeMap = {};
+        specialRes.forEach(r => {
+          const t = r.specialDiscountType;
+          if (!typeMap[t]) typeMap[t] = { count: 0, amount: 0, pax: 0 };
+          typeMap[t].count++;
+          typeMap[t].amount += (r.specialDiscountAmount||0);
+          typeMap[t].pax   += (r.specialDiscountFamily||r.pax||1);
+        });
+
+        const totalDiscountAmount = groupTotal + specialTotal;
+        const totalRevenue = myRes.reduce((s,r) => s + (r.totalPrice||r.total_price||0), 0);
+        const discountRate = totalRevenue > 0 ? ((totalDiscountAmount / (totalRevenue + totalDiscountAmount)) * 100).toFixed(1) : 0;
+
+        const body = document.getElementById('discount-stats-body');
+        if (!body) return;
+
+        body.innerHTML = `
+          <!-- KPI 카드 -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <div class="bg-green-50 rounded-xl p-3 text-center">
+              <div class="text-xl font-black text-green-700">${groupRes.length}건</div>
+              <div class="text-xs text-gray-500 mt-0.5">단체할인 예약</div>
+              <div class="text-xs font-bold text-green-600 mt-1">-₩${groupTotal.toLocaleString()}</div>
+            </div>
+            <div class="bg-blue-50 rounded-xl p-3 text-center">
+              <div class="text-xl font-black text-blue-700">${specialRes.length}건</div>
+              <div class="text-xs text-gray-500 mt-0.5">특별할인 예약</div>
+              <div class="text-xs font-bold text-blue-600 mt-1">-₩${specialTotal.toLocaleString()}</div>
+            </div>
+            <div class="bg-orange-50 rounded-xl p-3 text-center">
+              <div class="text-xl font-black text-orange-700">${needCheck.length}건</div>
+              <div class="text-xs text-gray-500 mt-0.5">⚠️ 서류확인 필요</div>
+              <div class="text-xs text-orange-600 mt-1">제복공무원</div>
+            </div>
+            <div class="bg-purple-50 rounded-xl p-3 text-center">
+              <div class="text-xl font-black text-purple-700">${discountRate}%</div>
+              <div class="text-xs text-gray-500 mt-0.5">전체 할인율</div>
+              <div class="text-xs font-bold text-purple-600 mt-1">-₩${totalDiscountAmount.toLocaleString()}</div>
+            </div>
+          </div>
+
+          <!-- 특별할인 유형별 테이블 -->
+          ${Object.keys(typeMap).length ? `
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead><tr class="bg-gray-50">
+                <th class="px-3 py-2 text-xs font-semibold text-gray-600 text-left">할인 유형</th>
+                <th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center">예약 건수</th>
+                <th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center">할인 적용 인원</th>
+                <th class="px-3 py-2 text-xs font-semibold text-gray-600 text-right">총 할인 금액</th>
+                <th class="px-3 py-2 text-xs font-semibold text-gray-600 text-center">서류확인</th>
+              </tr></thead>
+              <tbody class="divide-y divide-gray-100">
+                ${Object.entries(typeMap).sort((a,b)=>b[1].count-a[1].count).map(([type, d]) => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 text-sm font-medium">${SPECIAL_LABEL[type]||type}</td>
+                    <td class="px-3 py-2 text-sm text-center">${d.count}건</td>
+                    <td class="px-3 py-2 text-sm text-center">${d.pax}명</td>
+                    <td class="px-3 py-2 text-sm text-right font-bold text-blue-700">-₩${d.amount.toLocaleString()}</td>
+                    <td class="px-3 py-2 text-center">
+                      ${UNIFORM.includes(type)
+                        ? '<span class="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700 font-medium">⚠️ 공무원증+등본</span>'
+                        : '<span class="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">신분증</span>'}
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+              <tfoot><tr class="bg-gray-50 font-bold">
+                <td class="px-3 py-2 text-sm">합계</td>
+                <td class="px-3 py-2 text-sm text-center">${specialRes.length}건</td>
+                <td class="px-3 py-2 text-sm text-center">${Object.values(typeMap).reduce((s,d)=>s+d.pax,0)}명</td>
+                <td class="px-3 py-2 text-sm text-right text-blue-700">-₩${specialTotal.toLocaleString()}</td>
+                <td></td>
+              </tr></tfoot>
+            </table>
+          </div>` : '<div class="text-center py-4 text-gray-400 text-sm">특별할인 예약 없음</div>'}
+
+          <!-- 단체할인 상세 (있을 경우) -->
+          ${groupRes.length ? `
+          <div class="mt-4 pt-4 border-t">
+            <div class="text-xs font-bold text-gray-600 mb-2">단체할인 예약 (${groupRes.length}건)</div>
+            <div class="flex flex-wrap gap-2">
+              ${groupRes.slice(0,10).map(r => `
+                <div class="bg-green-50 border border-green-100 rounded-lg px-3 py-1.5 text-xs">
+                  <span class="font-medium">${r.name||'-'}</span>
+                  <span class="text-gray-400 ml-1">${r.pax||0}명</span>
+                  <span class="text-green-700 ml-1 font-bold">${r.groupDiscountRate}%↓</span>
+                </div>`).join('')}
+              ${groupRes.length > 10 ? `<div class="text-xs text-gray-400 self-center">외 ${groupRes.length-10}건</div>` : ''}
+            </div>
+          </div>` : ''}
+        `;
+      } catch(e) {
+        const body = document.getElementById('discount-stats-body');
+        if (body) body.innerHTML = '<div class="text-center py-4 text-red-400 text-sm">데이터 로드 실패</div>';
+      }
+    })();
   };
 
   // ── 마케팅 분석 탭 ─────────────────────────────────────────
