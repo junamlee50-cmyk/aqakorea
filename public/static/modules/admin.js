@@ -3397,6 +3397,12 @@ const AdminModule = (() => {
           }</span>
         </div>
         <div class="flex justify-between"><span class="text-gray-500">결제금액</span><span class="font-bold">₩${r.totalAmount.toLocaleString()}</span></div>
+        ${r.groupDiscountRate > 0 ? `<div class="flex justify-between text-green-600 text-xs"><span>단체할인 (${r.groupDiscountRate}%)</span><span>-₩${(r.groupDiscountAmount||0).toLocaleString()}</span></div>` : ''}
+        ${r.specialDiscountType ? `<div class="flex justify-between text-blue-600 text-xs items-center">
+          <span>특별할인 (${{'military':'🪖 군인','police':'👮 경찰','coast_guard':'⚓ 해양경찰','fire':'🚒 소방관','local':'🏠 지역민','senior':'👴 노인','disabled':'♿ 장애인'}[r.specialDiscountType]||r.specialDiscountType} ${r.specialDiscountRate||10}%)</span>
+          <span class="font-bold text-orange-500">⚠️ 현장확인 필요</span>
+        </div>
+        ${r.specialDiscountId ? `<div class="text-xs text-gray-400 text-right">증명번호: ${r.specialDiscountId}</div>` : ''}` : ''}
         <div class="flex justify-between"><span class="text-gray-500">결제수단</span><span>${r.payMethod}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">유입경로</span><span>${r.source}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">상태</span>

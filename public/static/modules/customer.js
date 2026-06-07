@@ -732,10 +732,56 @@ ${noticeBannerHtml}
           </div>
         </div>
 
-        <!-- 섹션 3: 특이사항 -->
+        <!-- 섹션 3: 특별할인 -->
         <div class="mb-6">
           <div class="flex items-center gap-2 mb-3">
-            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">3</div>
+            <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">3</div>
+            <h3 class="font-semibold text-navy-800 text-sm">특별할인 <span class="text-xs text-gray-500 font-normal">(해당자만, 현장 신분증 확인)</span></h3>
+          </div>
+          <div class="pl-8">
+            <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
+              <div class="text-xs text-green-700 font-semibold mb-3">🎫 아래 대상자는 10% 할인 (탑승 시 증명서 확인)</div>
+              <div class="grid grid-cols-2 gap-2" id="special-discount-grid">
+                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="military" class="accent-green-500"> <span class="text-sm">🪖 군인</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="police" class="accent-green-500"> <span class="text-sm">👮 경찰</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="coast_guard" class="accent-green-500"> <span class="text-sm">⚓ 해양경찰</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="fire" class="accent-green-500"> <span class="text-sm">🚒 소방관</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="local" class="accent-green-500"> <span class="text-sm">🏠 지역민</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="senior" class="accent-green-500"> <span class="text-sm">👴 노인(65세+)</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition col-span-2" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="disabled" class="accent-green-500"> <span class="text-sm">♿ 장애인</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer col-span-2" onclick="CustomerPages.onSpecialDiscountChange()">
+                  <input type="radio" name="special_discount" value="" checked class="accent-gray-400"> <span class="text-sm text-gray-500">해당 없음</span>
+                </label>
+              </div>
+              <!-- 증명번호 입력 -->
+              <div id="special-discount-input" class="hidden mt-3">
+                <div class="text-xs text-gray-500 mb-1" id="special-discount-hint"></div>
+                <input type="text" id="inp-special-id" placeholder="증명번호 입력 (선택사항)"
+                  class="w-full border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
+                <div class="text-xs text-orange-500 mt-1">⚠️ 탑승 시 증명서 미제시 시 차액을 현장 결제하셔야 합니다.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 섹션 4: 특이사항 -->
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">4</div>
             <h3 class="font-semibold text-navy-800 text-sm">특이사항 <span class="text-xs text-gray-500 font-normal">(선택)</span></h3>
           </div>
           <div class="pl-8">
@@ -1314,6 +1360,30 @@ ${Footer.render()}
     `;
   },
 
+  onSpecialDiscountChange: () => {
+    const selected = document.querySelector('input[name="special_discount"]:checked')?.value || '';
+    const inputArea = document.getElementById('special-discount-input');
+    const hint = document.getElementById('special-discount-hint');
+    const hintMap = {
+      military:    '군번 입력 (예: 22-76012345)',
+      police:      '경찰관번호 입력 (예: 경123456)',
+      coast_guard: '해양경찰관번호 입력',
+      fire:        '소방공무원번호 입력',
+      local:       '주소 입력 (예: 경남 통영시 ...)',
+      senior:      '생년월일 입력 (예: 19590101) — 65세 이상만 해당',
+      disabled:    '장애인등록번호 입력',
+    };
+    if (selected && inputArea && hint) {
+      inputArea.classList.remove('hidden');
+      hint.textContent = hintMap[selected] || '';
+      const inp = document.getElementById('inp-special-id');
+      if (inp) inp.placeholder = hintMap[selected] || '증명번호 입력 (선택사항)';
+    } else if (inputArea) {
+      inputArea.classList.add('hidden');
+    }
+    CustomerPages.updateSummary();
+  },
+
   updateSummary: async () => {
     const fares = CustomerPages._state.fares;
     let total = 0, pax = 0;
@@ -1339,6 +1409,26 @@ ${Footer.render()}
         }
       }
     } catch(e) { /* 할인 API 오류 시 무시 */ }
+
+    // 특별할인 (제복공무원/지역민/노인/장애인) 10%
+    const specialType = document.querySelector('input[name="special_discount"]:checked')?.value || '';
+    const specialLabelMap = {
+      military: '🪖 군인', police: '👮 경찰', coast_guard: '⚓ 해양경찰',
+      fire: '🚒 소방관', local: '🏠 지역민', senior: '👴 노인(65세+)', disabled: '♿ 장애인',
+    };
+    if (specialType && specialLabelMap[specialType]) {
+      const sdRate = 10;
+      const sdAmount = Math.floor(finalTotal * sdRate / 100);
+      finalTotal = finalTotal - sdAmount;
+      CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount };
+      discountHtml += `
+        <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
+          <span>${specialLabelMap[specialType]} 할인 ${sdRate}% (현장 증명서 확인)</span>
+          <span style="font-weight:700;">-₩${Utils.num(sdAmount)}</span>
+        </div>`;
+    } else {
+      CustomerPages._state.specialDiscount = null;
+    }
 
     const sumTotal = document.getElementById('sum-total');
     const sumPax   = document.getElementById('sum-pax');
@@ -1430,17 +1520,25 @@ ${Footer.render()}
     const notesArr = [...specialChecks, ...(memoText ? [memoText] : [])];
     const notes = notesArr.join(' / ') || '';
 
-    // 단체할인 적용
+    // 단체할인 + 특별할인 적용
     const gd = s.groupDiscount;
-    const finalTotal = (gd && gd.isGroupDiscount) ? gd.finalPrice : total;
+    const sd = s.specialDiscount;
+    const afterGroupDiscount = (gd && gd.isGroupDiscount) ? gd.finalPrice : total;
+    const finalTotal = sd ? (afterGroupDiscount - sd.amount) : afterGroupDiscount;
+    const specialType = document.querySelector('input[name="special_discount"]:checked')?.value || '';
+    const specialId   = document.getElementById('inp-special-id')?.value?.trim() || '';
     Store.set('cart', {
       regionId, date: s.date, scheduleId: s.scheduleId,
       paxList, pax,
       total: finalTotal, totalAmount: finalTotal,
       originalPrice: total,
-      groupDiscountRate:   gd?.discountRate   || 0,
-      groupDiscountAmount: gd?.discountAmount || 0,
-      groupDiscountLabel:  gd?.discountLabel  || '',
+      groupDiscountRate:    gd?.discountRate    || 0,
+      groupDiscountAmount:  gd?.discountAmount  || 0,
+      groupDiscountLabel:   gd?.discountLabel   || '',
+      specialDiscountType:  specialType,
+      specialDiscountId:    specialId,
+      specialDiscountRate:  sd?.rate   || 0,
+      specialDiscountAmount:sd?.amount || 0,
       name, phone, email: document.getElementById('inp-email')?.value,
       source: s.source,
       passengers,
