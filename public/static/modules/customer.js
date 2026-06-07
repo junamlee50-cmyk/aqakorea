@@ -828,6 +828,7 @@ ${noticeBannerHtml}
             <span class="text-white/70 text-sm">예약 금액</span>
             <span class="summary-total" id="sum-total">₩0</span>
           </div>
+          <div id="group-discount-area"></div>
           <div class="text-xs text-white/40 mb-4">
             실제 판매자: ${region.company?.name || '-'}<br>
             PG: ${region.pgMerchant?.merchantId || '-'}
@@ -1313,16 +1314,43 @@ ${Footer.render()}
     `;
   },
 
-  updateSummary: () => {
+  updateSummary: async () => {
     const fares = CustomerPages._state.fares;
     let total = 0, pax = 0;
     Object.values(fares).forEach(f => { total += (f.count||0)*f.price; pax += (f.count||0); });
+
+    // 단체 할인 실시간 계산
+    let finalTotal = total;
+    let discountHtml = '';
+    try {
+      if (pax > 0 && total > 0) {
+        const res = await fetch(`/api/settings/group-discount/calculate?pax=${pax}&price=${total}`);
+        const data = await res.json();
+        if (data.success && data.isGroupDiscount) {
+          finalTotal = data.finalPrice;
+          CustomerPages._state.groupDiscount = data;
+          discountHtml = `
+            <div id="group-discount-badge" style="margin-top:6px;padding:6px 10px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px;font-size:12px;color:#065f46;display:flex;justify-content:space-between;align-items:center;">
+              <span>🎉 단체 할인 (${data.discountLabel})</span>
+              <span style="font-weight:700;">-₩${Utils.num(data.discountAmount)}</span>
+            </div>`;
+        } else {
+          CustomerPages._state.groupDiscount = null;
+        }
+      }
+    } catch(e) { /* 할인 API 오류 시 무시 */ }
+
     const sumTotal = document.getElementById('sum-total');
-    const sumPax = document.getElementById('sum-pax');
+    const sumPax   = document.getElementById('sum-pax');
     const mobTotal = document.getElementById('mob-total');
-    if (sumTotal) sumTotal.textContent = '₩' + Utils.num(total);
-    if (sumPax) sumPax.textContent = pax + '명';
-    if (mobTotal) mobTotal.textContent = '₩' + Utils.num(total);
+    const discountArea = document.getElementById('group-discount-area');
+
+    if (sumPax)   sumPax.textContent = pax + '명';
+    if (sumTotal) sumTotal.innerHTML = finalTotal !== total
+      ? `<span style="text-decoration:line-through;color:#94a3b8;font-size:13px;">₩${Utils.num(total)}</span> <span style="color:#10b981;font-weight:900;">₩${Utils.num(finalTotal)}</span>`
+      : '₩' + Utils.num(total);
+    if (mobTotal) mobTotal.textContent = '₩' + Utils.num(finalTotal);
+    if (discountArea) discountArea.innerHTML = discountHtml;
   },
 
   selectSource: (src, btn) => {
@@ -1402,9 +1430,17 @@ ${Footer.render()}
     const notesArr = [...specialChecks, ...(memoText ? [memoText] : [])];
     const notes = notesArr.join(' / ') || '';
 
+    // 단체할인 적용
+    const gd = s.groupDiscount;
+    const finalTotal = (gd && gd.isGroupDiscount) ? gd.finalPrice : total;
     Store.set('cart', {
       regionId, date: s.date, scheduleId: s.scheduleId,
-      paxList, pax, total, totalAmount: total,
+      paxList, pax,
+      total: finalTotal, totalAmount: finalTotal,
+      originalPrice: total,
+      groupDiscountRate:   gd?.discountRate   || 0,
+      groupDiscountAmount: gd?.discountAmount || 0,
+      groupDiscountLabel:  gd?.discountLabel  || '',
       name, phone, email: document.getElementById('inp-email')?.value,
       source: s.source,
       passengers,

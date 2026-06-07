@@ -426,6 +426,21 @@ const AdminModule = (() => {
   };
 
   // ── SENS 설정 저장 ────────────────────────────────────────
+  const saveGroupDiscount = async () => {
+    const enabled  = document.getElementById('gd-enabled')?.checked ? '1' : '0';
+    const tier1Min = document.getElementById('gd-tier1-min')?.value;
+    const tier1Rate= document.getElementById('gd-tier1-rate')?.value;
+    const tier2Min = document.getElementById('gd-tier2-min')?.value;
+    const tier2Rate= document.getElementById('gd-tier2-rate')?.value;
+    if (parseInt(tier2Min) <= parseInt(tier1Min)) {
+      Utils.toast('2구간 시작 인원은 1구간보다 커야 합니다', 'warning'); return;
+    }
+    try {
+      await API.put('/api/settings/group-discount/config', { enabled, tier1Min, tier1Rate, tier2Min, tier2Rate });
+      Utils.toast('단체할인 설정이 저장되었습니다', 'success');
+    } catch(e) { Utils.toast('저장 실패: ' + e.message, 'error'); }
+  };
+
   const saveSensConfig = async () => {
     const accessKey  = document.getElementById('sens-access-key')?.value?.trim();
     const secretKey  = document.getElementById('sens-secret-key')?.value?.trim();
@@ -4623,8 +4638,80 @@ const AdminModule = (() => {
         sensConfig = cfgRes.success ? cfgRes.data : {};
       } catch(e) {}
 
+      // 단체할인 설정 로드
+      let gdConfig = {};
+      try {
+        const gdRes = await API.get('/api/settings/group-discount/config');
+        gdConfig = gdRes.success ? gdRes.data : {};
+      } catch(e) {}
+
       const contentHtml = `
         <div class="space-y-5">
+
+          <!-- 단체할인 설정 카드 -->
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="px-5 py-3 bg-gray-50 border-b flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i class="fas fa-users text-blue-400"></i>
+                <span class="font-semibold text-sm text-gray-700">단체예약 할인 설정</span>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold ${gdConfig.group_discount_enabled==='1' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
+                ${gdConfig.group_discount_enabled==='1' ? '✅ 활성화' : '⏸️ 비활성'}
+              </span>
+            </div>
+            <div class="p-5 space-y-4">
+              <div class="flex items-center gap-3">
+                <label class="text-sm font-medium text-gray-700">단체할인 사용</label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="gd-enabled" ${gdConfig.group_discount_enabled==='1' ? 'checked' : ''} class="w-4 h-4 accent-blue-500">
+                  <span class="text-sm text-gray-600">활성화</span>
+                </label>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                  <div class="font-bold text-blue-700 text-sm mb-3">1구간 할인</div>
+                  <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                      <label class="text-xs text-gray-500 w-16">시작 인원</label>
+                      <input type="number" id="gd-tier1-min" value="${gdConfig.group_discount_tier1_min || 20}" min="2" max="100"
+                        class="flex-1 border border-blue-200 rounded-lg px-2 py-1.5 text-sm text-center font-bold">
+                      <span class="text-xs text-gray-400">인 이상</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <label class="text-xs text-gray-500 w-16">할인율</label>
+                      <input type="number" id="gd-tier1-rate" value="${gdConfig.group_discount_tier1_rate || 10}" min="1" max="50" step="0.5"
+                        class="flex-1 border border-blue-200 rounded-lg px-2 py-1.5 text-sm text-center font-bold">
+                      <span class="text-xs text-gray-400">%</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                  <div class="font-bold text-purple-700 text-sm mb-3">2구간 할인</div>
+                  <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                      <label class="text-xs text-gray-500 w-16">시작 인원</label>
+                      <input type="number" id="gd-tier2-min" value="${gdConfig.group_discount_tier2_min || 30}" min="2" max="200"
+                        class="flex-1 border border-purple-200 rounded-lg px-2 py-1.5 text-sm text-center font-bold">
+                      <span class="text-xs text-gray-400">인 이상</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <label class="text-xs text-gray-500 w-16">할인율</label>
+                      <input type="number" id="gd-tier2-rate" value="${gdConfig.group_discount_tier2_rate || 15}" min="1" max="50" step="0.5"
+                        class="flex-1 border border-purple-200 rounded-lg px-2 py-1.5 text-sm text-center font-bold">
+                      <span class="text-xs text-gray-400">%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3 text-xs text-gray-500">
+                현재 설정: <strong>${gdConfig.group_discount_tier1_min || 20}인~${(parseInt(gdConfig.group_discount_tier2_min)||30)-1}인</strong> → ${gdConfig.group_discount_tier1_rate || 10}% 할인,
+                <strong>${gdConfig.group_discount_tier2_min || 30}인 이상</strong> → ${gdConfig.group_discount_tier2_rate || 15}% 할인
+              </div>
+              <button onclick="AdminPages.saveGroupDiscount()" class="w-full bg-blue-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-blue-700">
+                <i class="fas fa-save mr-1"></i> 단체할인 설정 저장
+              </button>
+            </div>
+          </div>
 
           <!-- SENS API 설정 카드 -->
           <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -6886,7 +6973,7 @@ const backupPage = async () => {
     switchRecMode, calcRecAutoTimes,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare, cancelFareApproval,
-    updateSeatRatio, saveSeatRatio, saveSensConfig, testSms, _doTestSms,
+    updateSeatRatio, saveSeatRatio, saveGroupDiscount, saveSensConfig, testSms, _doTestSms,
     showWristbandDetail, searchWristbands, voidWristband, _doVoidWristband, scanCheckWristband, reissueWristband, _doReissueWristband,
     viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter, issueWristbandFromReservation, _doIssueWristbandFromRes,
     saveWristbandText,
