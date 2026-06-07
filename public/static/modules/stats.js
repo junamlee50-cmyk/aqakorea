@@ -2521,7 +2521,7 @@ ${bodyHtml}
     switchTab('sales');
   };
 
-    const generateReport = (type, btnEl, settings = {}) => {
+    const generateReport = async (type, btnEl, settings = {}) => {
     const labelMap = {
       monthly:'월간 운영보고서', quarterly:'분기별 실적보고서',
       settlement:'정산 확인서', passengers:'승객 현황보고서',
@@ -2532,15 +2532,13 @@ ${bodyHtml}
     if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>생성중...'; }
     Utils.toast(`${label} 생성 중...`, 'info');
 
-    setTimeout(() => {
-      try {
+    try {
         const user = Store.get('adminUser') || {};
         const isRegional = user.role === 'regional' && user.regionId;
         let sampleKeys = settings.regions;
         if (!sampleKeys || !sampleKeys.length) {
           sampleKeys = isRegional ? [user.regionId] : ['tongyeong','buyeo','hapcheon'];
         }
-        // MONTHLY_SAMPLE에 없는 키 필터링
         sampleKeys = sampleKeys.filter(k => MONTHLY_SAMPLE[k]);
         if (!sampleKeys.length) sampleKeys = ['tongyeong','buyeo','hapcheon'];
 
@@ -2557,7 +2555,45 @@ ${bodyHtml}
           ? `${startDate} ~ ${endDate}`
           : `${y}년 ${m}월`;
 
-        const params = { type, user, sampleKeys, periodLabel, orgName, startDate, endDate, seal };
+        // ── 실제 DB에서 할인 데이터 로드 ──
+        let discountData = {};
+        try {
+          const res = await API.get('/api/reservations?limit=1000');
+          const allRes = (res.data || []).filter(r => r.status !== 'cancelled');
+          const UNIFORM = ['military','police','coast_guard','fire'];
+          const SPECIAL_LABEL = {
+            military:'군인', police:'육상경찰', coast_guard:'해양경찰',
+            fire:'소방공무원', local:'지역민', senior:'노인(65세+)', disabled:'장애인',
+          };
+          // 지역별 집계
+          sampleKeys.forEach(regionId => {
+            const rRes = allRes.filter(r => r.regionId === regionId);
+            const groupRes  = rRes.filter(r => (r.groupDiscountRate||0) > 0);
+            const specialRes= rRes.filter(r => r.specialDiscountType);
+            const uniformRes= specialRes.filter(r => UNIFORM.includes(r.specialDiscountType));
+            const groupAmt  = groupRes.reduce((s,r) => s + (r.groupDiscountAmount||0), 0);
+            const specialAmt= specialRes.reduce((s,r) => s + (r.specialDiscountAmount||0), 0);
+            const typeMap   = {};
+            specialRes.forEach(r => {
+              const t = r.specialDiscountType;
+              if (!typeMap[t]) typeMap[t] = { label: SPECIAL_LABEL[t]||t, count:0, pax:0, amount:0, isUniform: UNIFORM.includes(t) };
+              typeMap[t].count++;
+              typeMap[t].pax    += (r.specialDiscountFamily || r.pax || 1);
+              typeMap[t].amount += (r.specialDiscountAmount || 0);
+            });
+            const originalTotal = rRes.reduce((s,r) => s + (r.originalPrice||r.totalPrice||0), 0);
+            discountData[regionId] = {
+              groupCount: groupRes.length, groupAmount: groupAmt,
+              specialCount: specialRes.length, specialAmount: specialAmt,
+              uniformCount: uniformRes.length,
+              totalDiscountAmount: groupAmt + specialAmt,
+              originalTotal,
+              typeMap,
+            };
+          });
+        } catch(e) { console.warn('할인 데이터 로드 실패:', e); }
+
+        const params = { type, user, sampleKeys, periodLabel, orgName, startDate, endDate, seal, discountData };
 
         if (format === 'pdf' || format === 'print') {
           const html = _buildPDFReport(params);
@@ -2688,14 +2724,81 @@ ${bodyHtml}
             </table>
           </section>`;
       } else if (type === 'settlement') {
+        const dd = discountData || {};
+        const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
+        const UNIFORM = ['military','police','coast_guard','fire'];
+        const SPECIAL_LABEL = {
+          military:'군인', police:'육상경찰', coast_guard:'해양경찰',
+          fire:'소방공무원', local:'지역민', senior:'노인(65세+)', disabled:'장애인',
+        };
         return `
           <section class="section">
             <h2 class="section-title">1. 정산 내역</h2>
             <table class="data-table">
-              <tr><th>지역</th><th>온라인 결제</th><th>현장 결제</th><th>PG 수수료(3.5%)</th><th>정산금액</th></tr>
-              ${sampleKeys.map(k=>{const r=MONTHLY_SAMPLE[k];const pg=Math.round(r.totalSales*0.035);return`<tr><td>${r.name}</td><td class="num">${fw(r.onlineSales)}</td><td class="num">${fw(r.offlineSales)}</td><td class="num">${fw(pg)}</td><td class="num"><strong>${fw(r.totalSales-pg)}</strong></td></tr>`;}).join('')}
+              <tr><th>지역</th><th>원가 매출</th><th>총 할인액</th><th>실 결제액</th><th>PG 수수료(3.5%)</th><th>순 정산금액</th></tr>
+              ${sampleKeys.map(k=>{
+                const r=MONTHLY_SAMPLE[k];
+                const dg=dd[k]||{};
+                const origTotal = dg.originalTotal || r.totalSales;
+                const discAmt   = dg.totalDiscountAmount || 0;
+                const realSales = origTotal - discAmt;
+                const pg=Math.round(realSales*0.035);
+                return `<tr>
+                  <td>${r.name}</td>
+                  <td class="num">${fw(origTotal)}</td>
+                  <td class="num" style="color:#dc2626;">-${fw(discAmt)}</td>
+                  <td class="num">${fw(realSales)}</td>
+                  <td class="num">${fw(pg)}</td>
+                  <td class="num"><strong>${fw(realSales-pg)}</strong></td>
+                </tr>`;
+              }).join('')}
+              ${sampleKeys.length > 1 ? (()=>{
+                const totOrig = sampleKeys.reduce((s,k)=>{const dg=dd[k]||{};return s+(dg.originalTotal||MONTHLY_SAMPLE[k].totalSales);},0);
+                const totDisc = sampleKeys.reduce((s,k)=>s+((dd[k]||{}).totalDiscountAmount||0),0);
+                const totReal = totOrig - totDisc;
+                const totPG   = Math.round(totReal*0.035);
+                return `<tr style="font-weight:bold;background:#f8fafc;">
+                  <td>합계</td><td class="num">${fw(totOrig)}</td><td class="num" style="color:#dc2626;">-${fw(totDisc)}</td>
+                  <td class="num">${fw(totReal)}</td><td class="num">${fw(totPG)}</td><td class="num"><strong>${fw(totReal-totPG)}</strong></td>
+                </tr>`;
+              })() : ''}
             </table>
             <p class="remark">※ PG 수수료 3.5% 기준 / 정산일 기준 영업일 +3일 이내 입금</p>
+          </section>
+
+          <section class="section">
+            <h2 class="section-title">2. 할인 적용 내역</h2>
+
+            <!-- 2-1. 단체할인 -->
+            <h3 style="font-size:10pt;font-weight:bold;margin:12px 0 6px;color:#1d4ed8;">2-1. 단체할인</h3>
+            <table class="data-table">
+              <tr><th>지역</th><th>할인 건수</th><th>할인 금액</th><th>비고</th></tr>
+              ${sampleKeys.map(k=>{
+                const dg=(dd[k]||{});
+                return `<tr><td>${RNAMES[k]||k}</td><td class="num">${dg.groupCount||0}건</td><td class="num" style="color:#dc2626;">-${fw(dg.groupAmount||0)}</td><td>20인 이상 5%, 30인 이상 10%</td></tr>`;
+              }).join('')}
+            </table>
+
+            <!-- 2-2. 특별할인 -->
+            <h3 style="font-size:10pt;font-weight:bold;margin:14px 0 6px;color:#1d4ed8;">2-2. 특별할인 (제복공무원·지역민·노인·장애인)</h3>
+            <table class="data-table">
+              <tr><th>지역</th><th>할인 유형</th><th>건수</th><th>할인 인원</th><th>할인 금액</th><th>서류확인</th></tr>
+              ${sampleKeys.flatMap(k=>{
+                const dg=(dd[k]||{});
+                const tm = dg.typeMap || {};
+                if (!Object.keys(tm).length) return [`<tr><td>${RNAMES[k]||k}</td><td colspan="5" class="num" style="color:#6b7280;">특별할인 없음</td></tr>`];
+                return Object.entries(tm).map(([t,d])=>`<tr>
+                  <td>${RNAMES[k]||k}</td>
+                  <td>${SPECIAL_LABEL[t]||t}</td>
+                  <td class="num">${d.count}건</td>
+                  <td class="num">${d.pax}명</td>
+                  <td class="num" style="color:#dc2626;">-${fw(d.amount)}</td>
+                  <td style="color:${UNIFORM.includes(t)?'#d97706':'#6b7280'};font-weight:bold;">${UNIFORM.includes(t)?'⚠ 공무원증+등본':'신분증'}</td>
+                </tr>`);
+              }).join('')}
+            </table>
+            <p class="remark">※ 제복공무원(군인·육상경찰·해양경찰·소방공무원) 직계가족 포함 — 공무원 신분증 + 주민등록등본 또는 가족관계증명서 현장 확인 필수</p>
+            <p class="remark">※ 서류 미제출 시 해당 인원 할인 취소 및 차액 현장 징수</p>
           </section>`;
       } else if (type === 'passengers') {
         return `
@@ -2922,27 +3025,63 @@ window.onafterprint = function() { /* window.close(); */ };
       ['합계', ...sampleKeys.map(k=>fn(MONTHLY_SAMPLE[k].totalPax)), ...(sampleKeys.length>1?[fn(total.totalPax)]:[])],
     ];
 
-    // ⑤ 매출정산 시트
+    // ⑤ 매출정산 시트 (할인 포함)
+    const dd = params.discountData || {};
+    const RNAMES_XLSX = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
+    const SPECIAL_LABEL_XLSX = {
+      military:'군인', police:'육상경찰', coast_guard:'해양경찰',
+      fire:'소방공무원', local:'지역민', senior:'노인(65세+)', disabled:'장애인',
+    };
     const sheetSales = [
       [`${periodLabel} 매출 정산 내역`],
       [],
-      ['지역', '온라인 매출(원)', '현장 매출(원)', '합계 매출(원)', 'PG수수료(3.5%,원)', '순 정산금액(원)', '온라인 비중'],
+      ['지역', '원가 매출(원)', '단체할인(원)', '특별할인(원)', '총 할인(원)', '실 결제액(원)', 'PG수수료(3.5%,원)', '순 정산금액(원)'],
       ...sampleKeys.map(k=>{
-        const r = MONTHLY_SAMPLE[k];
-        const pg = Math.round(r.totalSales*0.035);
-        return [r.name, fw(r.onlineSales), fw(r.offlineSales), fw(r.totalSales), fw(pg), fw(r.totalSales-pg), r.onlineRatio+'%'];
+        const r   = MONTHLY_SAMPLE[k];
+        const dg  = dd[k] || {};
+        const origTotal = dg.originalTotal || r.totalSales;
+        const grpAmt    = dg.groupAmount   || 0;
+        const spcAmt    = dg.specialAmount || 0;
+        const totDisc   = grpAmt + spcAmt;
+        const realSales = origTotal - totDisc;
+        const pg        = Math.round(realSales * 0.035);
+        return [r.name, fw(origTotal), fw(grpAmt), fw(spcAmt), fw(totDisc), fw(realSales), fw(pg), fw(realSales-pg)];
       }),
       ...(sampleKeys.length>1?[[
         '합계',
-        fw(sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].onlineSales,0)),
-        fw(sampleKeys.reduce((s,k)=>s+MONTHLY_SAMPLE[k].offlineSales,0)),
-        fw(total.totalSales),
-        fw(Math.round(total.totalSales*0.035)),
-        fw(Math.round(total.totalSales*0.965)),
-        '70%',
+        fw(sampleKeys.reduce((s,k)=>s+((dd[k]||{}).originalTotal||MONTHLY_SAMPLE[k].totalSales),0)),
+        fw(sampleKeys.reduce((s,k)=>s+((dd[k]||{}).groupAmount||0),0)),
+        fw(sampleKeys.reduce((s,k)=>s+((dd[k]||{}).specialAmount||0),0)),
+        fw(sampleKeys.reduce((s,k)=>s+((dd[k]||{}).totalDiscountAmount||0),0)),
+        fw(sampleKeys.reduce((s,k)=>{const dg=dd[k]||{};return s+(dg.originalTotal||MONTHLY_SAMPLE[k].totalSales)-(dg.totalDiscountAmount||0);},0)),
+        fw(Math.round(sampleKeys.reduce((s,k)=>{const dg=dd[k]||{};return s+((dg.originalTotal||MONTHLY_SAMPLE[k].totalSales)-(dg.totalDiscountAmount||0));},0)*0.035)),
+        fw(Math.round(sampleKeys.reduce((s,k)=>{const dg=dd[k]||{};return s+((dg.originalTotal||MONTHLY_SAMPLE[k].totalSales)-(dg.totalDiscountAmount||0));},0)*0.965)),
       ]]:[]),
       [],
       ['※ PG 수수료 3.5% 적용 기준 / 보고기간: '+periodLabel],
+    ];
+
+    // ⑤-2. 특별할인 상세 시트
+    const sheetDiscount = [
+      [`${periodLabel} 할인 적용 상세`],
+      [],
+      ['지역', '할인 유형', '건수', '인원', '할인금액(원)', '서류확인 항목'],
+      ...sampleKeys.flatMap(k => {
+        const dg = dd[k] || {};
+        const tm = dg.typeMap || {};
+        const rows = [];
+        // 단체할인
+        if (dg.groupCount) rows.push([RNAMES_XLSX[k]||k, '단체할인', dg.groupCount+'건', '-', fw(dg.groupAmount||0), '없음(현장 인원 확인)']);
+        // 특별할인 유형별
+        Object.entries(tm).forEach(([t,d]) => {
+          const isUni = ['military','police','coast_guard','fire'].includes(t);
+          rows.push([RNAMES_XLSX[k]||k, SPECIAL_LABEL_XLSX[t]||t, d.count+'건', d.pax+'명', fw(d.amount), isUni?'공무원증+주민등록등본 또는 가족관계증명서':'신분증']);
+        });
+        if (!rows.length) rows.push([RNAMES_XLSX[k]||k, '할인 없음', '-', '-', '-', '-']);
+        return rows;
+      }),
+      [],
+      ['※ 제복공무원: 직계가족 포함 전원 할인. 서류 미제출 시 차액 현장 징수'],
     ];
 
     // ⑥ 취소환불 시트
@@ -3040,6 +3179,7 @@ window.onafterprint = function() { /* window.close(); */ };
       { name: '③회차별운영', rows: sheetSchedule },
       { name: '④예약목록',   rows: sheetReservations },
       { name: '⑤매출정산',   rows: sheetSales },
+      { name: '⑤-2할인상세', rows: sheetDiscount },
       { name: '⑥취소환불',   rows: sheetCancel },
       { name: '⑦손목밴드',   rows: sheetWristband },
       { name: '⑧고객분석',   rows: sheetCustomer },

@@ -3433,14 +3433,39 @@ const AdminModule = (() => {
             })()
           }</span>
         </div>
-        <div class="flex justify-between"><span class="text-gray-500">결제금액</span><span class="font-bold">₩${r.totalAmount.toLocaleString()}</span></div>
-        ${r.groupDiscountRate > 0 ? `<div class="flex justify-between text-green-600 text-xs"><span>단체할인 (${r.groupDiscountRate}%)</span><span>-₩${(r.groupDiscountAmount||0).toLocaleString()}</span></div>` : ''}
-        ${r.specialDiscountType ? `<div class="flex justify-between text-blue-600 text-xs items-center">
-          <span>특별할인 (${{'military':'🪖 군인','police':'👮 육상경찰','coast_guard':'⚓ 해양경찰','fire':'🚒 소방공무원','local':'🏠 지역민','senior':'👴 노인(65세+)','disabled':'♿ 장애인'}[r.specialDiscountType]||r.specialDiscountType} ${r.specialDiscountRate||10}%${['military','police','coast_guard','fire'].includes(r.specialDiscountType)&&(r.specialDiscountFamily||1)>1?' / 직계가족 포함 '+(r.specialDiscountFamily)+'명':''})</span>
-          <span class="font-bold text-orange-500">⚠️ 서류확인 필수</span>
+        <!-- 정산 소계 블록 -->
+        <div class="rounded-xl border border-gray-200 overflow-hidden mt-1 mb-1">
+          <div class="bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-600">💰 요금 정산 내역</div>
+          <div class="px-3 py-2 space-y-1.5">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500">정상가</span>
+              <span>₩${(r.originalPrice||r.totalAmount).toLocaleString()}</span>
+            </div>
+            ${r.groupDiscountRate > 0 ? `
+            <div class="flex justify-between text-xs text-green-700">
+              <span>단체할인 (${r.groupDiscountRate}% / ${r.totalPassengers}인)</span>
+              <span class="font-bold">-₩${(r.groupDiscountAmount||0).toLocaleString()}</span>
+            </div>` : ''}
+            ${r.specialDiscountType ? `
+            <div class="flex justify-between text-xs text-blue-700 items-start">
+              <span>특별할인 (${{ military:'🪖 군인', police:'👮 육상경찰', coast_guard:'⚓ 해양경찰', fire:'🚒 소방공무원', local:'🏠 지역민', senior:'👴 노인(65세+)', disabled:'♿ 장애인' }[r.specialDiscountType]||r.specialDiscountType} ${r.specialDiscountRate||10}%${ ['military','police','coast_guard','fire'].includes(r.specialDiscountType) ? ' / 직계가족 포함 전원' : ' / 본인 1명' })</span>
+              <span class="font-bold">-₩${(r.specialDiscountAmount||0).toLocaleString()}</span>
+            </div>
+            ${['military','police','coast_guard','fire'].includes(r.specialDiscountType) ? `
+            <div class="bg-orange-50 border border-orange-200 rounded-lg px-2 py-1.5 text-xs text-orange-800">
+              <div class="font-bold mb-0.5">⚠️ 현장 서류확인 필수</div>
+              <div>· 공무원 신분증 (군인증/경찰증/소방관증/해양경찰증)</div>
+              <div>· 주민등록등본 또는 가족관계증명서</div>
+              <div class="mt-1 font-bold text-orange-900">미제출 시 할인 취소 → 차액 현장 결제</div>
+              ${r.specialDiscountId ? `<div class="mt-1 text-gray-500">신고번호: ${r.specialDiscountId}</div>` : ''}
+            </div>` : ''}
+            ` : ''}
+            <div class="flex justify-between font-bold text-base border-t pt-1.5 mt-1">
+              <span>최종 결제금액</span>
+              <span class="text-blue-700">₩${r.totalAmount.toLocaleString()}</span>
+            </div>
+          </div>
         </div>
-        ${['military','police','coast_guard','fire'].includes(r.specialDiscountType) ? '<div class="text-xs text-gray-400 text-right mt-0.5">공무원증 + 주민등록등본 또는 가족관계증명서</div>' : ''}
-        ${r.specialDiscountId ? `<div class="text-xs text-gray-400 text-right">증명번호: ${r.specialDiscountId}</div>` : ''}` : ''}
         <div class="flex justify-between"><span class="text-gray-500">결제수단</span><span>${r.payMethod}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">유입경로</span><span>${r.source}</span></div>
         <div class="flex justify-between"><span class="text-gray-500">상태</span>
