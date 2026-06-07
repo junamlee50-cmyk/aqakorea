@@ -2614,7 +2614,6 @@ ${bodyHtml}
         if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = label; }
         Utils.toast('보고서 생성 중 오류가 발생했습니다.', 'error');
       }
-    }, 800);
   };
 
   const scheduleReport = () => {
