@@ -187,7 +187,7 @@ const Utils = {
 
     const body = document.createElement('div');
     body.className = 'modal-body';
-    body.innerHTML = `<div class="text-gray-700">${msg}</div>`;
+    body.innerHTML = `<div style="color:#374151;font-size:14px;line-height:1.6;">${msg}</div>`;
 
     const footer = document.createElement('div');
     footer.className = 'modal-footer';

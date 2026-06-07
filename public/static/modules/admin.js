@@ -3382,14 +3382,12 @@ const AdminModule = (() => {
       safetyFlags.push(...parts);
     }
     const safetyBadge = safetyFlags.length > 0 ? `
-      <div class="mt-2 p-2 bg-red-50 border-2 border-red-300 rounded-xl">
-        <div class="flex items-center gap-1.5 text-red-700 font-bold text-xs mb-1.5">
-          ⚠️ 현장 직원 확인 필요 — 특이사항
+      <div style="margin-top:6px;padding:8px;background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;margin-bottom:6px;">
+        <div style="color:#b91c1c;font-weight:700;font-size:12px;margin-bottom:5px;">⚠️ 현장 직원 확인 필요 — 특이사항</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+          ${safetyFlags.map(f=>`<span style="background:#fee2e2;color:#b91c1c;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;">${f}</span>`).join('')}
         </div>
-        <div class="flex flex-wrap gap-1">
-          ${safetyFlags.map(f=>`<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-semibold">${f}</span>`).join('')}
-        </div>
-        <p class="text-xs text-red-500 mt-1.5">⚠️ 탑승 전 반드시 확인하세요.</p>
+        <p style="font-size:11px;color:#ef4444;margin-top:5px;">⚠️ 탑승 전 반드시 확인하세요.</p>
       </div>` : '';
     // 탑승자 명단 — DB에서 직접 조회
     let passengersList = r.passengers || [];
@@ -3400,31 +3398,31 @@ const AdminModule = (() => {
       } catch(e) {}
     }
     const passengersHtml = passengersList.length > 0
-      ? `<div class="mt-3 border-t pt-3">
-          <div class="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1">
-            <i class="fas fa-users text-blue-400"></i> 탑승자 명단 (${passengersList.length}명)
+      ? `<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px;">
+          <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:6px;">
+            <i class="fas fa-users" style="color:#60a5fa;margin-right:4px;"></i> 탑승자 명단 (${passengersList.length}명)
           </div>
-          <div class="space-y-1">
+          <div style="display:flex;flex-direction:column;gap:4px;">
             ${passengersList.map((p,i) => `
-              <div class="flex items-center justify-between bg-gray-50 rounded-lg px-2 py-1.5 text-xs">
-                <div class="flex items-center gap-2">
-                  <span class="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-xs">${i+1}</span>
-                  <span class="font-semibold">${p.name||'미입력'}</span>
+              <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border-radius:8px;padding:5px 8px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span style="width:18px;height:18px;background:#3b82f6;color:white;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;">${i+1}</span>
+                  <span style="font-weight:600;color:#111827;font-size:12px;">${p.name||'미입력'}</span>
                 </div>
-                <span class="text-gray-400">${p.birth||''} ${p.gender==='M'?'남':p.gender==='F'?'여':''}</span>
+                <span style="color:#9ca3af;font-size:11px;">${p.birth||''} ${p.gender==='M'?'남':p.gender==='F'?'여':''}</span>
               </div>`).join('')}
           </div>
         </div>`
-      : '<div class="mt-3 border-t pt-3 text-xs text-gray-400 text-center">탑승자 정보 미입력 (구형 예약)</div>';
+      : '<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px;font-size:12px;color:#9ca3af;text-align:center;">탑승자 정보 미입력 (구형 예약)</div>';
 
     Utils.confirm(
-      `<div class="text-left space-y-1.5 text-sm">
-        <div class="font-bold text-base mb-2 font-mono">${r.id}</div>
+      `<div style="text-align:left;font-size:14px;color:#111827;">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px;font-family:monospace;color:#1e40af;">${r.id}</div>
         ${safetyBadge}
-        <div class="flex justify-between pt-1"><span class="text-gray-500">예약자</span><span class="font-medium">${r.name}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">지역</span><span>${r.regionName}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">날짜·회차</span><span>${r.date} ${r.schedule}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">인원</span>
+        <div style="display:flex;justify-content:space-between;padding-top:4px;margin-bottom:4px;"><span style="color:#6b7280;">예약자</span><span style="font-weight:600;color:#111827;">${r.name}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#6b7280;">지역</span><span style="color:#111827;">${r.regionName}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#6b7280;">날짜·회차</span><span style="color:#111827;">${r.date} ${r.schedule}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;color:#111827;"><span style="color:#6b7280;">인원</span>
           <span>${
             (() => {
               const pd = r.paxDetail || [];
@@ -3434,49 +3432,49 @@ const AdminModule = (() => {
           }</span>
         </div>
         <!-- 정산 소계 블록 -->
-        <div class="rounded-xl border border-gray-200 overflow-hidden mt-1 mb-1">
-          <div class="bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-600">💰 요금 정산 내역</div>
-          <div class="px-3 py-2 space-y-1.5">
-            <div class="flex justify-between text-sm">
-              <span class="text-gray-500">정상가</span>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin:6px 0;">
+          <div style="background:#f8fafc;padding:6px 12px;font-size:11px;font-weight:700;color:#475569;">💰 요금 정산 내역</div>
+          <div style="padding:10px 12px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:#374151;margin-bottom:4px;">
+              <span>정상가</span>
               <span>₩${(r.originalPrice||r.totalAmount).toLocaleString()}</span>
             </div>
             ${r.groupDiscountRate > 0 ? `
-            <div class="flex justify-between text-xs text-green-700">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#15803d;margin-bottom:4px;">
               <span>단체할인 (${r.groupDiscountRate}% / ${r.totalPassengers}인)</span>
-              <span class="font-bold">-₩${(r.groupDiscountAmount||0).toLocaleString()}</span>
+              <span style="font-weight:700;">-₩${(r.groupDiscountAmount||0).toLocaleString()}</span>
             </div>` : ''}
             ${r.specialDiscountType ? `
-            <div class="flex justify-between text-xs text-blue-700 items-start">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#1d4ed8;margin-bottom:4px;">
               <span>특별할인 (${{ military:'🪖 군인', police:'👮 육상경찰', coast_guard:'⚓ 해양경찰', fire:'🚒 소방공무원', local:'🏠 지역민', senior:'👴 노인(65세+)', disabled:'♿ 장애인' }[r.specialDiscountType]||r.specialDiscountType} ${r.specialDiscountRate||10}%${ ['military','police','coast_guard','fire'].includes(r.specialDiscountType) ? ' / 직계가족 포함 전원' : ' / 본인 1명' })</span>
-              <span class="font-bold">-₩${(r.specialDiscountAmount||0).toLocaleString()}</span>
+              <span style="font-weight:700;">-₩${(r.specialDiscountAmount||0).toLocaleString()}</span>
             </div>
             ${['military','police','coast_guard','fire'].includes(r.specialDiscountType) ? `
-            <div class="bg-orange-50 border border-orange-200 rounded-lg px-2 py-1.5 text-xs text-orange-800">
-              <div class="font-bold mb-0.5">⚠️ 현장 서류확인 필수</div>
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 10px;font-size:11px;color:#92400e;margin-top:4px;">
+              <div style="font-weight:700;margin-bottom:3px;">⚠️ 현장 서류확인 필수</div>
               <div>· 공무원 신분증 (군인증/경찰증/소방관증/해양경찰증)</div>
               <div>· 주민등록등본 또는 가족관계증명서</div>
-              <div class="mt-1 font-bold text-orange-900">미제출 시 할인 취소 → 차액 현장 결제</div>
-              ${r.specialDiscountId ? `<div class="mt-1 text-gray-500">신고번호: ${r.specialDiscountId}</div>` : ''}
+              <div style="margin-top:4px;font-weight:700;color:#78350f;">미제출 시 할인 취소 → 차액 현장 결제</div>
+              ${r.specialDiscountId ? `<div style="margin-top:3px;color:#6b7280;">신고번호: ${r.specialDiscountId}</div>` : ''}
             </div>` : ''}
             ` : ''}
-            <div class="flex justify-between font-bold text-base border-t pt-1.5 mt-1">
-              <span>최종 결제금액</span>
-              <span class="text-blue-700">₩${r.totalAmount.toLocaleString()}</span>
+            <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:6px;color:#1e40af;">
+              <span style="color:#111827;">최종 결제금액</span>
+              <span>₩${r.totalAmount.toLocaleString()}</span>
             </div>
           </div>
         </div>
-        <div class="flex justify-between"><span class="text-gray-500">결제수단</span><span>${r.payMethod}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">유입경로</span><span>${r.source}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">상태</span>
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium ${r.status==='confirmed'?'bg-green-100 text-green-700':r.status==='checkedin'?'bg-blue-100 text-blue-700':r.status==='cancelled'?'bg-red-100 text-red-700':'bg-yellow-100 text-yellow-700'}">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#6b7280;">결제수단</span><span style="color:#111827;">${r.payMethod}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#6b7280;">유입경로</span><span style="color:#111827;">${r.source}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center;"><span style="color:#6b7280;">상태</span>
+          <span style="padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600;${r.status==='confirmed'?'background:#dcfce7;color:#15803d;':r.status==='checkedin'?'background:#dbeafe;color:#1d4ed8;':r.status==='cancelled'?'background:#fee2e2;color:#dc2626;':'background:#fef9c3;color:#a16207;'}">
             ${statusLabels[r.status]||r.status}
           </span>
         </div>
         ${passengersHtml}
-        <div class="mt-3 pt-2 border-t flex gap-2">
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;gap:8px;">
           <a href="/ticket/${r.id}" target="_blank"
-            class="flex-1 text-center bg-blue-50 text-blue-600 py-2 rounded-lg text-xs font-medium hover:bg-blue-100">
+            style="flex:1;text-align:center;background:#eff6ff;color:#2563eb;padding:8px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;">
             🎫 탑승권 QR 보기
           </a>
         </div>
