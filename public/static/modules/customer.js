@@ -810,6 +810,7 @@ ${noticeBannerHtml}
               <div id="special-discount-input" class="hidden mt-3">
                 <div class="text-xs text-gray-500 mb-1" id="special-discount-hint"></div>
                 <input type="text" id="inp-special-id" placeholder="증명번호 입력 (선택사항)"
+                  oninput="CustomerPages.updateSummary()"
                   class="w-full border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
               </div>
             </div>
