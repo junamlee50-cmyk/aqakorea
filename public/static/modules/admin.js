@@ -3134,7 +3134,7 @@ const AdminModule = (() => {
         <td class="px-3 py-2 text-right text-sm font-medium whitespace-nowrap">
           ₩${r.totalAmount.toLocaleString()}
           ${r.groupDiscountRate > 0 ? `<div class="text-xs text-green-600 font-normal">단체${r.groupDiscountRate}%↓</div>` : ''}
-          ${r.specialDiscountType ? `<div class="text-xs text-blue-600 font-normal">${{'military':'🪖군인','police':'👮경찰','coast_guard':'⚓해양경','fire':'🚒소방','local':'🏠지역민','senior':'👴노인','disabled':'♿장애'}[r.specialDiscountType]||r.specialDiscountType}${r.specialDiscountRate||10}%↓ <span class="text-orange-500">⚠️</span></div>` : ''}
+          ${r.specialDiscountType ? `<div class="text-xs text-blue-600 font-normal">${{'military':'🪖군인','police':'👮경찰','fire':'🚒소방','local':'🏠지역민','senior':'👴노인','disabled':'♿장애','veteran':'🎖️국가유공자','multi_child':'👨‍👩‍👧‍👦다자녀'}[r.specialDiscountType]||r.specialDiscountType}${r.specialDiscountRate||10}%↓ <span class="text-orange-500">⚠️</span></div>` : ''}
         </td>
         <td class="px-3 py-2 text-center text-xs text-gray-500">${r.payMethod}</td>
         <td class="px-3 py-2 text-center">
@@ -3236,7 +3236,7 @@ const AdminModule = (() => {
 
     // 할인 필터 (클라이언트 사이드)
     const fDiscount = document.getElementById('res-filter-discount')?.value || '';
-    const UNIFORM = ['military','police','coast_guard','fire'];
+    const UNIFORM = ['military','police','fire'];
     if (fDiscount === 'group')      pool = pool.filter(r => r.groupDiscountRate > 0);
     else if (fDiscount === 'special') pool = pool.filter(r => r.specialDiscountType);
     else if (fDiscount === 'need_check') pool = pool.filter(r => UNIFORM.includes(r.specialDiscountType));
@@ -3309,12 +3309,13 @@ const AdminModule = (() => {
                 <option value="group">단체할인</option>
                 <option value="special">특별할인(전체)</option>
                 <option value="military">🪖 군인</option>
-                <option value="police">👮 육상경찰</option>
-                <option value="coast_guard">⚓ 해양경찰</option>
+                <option value="police">👮 경찰</option>
                 <option value="fire">🚒 소방공무원</option>
                 <option value="local">🏠 지역민</option>
                 <option value="senior">👴 노인</option>
                 <option value="disabled">♿ 장애인</option>
+                <option value="veteran">🎖️ 국가유공자</option>
+                <option value="multi_child">👨‍👩‍👧‍👦 다자녀가정</option>
                 <option value="need_check">⚠️ 서류확인 필요</option>
               </select>
             </div>
@@ -3446,13 +3447,13 @@ const AdminModule = (() => {
             </div>` : ''}
             ${r.specialDiscountType ? `
             <div style="display:flex;justify-content:space-between;font-size:12px;color:#1d4ed8;margin-bottom:4px;">
-              <span>특별할인 (${{ military:'🪖 군인', police:'👮 육상경찰', coast_guard:'⚓ 해양경찰', fire:'🚒 소방공무원', local:'🏠 지역민', senior:'👴 노인(65세+)', disabled:'♿ 장애인' }[r.specialDiscountType]||r.specialDiscountType} ${r.specialDiscountRate||10}%${ ['military','police','coast_guard','fire'].includes(r.specialDiscountType) ? ' / 직계가족 포함 전원' : ' / 본인 1명' })</span>
+              <span>특별할인 (${{ military:'🪖 군인', police:'👮 경찰', fire:'🚒 소방공무원', local:'🏠 지역민', senior:'👴 노인(65세+)', disabled:'♿ 장애인', veteran:'🎖️ 국가유공자', multi_child:'👨‍👩‍👧‍👦 다자녀가정' }[r.specialDiscountType]||r.specialDiscountType} ${r.specialDiscountRate||10}%${ ['military','police','fire'].includes(r.specialDiscountType) ? ' / 직계가족 포함 전원' : ' / 본인 1명' })</span>
               <span style="font-weight:700;">-₩${(r.specialDiscountAmount||0).toLocaleString()}</span>
             </div>
-            ${['military','police','coast_guard','fire'].includes(r.specialDiscountType) ? `
+            ${['military','police','fire'].includes(r.specialDiscountType) ? `
             <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:8px 10px;font-size:11px;color:#92400e;margin-top:4px;">
               <div style="font-weight:700;margin-bottom:3px;">⚠️ 현장 서류확인 필수</div>
-              <div>· 공무원 신분증 (군인증/경찰증/소방관증/해양경찰증)</div>
+              <div>· 공무원 신분증 (군인증/경찰증/소방관증)</div>
               <div>· 주민등록등본 또는 가족관계증명서</div>
               <div style="margin-top:4px;font-weight:700;color:#78350f;">미제출 시 할인 취소 → 차액 현장 결제</div>
               ${r.specialDiscountId ? `<div style="margin-top:3px;color:#6b7280;">신고번호: ${r.specialDiscountId}</div>` : ''}

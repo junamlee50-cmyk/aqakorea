@@ -668,7 +668,7 @@ ${noticeBannerHtml}
           </div>`).join('')}
         </div>
         <div class="mt-4 p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800">
-          <i class="fas fa-info-circle mr-1"></i> 만 36개월 미만 유아는 무료(좌석 미제공). 경로/장애인/국가유공자는 현장 증빙 확인
+          <i class="fas fa-info-circle mr-1"></i> 만 36개월 미만 유아는 무료(좌석 미제공). 경로/장애인/국가유공자/다자녀는 현장 증빙 확인
         </div>
       </div>
 
@@ -752,10 +752,7 @@ ${noticeBannerHtml}
                     <input type="radio" name="special_discount" value="military" class="accent-indigo-500"> <span class="text-sm">🪖 군인</span>
                   </label>
                   <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                    <input type="radio" name="special_discount" value="police" class="accent-indigo-500"> <span class="text-sm">👮 육상경찰</span>
-                  </label>
-                  <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                    <input type="radio" name="special_discount" value="coast_guard" class="accent-indigo-500"> <span class="text-sm">⚓ 해양경찰</span>
+                    <input type="radio" name="special_discount" value="police" class="accent-indigo-500"> <span class="text-sm">👮 경찰</span>
                   </label>
                   <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
                     <input type="radio" name="special_discount" value="fire" class="accent-indigo-500"> <span class="text-sm">🚒 소방공무원</span>
@@ -794,6 +791,12 @@ ${noticeBannerHtml}
                   </label>
                   <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition col-span-2" onclick="CustomerPages.onSpecialDiscountChange()">
                     <input type="radio" name="special_discount" value="disabled" class="accent-green-500"> <span class="text-sm">♿ 장애인</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="special_discount" value="veteran" class="accent-green-500"> <span class="text-sm">🎖️ 국가유공자</span>
+                  </label>
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="special_discount" value="multi_child" class="accent-green-500"> <span class="text-sm">👨‍👩‍👧‍👦 다자녀가정 (3자녀 이상)</span>
                   </label>
                 </div>
               </div>
@@ -1395,7 +1398,7 @@ ${Footer.render()}
   },
 
   // 제복공무원 타입 (가족 포함 대상)
-  _UNIFORM_TYPES: ['military','police','coast_guard','fire'],
+  _UNIFORM_TYPES: ['military','police','fire'],
 
   onSpecialDiscountChange: () => {
     const selected = document.querySelector('input[name="special_discount"]:checked')?.value || '';
@@ -1406,11 +1409,12 @@ ${Footer.render()}
     const hintMap = {
       military:    '군번 입력 (예: 22-76012345)',
       police:      '경찰관번호 입력 (예: 경123456)',
-      coast_guard: '해양경찰관번호 입력',
       fire:        '소방공무원번호 입력',
       local:       '주소 입력 (예: 경남 통영시 ...)',
       senior:      '생년월일 입력 (예: 19590101) — 65세 이상만 해당',
       disabled:    '장애인등록번호 입력',
+      veteran:     '국가유공자 등록번호 입력',
+      multi_child: '자녀 수 입력 (3명 이상만 해당)',
     };
 
     // 제복공무원 → 가족 선택 영역 표시
@@ -1463,10 +1467,17 @@ ${Footer.render()}
     // 특별할인 (제복공무원: 가족 포함 / 개인: 본인만) 10%
     const specialType = document.querySelector('input[name="special_discount"]:checked')?.value || '';
     const specialLabelMap = {
-      military: '🪖 군인', police: '👮 육상경찰', coast_guard: '⚓ 해양경찰',
+      military: '🪖 군인', police: '👮 경찰',
       fire: '🚒 소방공무원', local: '🏠 지역민', senior: '👴 노인(65세+)', disabled: '♿ 장애인',
+      veteran: '🎖️ 국가유공자', multi_child: '👨‍👩‍👧‍👦 다자녀가정',
     };
-    if (specialType && specialLabelMap[specialType]) {
+    // 다자녀 3명 미만이면 할인 미적용
+    const isMultiChild = specialType === 'multi_child';
+    const multiChildCount = isMultiChild ? parseInt(document.getElementById('special-discount-id')?.value || '0') : 0;
+    if (isMultiChild && multiChildCount < 3) {
+      CustomerPages._state.specialDiscount = null;
+      discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">👨‍👩‍👧‍👦 다자녀 할인은 3자녀 이상만 해당됩니다.</div>`;
+    } else if (specialType && specialLabelMap[specialType]) {
       const sdRate = 10;
       const isUniform = CustomerPages._UNIFORM_TYPES.includes(specialType);
       // 제복공무원: 예약 전원 할인 / 개인대상: 본인 1명만
@@ -1484,6 +1495,7 @@ ${Footer.render()}
     } else {
       CustomerPages._state.specialDiscount = null;
     }
+    } // end multi_child check
 
     const sumTotal = document.getElementById('sum-total');
     const sumPax   = document.getElementById('sum-pax');
