@@ -698,16 +698,16 @@ ${noticeBannerHtml}
             </div>
             <!-- 다자녀 자녀수 + 부모수 입력 -->
             <div id="multi-child-input" class="hidden mt-2 space-y-2">
-              <div class="text-xs text-gray-500 mb-1">고등학생(청소년) 이하 자녀만 해당됩니다.</div>
+              <div class="text-xs text-gray-500 mb-2">고등학생 이하 자녀만 해당 (합계 3명 이상)</div>
               <div class="flex gap-2 items-center">
-                <label class="text-xs text-gray-600 w-20 flex-shrink-0">청소년 자녀</label>
+                <label class="text-xs text-gray-600 w-20 flex-shrink-0">청소년 자녀<br><span style="color:#9ca3af;font-size:10px;">중학생~고등학생</span></label>
                 <input type="number" id="inp-youth-count" min="0" value="0" placeholder="0"
                   oninput="CustomerPages.updateSummary()"
                   class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
                 <span class="text-xs text-gray-400">명</span>
               </div>
               <div class="flex gap-2 items-center">
-                <label class="text-xs text-gray-600 w-20 flex-shrink-0">어린이 자녀</label>
+                <label class="text-xs text-gray-600 w-20 flex-shrink-0">어린이 자녀<br><span style="color:#9ca3af;font-size:10px;">초등학생 이하</span></label>
                 <input type="number" id="inp-child-count" min="0" value="0" placeholder="0"
                   oninput="CustomerPages.updateSummary()"
                   class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
@@ -1483,38 +1483,41 @@ ${Footer.render()}
         if (preview) { preview.style.background='#fef3c7'; preview.style.color='#92400e'; preview.textContent=childMsg; }
       } else {
         const sdRate = 10;
-        // fare 타입별 실제 요금으로 계산
         const fares = CustomerPages._state.fares;
-        // 성인/경로 요금 (부모 대상)
-        const adultFare = Object.values(fares).find(f => f.type==='adult' || f.label==='성인');
-        const seniorFare = Object.values(fares).find(f => f.type==='senior' || f.label==='경로');
-        const youthFare  = Object.values(fares).find(f => f.type==='youth' || f.label==='청소년');
-        const childFare  = Object.values(fares).find(f => f.type==='child' || f.label==='어린이');
-        const parentPrice = adultFare?.price || seniorFare?.price || Math.round(total / pax) || 0;
-        const youthPrice  = youthFare?.price  || Math.round(total / pax) || 0;
-        const childPrice2 = childFare?.price  || Math.round(total / pax) || 0;
-        // 실제 할인금액 = (부모 최대2명 × 성인요금 + 청소년자녀 × 청소년요금 + 어린이자녀 × 어린이요금) × 10%
-        // 단, 예약 인원 내에서만
-        const adultCount = Object.values(fares).filter(f=>f.type==='adult'||f.label==='성인').reduce((s,f)=>s+(f.count||0),0);
-        const eligibleParent = Math.min(parentCount, adultCount);
-        const sdAmount = Math.floor((eligibleParent * parentPrice + youthCount * youthPrice + childCount2 * childPrice2) * sdRate / 100);
-        const discountPersons = eligibleParent + youthCount + childCount2;
+        // 타입별 요금 및 실제 예약 수
+        const adultPrice  = Object.values(fares).find(f=>f.type==='adult')?.price  || 0;
+        const youthPrice  = Object.values(fares).find(f=>f.type==='youth')?.price  || 0;
+        const childPrice2 = Object.values(fares).find(f=>f.type==='child')?.price  || 0;
+        const adultBooked = Object.values(fares).find(f=>f.type==='adult')?.count  || 0;
+        const youthBooked = Object.values(fares).find(f=>f.type==='youth')?.count  || 0;
+        const childBooked = Object.values(fares).find(f=>f.type==='child')?.count  || 0;
+        // 할인 인원: 입력값과 실제 예약 수 중 작은 값
+        const eligibleParent = Math.min(parentCount, adultBooked);
+        const eligibleYouth  = Math.min(youthCount,  youthBooked);
+        const eligibleChild  = Math.min(childCount2, childBooked);
+        // 할인금액 = 실제 할인 대상 인원 요금의 10%
+        const sdAmount = Math.floor(
+          (eligibleParent * adultPrice + eligibleYouth * youthPrice + eligibleChild * childPrice2) * sdRate / 100
+        );
+        const discountPersons = eligibleParent + eligibleYouth + eligibleChild;
         const normalPersons = Math.max(0, pax - discountPersons);
         finalTotal = finalTotal - sdAmount;
         CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount, familyCount: discountPersons, isUniform: false };
         const overMsg = normalPersons > 0 ? ` / 정상요금 ${normalPersons}명` : '';
-        familyNote = ` (부모${eligibleParent}+청소년${youthCount}+어린이${childCount2}=${discountPersons}명${overMsg})`;
+        const noteStr = `부모${eligibleParent}+청소년${eligibleYouth}+어린이${eligibleChild}=${discountPersons}명${overMsg}`;
         discountHtml += `
           <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
-            <span>👨‍👩‍👧‍👦 다자녀 할인 ${sdRate}%${familyNote} <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
+            <span>👨‍👩‍👧‍👦 다자녀 할인 ${sdRate}% (${noteStr}) <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
             <span style="font-weight:700;">-₩${Utils.num(sdAmount)}</span>
           </div>`;
         if (preview) {
-          preview.style.background = normalPersons > 0 ? '#fef3c7' : '#eff6ff';
-          preview.style.color = normalPersons > 0 ? '#92400e' : '#1e40af';
-          preview.textContent = normalPersons > 0
-            ? `할인 ${discountPersons}명 / 정상요금 ${normalPersons}명 (성인 추가인원 제외)`
-            : `전원 할인 대상: 부모 ${eligibleParent}명 + 자녀 ${youthCount+childCount2}명`;
+          if (normalPersons > 0) {
+            preview.style.background='#fef3c7'; preview.style.color='#92400e';
+            preview.textContent = `할인 ${discountPersons}명 / 정상요금 ${normalPersons}명 — 성인 초과인원 제외`;
+          } else {
+            preview.style.background='#eff6ff'; preview.style.color='#1e40af';
+            preview.textContent = `부모 ${eligibleParent}명 + 자녀 ${eligibleYouth+eligibleChild}명 = ${discountPersons}명 전원 할인`;
+          }
         }
       }
     } else if (specialType && specialLabelMap[specialType]) {
