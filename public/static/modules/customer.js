@@ -1429,7 +1429,11 @@ ${Footer.render()}
       inputArea.classList.remove('hidden');
       hint.textContent = hintMap[selected] || '';
       const inp = document.getElementById('inp-special-id');
-      if (inp) inp.placeholder = hintMap[selected] || '증명번호 입력 (선택사항)';
+      if (inp) {
+        inp.placeholder = hintMap[selected] || '증명번호 입력 (선택사항)';
+        inp.type = selected === 'multi_child' ? 'number' : 'text';
+        inp.min = selected === 'multi_child' ? '3' : '';
+      }
     } else if (inputArea) {
       inputArea.classList.add('hidden');
     }
@@ -1473,7 +1477,7 @@ ${Footer.render()}
     };
     // 다자녀 3명 미만이면 할인 미적용
     const isMultiChild = specialType === 'multi_child';
-    const multiChildCount = isMultiChild ? parseInt(document.getElementById('special-discount-id')?.value || '0') : 0;
+    const multiChildCount = isMultiChild ? parseInt(document.getElementById('inp-special-id')?.value || '0') : 0;
     if (isMultiChild && multiChildCount < 3) {
       CustomerPages._state.specialDiscount = null;
       discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">👨‍👩‍👧‍👦 다자녀 할인은 3자녀 이상만 해당됩니다.</div>`;
