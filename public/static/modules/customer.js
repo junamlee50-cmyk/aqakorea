@@ -1446,22 +1446,28 @@ ${Footer.render()}
       fire: '🚒 소방공무원', local: '🏠 지역민', disabled: '♿ 장애인',
       veteran: '🎖️ 국가유공자', multi_child: '👨‍👩‍👧‍👦 다자녀가정',
     };
-    // 다자녀 3명 미만이면 할인 미적용
+    // 특별할인 계산
     const isMultiChild = specialType === 'multi_child';
     const multiChildCount = isMultiChild ? parseInt(document.getElementById('inp-special-id')?.value || '0') : 0;
     if (isMultiChild && multiChildCount < 3) {
       CustomerPages._state.specialDiscount = null;
-      discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">👨‍👩‍👧‍👦 다자녀 할인은 3자녀 이상만 해당됩니다.</div>`;
+      const childMsg = multiChildCount === 0 ? '자녀 수를 입력하세요 (3명 이상)' : '다자녀 할인은 3자녀 이상만 해당됩니다.';
+      discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">👨‍👩‍👧‍👦 ${childMsg}</div>`;
     } else if (specialType && specialLabelMap[specialType]) {
       const sdRate = 10;
       const isUniform = CustomerPages._UNIFORM_TYPES.includes(specialType);
-      // 제복공무원: 예약 전원 할인 / 개인대상: 본인 1명만
+      // 제복공무원: 전체금액 10% / 개인: 1인 요금 10%
+      let sdAmount;
+      if (isUniform) {
+        sdAmount = Math.floor(finalTotal * sdRate / 100);
+      } else {
+        const perPerson = pax > 0 ? Math.round(finalTotal / pax) : finalTotal;
+        sdAmount = Math.floor(perPerson * sdRate / 100);
+      }
       const discountPersons = isUniform ? pax : 1;
-      const perPersonPrice = pax > 0 ? Math.round(finalTotal / pax) : 0;
-      const sdAmount = Math.floor(perPersonPrice * discountPersons * sdRate / 100);
       finalTotal = finalTotal - sdAmount;
       CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount, familyCount: discountPersons, isUniform };
-      const familyNote = isUniform ? ` (예약 ${discountPersons}명 전원)` : ' (본인 1명)';
+      const familyNote = isUniform ? ` (전원 ${pax}명)` : ' (본인 1명)';
       discountHtml += `
         <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
           <span>${specialLabelMap[specialType]} 할인 ${sdRate}%${familyNote} <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
