@@ -670,75 +670,11 @@ ${noticeBannerHtml}
         <div class="mt-4 p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800">
           <i class="fas fa-info-circle mr-1"></i> 만 36개월 미만 유아는 무료(좌석 미제공). 경로/장애인/국가유공자/다자녀는 현장 증빙 확인
         </div>
-      </div>
 
-      <!-- 탑승신고서 (전원 입력 방식) -->
-      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="form-section">
-        <div class="flex items-center justify-between mb-5">
-          <h2 class="font-bold text-navy-800 text-lg">📋 온라인 탑승신고서</h2>
-          <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">탑승자 전원 입력</span>
-        </div>
-
-        <!-- 섹션 1: 예약자 정보 -->
-        <div class="mb-6">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">1</div>
-            <h3 class="font-semibold text-navy-800 text-sm">예약자 정보 (대표)</h3>
-          </div>
-          <div class="grid md:grid-cols-2 gap-4 pl-8">
-            <div class="form-group">
-              <label class="form-label required">예약자명</label>
-              <input type="text" class="form-input" id="inp-name" placeholder="실명 입력">
-            </div>
-            <div class="form-group">
-              <label class="form-label required">휴대폰번호</label>
-              <input type="tel" class="form-input" id="inp-phone" placeholder="010-0000-0000">
-            </div>
-            <div class="form-group">
-              <label class="form-label">이메일 (선택)</label>
-              <input type="email" class="form-input" id="inp-email" placeholder="example@email.com">
-            </div>
-            <div class="form-group">
-              <label class="form-label required">거주지역</label>
-              <select class="form-select" id="inp-region">
-                <option value="">선택하세요</option>
-                ${['서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'].map(r=>`<option>${r}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group md:col-span-2">
-              <label class="form-label">방문 경로</label>
-              <div class="flex flex-wrap gap-2">
-                ${['네이버','카카오','인스타그램','유튜브','블로그','지자체홍보','현수막QR','여행사','지인소개','기타'].map(src=>`
-                <button class="px-3 py-1.5 rounded-lg border-2 border-gray-200 text-sm hover:border-cyan-400 transition-all source-btn" onclick="CustomerPages.selectSource('${src}', this)">${src}</button>`).join('')}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 섹션 2: 탑승자 전원 정보 -->
-        <div class="mb-6">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">2</div>
-            <h3 class="font-semibold text-navy-800 text-sm">탑승자 정보 <span class="text-xs text-gray-500 font-normal">(예약자 포함 전원 입력)</span></h3>
-          </div>
-          <div class="pl-8">
-            <div class="bg-cyan-50 rounded-xl p-3 mb-3 text-xs text-cyan-800">
-              <i class="fas fa-info-circle mr-1"></i>
-              인원을 선택하시면 탑승자 입력란이 자동 생성됩니다. 만 36개월 미만 유아는 제외합니다.
-            </div>
-            <div id="passengers-container">
-              <p class="text-sm text-gray-400 text-center py-4"><i class="fas fa-arrow-up mr-1"></i>위에서 탑승 인원을 먼저 선택해주세요</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- 섹션 3: 특별할인 -->
-        <div class="mb-6">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">3</div>
-            <h3 class="font-semibold text-navy-800 text-sm">특별할인 <span class="text-xs text-gray-500 font-normal">(해당자만, 현장 서류 확인 필수)</span></h3>
-          </div>
-          <div class="pl-8">
+      <!-- 특별할인 선택 -->
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="special-section">
+        <h2 class="font-bold text-navy-800 text-lg mb-4">🎫 특별할인 <span class="text-xs font-normal text-gray-500">(해당자만)</span></h2>
+        <div>
             <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
               <div class="text-xs text-green-700 font-semibold mb-1">🎫 아래 대상자 10% 할인 — 탑승 시 관련 서류 지참 필수</div>
               <div class="text-xs text-gray-500 mb-3">서류 미제출 시 할인율 제외, 차액 현장 결제</div>
@@ -816,6 +752,69 @@ ${noticeBannerHtml}
             </div>
           </div>
         </div>
+
+      </div>
+
+      <!-- 탑승신고서 (전원 입력 방식) -->
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="form-section">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="font-bold text-navy-800 text-lg">📋 온라인 탑승신고서</h2>
+          <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">탑승자 전원 입력</span>
+        </div>
+
+        <!-- 섹션 1: 예약자 정보 -->
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">1</div>
+            <h3 class="font-semibold text-navy-800 text-sm">예약자 정보 (대표)</h3>
+          </div>
+          <div class="grid md:grid-cols-2 gap-4 pl-8">
+            <div class="form-group">
+              <label class="form-label required">예약자명</label>
+              <input type="text" class="form-input" id="inp-name" placeholder="실명 입력">
+            </div>
+            <div class="form-group">
+              <label class="form-label required">휴대폰번호</label>
+              <input type="tel" class="form-input" id="inp-phone" placeholder="010-0000-0000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">이메일 (선택)</label>
+              <input type="email" class="form-input" id="inp-email" placeholder="example@email.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label required">거주지역</label>
+              <select class="form-select" id="inp-region">
+                <option value="">선택하세요</option>
+                ${['서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'].map(r=>`<option>${r}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group md:col-span-2">
+              <label class="form-label">방문 경로</label>
+              <div class="flex flex-wrap gap-2">
+                ${['네이버','카카오','인스타그램','유튜브','블로그','지자체홍보','현수막QR','여행사','지인소개','기타'].map(src=>`
+                <button class="px-3 py-1.5 rounded-lg border-2 border-gray-200 text-sm hover:border-cyan-400 transition-all source-btn" onclick="CustomerPages.selectSource('${src}', this)">${src}</button>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 섹션 2: 탑승자 전원 정보 -->
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">2</div>
+            <h3 class="font-semibold text-navy-800 text-sm">탑승자 정보 <span class="text-xs text-gray-500 font-normal">(예약자 포함 전원 입력)</span></h3>
+          </div>
+          <div class="pl-8">
+            <div class="bg-cyan-50 rounded-xl p-3 mb-3 text-xs text-cyan-800">
+              <i class="fas fa-info-circle mr-1"></i>
+              인원을 선택하시면 탑승자 입력란이 자동 생성됩니다. 만 36개월 미만 유아는 제외합니다.
+            </div>
+            <div id="passengers-container">
+              <p class="text-sm text-gray-400 text-center py-4"><i class="fas fa-arrow-up mr-1"></i>위에서 탑승 인원을 먼저 선택해주세요</p>
+            </div>
+          </div>
+        </div>
+
         <!-- 섹션 4: 특이사항 -->
         <div class="mb-6">
           <div class="flex items-center gap-2 mb-3">
