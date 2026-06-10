@@ -1476,9 +1476,9 @@ ${Footer.render()}
         const eligiblePersons = parentCount + multiChildCount; // 할인 자격 인원
         discountPersons = Math.min(pax, eligiblePersons);     // 실제 할인 인원 (예약수 초과불가)
         const normalPersons = Math.max(0, pax - discountPersons); // 정상요금 인원
-        const perPerson = pax > 0 ? Math.round(finalTotal / pax) : finalTotal;
-        // 할인 인원만큼만 10% 할인
-        sdAmount = Math.floor(perPerson * discountPersons * sdRate / 100);
+        // 전체금액에서 할인인원 비율만큼만 10% 할인
+        // 예: 총7명 중 4명 할인 → 전체금액 × (4/7) × 10%
+        sdAmount = pax > 0 ? Math.floor(total * (discountPersons / pax) * sdRate / 100) : 0;
         const overMsg = normalPersons > 0 ? ` / 초과 ${normalPersons}명 정상요금` : '';
         familyNote = ` (부모${parentCount}+자녀${multiChildCount}=${discountPersons}명 할인${overMsg})`;
         // 미리보기 업데이트
