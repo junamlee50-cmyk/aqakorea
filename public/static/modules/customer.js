@@ -687,28 +687,32 @@ ${noticeBannerHtml}
             </div>
           </div>
 
-          <!-- 개인 대상 그룹 -->
+          <!-- 다자녀 가정 -->
           <div class="border-t border-green-200 pt-3 mb-2">
-            <div class="text-xs font-bold text-green-700 mb-1">👤 개인 대상 <span class="font-normal text-gray-500">(본인만 / 신분증 확인)</span></div>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="text-xs font-bold text-green-700 mb-1">👨‍👩‍👧‍👦 다자녀 가정 <span class="font-normal text-gray-500">(부모 최대 2명 + 자녀 전원 할인)</span></div>
+            <div class="text-xs text-gray-400 mb-2">필요서류: 가족관계증명서</div>
+            <div class="grid grid-cols-1 gap-2">
               <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="local" class="accent-green-500"> <span class="text-sm">🏠 지역민</span>
-              </label>
-              <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="disabled" class="accent-green-500"> <span class="text-sm">♿ 장애인</span>
-              </label>
-              <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="veteran" class="accent-green-500"> <span class="text-sm">🎖️ 국가유공자</span>
-              </label>
-              <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="multi_child" class="accent-green-500"> <span class="text-sm">👨‍👩‍👧‍👦 다자녀(3자녀+)</span>
+                <input type="radio" name="special_discount" value="multi_child" class="accent-green-500"> <span class="text-sm">👨‍👩‍👧‍👦 다자녀가정 (3자녀 이상)</span>
               </label>
             </div>
-            <!-- 다자녀 자녀수 입력 -->
-            <div id="multi-child-input" class="hidden mt-2">
-              <input type="number" id="inp-special-id" min="1" placeholder="자녀 수 입력 (3명 이상)"
-                oninput="CustomerPages.updateSummary()"
-                class="w-full border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
+            <!-- 다자녀 자녀수 + 부모수 입력 -->
+            <div id="multi-child-input" class="hidden mt-2 space-y-2">
+              <div class="flex gap-2 items-center">
+                <label class="text-xs text-gray-600 w-16 flex-shrink-0">자녀 수</label>
+                <input type="number" id="inp-special-id" min="3" placeholder="3명 이상"
+                  oninput="CustomerPages.updateSummary()"
+                  class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
+              </div>
+              <div class="flex gap-2 items-center">
+                <label class="text-xs text-gray-600 w-16 flex-shrink-0">부모 수</label>
+                <select id="inp-parent-count" onchange="CustomerPages.updateSummary()"
+                  class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
+                  <option value="1">1명 (한부모)</option>
+                  <option value="2" selected>2명 (양부모)</option>
+                </select>
+              </div>
+              <div class="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2" id="multi-child-preview"></div>
             </div>
           </div>
 
@@ -1451,31 +1455,46 @@ ${Footer.render()}
     // 특별할인 단독 계산 시작
     const specialLabelMap = {
       military: '🪖 군인', police: '👮 경찰',
-      fire: '🚒 소방공무원', local: '🏠 지역민', disabled: '♿ 장애인',
-      veteran: '🎖️ 국가유공자', multi_child: '👨‍👩‍👧‍👦 다자녀가정',
+      fire: '🚒 소방공무원', multi_child: '👨‍👩‍👧‍👦 다자녀가정',
     };
     // 특별할인 계산
     const isMultiChild = specialType === 'multi_child';
     const multiChildCount = isMultiChild ? parseInt(document.getElementById('inp-special-id')?.value || '0') : 0;
     if (isMultiChild && multiChildCount < 3) {
+      // 다자녀 3명 미만 — 안내만
       CustomerPages._state.specialDiscount = null;
       const childMsg = multiChildCount === 0 ? '자녀 수를 입력하세요 (3명 이상)' : '다자녀 할인은 3자녀 이상만 해당됩니다.';
       discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">👨‍👩‍👧‍👦 ${childMsg}</div>`;
     } else if (specialType && specialLabelMap[specialType]) {
       const sdRate = 10;
       const isUniform = CustomerPages._UNIFORM_TYPES.includes(specialType);
-      // 제복공무원: 전체금액 10% / 개인: 1인 요금 10%
-      let sdAmount;
-      if (isUniform) {
+      let sdAmount, discountPersons, familyNote;
+
+      if (isMultiChild) {
+        // 다자녀: 부모 최대2명 + 자녀수 = 할인인원 (예약총인원 초과불가)
+        const parentCount = Math.min(2, parseInt(document.getElementById('inp-parent-count')?.value || '2'));
+        discountPersons = Math.min(pax, parentCount + multiChildCount);
+        const perPerson = pax > 0 ? Math.round(finalTotal / pax) : finalTotal;
+        sdAmount = Math.floor(perPerson * discountPersons * sdRate / 100);
+        familyNote = ` (부모${parentCount}명+자녀${multiChildCount}명=${discountPersons}명)`;
+        // 미리보기 업데이트
+        const preview = document.getElementById('multi-child-preview');
+        if (preview) preview.textContent = `할인 대상: 부모 ${parentCount}명 + 자녀 ${multiChildCount}명 = ${discountPersons}명 (총 예약 ${pax}명 중)`;
+      } else if (isUniform) {
+        // 제복공무원: 전체 인원 할인
+        discountPersons = pax;
         sdAmount = Math.floor(finalTotal * sdRate / 100);
+        familyNote = ` (전원 ${pax}명)`;
       } else {
+        // 개인: 본인 1명만
+        discountPersons = 1;
         const perPerson = pax > 0 ? Math.round(finalTotal / pax) : finalTotal;
         sdAmount = Math.floor(perPerson * sdRate / 100);
+        familyNote = ' (본인 1명)';
       }
-      const discountPersons = isUniform ? pax : 1;
+
       finalTotal = finalTotal - sdAmount;
       CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount, familyCount: discountPersons, isUniform };
-      const familyNote = isUniform ? ` (전원 ${pax}명)` : ' (본인 1명)';
       discountHtml += `
         <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
           <span>${specialLabelMap[specialType]} 할인 ${sdRate}%${familyNote} <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
