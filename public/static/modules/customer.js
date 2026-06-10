@@ -1384,7 +1384,7 @@ ${Footer.render()}
   },
 
   // 제복공무원 타입 (가족 포함 대상)
-  _UNIFORM_TYPES: ['military','police','fire'],
+  _UNIFORM_TYPES: ['military','police','fire','multi_child'],
 
   onSpecialDiscountChange: () => {
     const selected = document.querySelector('input[name="special_discount"]:checked')?.value || '';
@@ -1439,8 +1439,16 @@ ${Footer.render()}
       }
     } catch(e) { /* 할인 API 오류 시 무시 */ }
 
-    // 특별할인 (제복공무원: 가족 포함 / 개인: 본인만) 10%
+    // 특별할인 — 단체할인과 중복 불가
     const specialType = document.querySelector('input[name="special_discount"]:checked')?.value || '';
+    if (CustomerPages._state.groupDiscount) {
+      // 단체할인 적용 중 → 특별할인 미적용, 안내 표시
+      CustomerPages._state.specialDiscount = null;
+      if (specialType) {
+        discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">⚠️ 단체할인과 특별할인은 중복 적용되지 않습니다.</div>`;
+      }
+    } else {
+    // 특별할인 단독 계산 시작
     const specialLabelMap = {
       military: '🪖 군인', police: '👮 경찰',
       fire: '🚒 소방공무원', local: '🏠 지역민', disabled: '♿ 장애인',
@@ -1476,6 +1484,7 @@ ${Footer.render()}
     } else {
       CustomerPages._state.specialDiscount = null;
     }
+    } // end groupDiscount check
 
     const sumTotal = document.getElementById('sum-total');
     const sumPax   = document.getElementById('sum-pax');
