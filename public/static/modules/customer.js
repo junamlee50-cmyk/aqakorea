@@ -1471,15 +1471,29 @@ ${Footer.render()}
       let sdAmount, discountPersons, familyNote;
 
       if (isMultiChild) {
-        // 다자녀: 부모 최대2명 + 자녀수 = 할인인원 (예약총인원 초과불가)
+        // 다자녀: 부모 최대2명 + 자녀수 = 할인인원, 초과 인원은 정상요금
         const parentCount = Math.min(2, parseInt(document.getElementById('inp-parent-count')?.value || '2'));
-        discountPersons = Math.min(pax, parentCount + multiChildCount);
+        const eligiblePersons = parentCount + multiChildCount; // 할인 자격 인원
+        discountPersons = Math.min(pax, eligiblePersons);     // 실제 할인 인원 (예약수 초과불가)
+        const normalPersons = Math.max(0, pax - discountPersons); // 정상요금 인원
         const perPerson = pax > 0 ? Math.round(finalTotal / pax) : finalTotal;
+        // 할인 인원만큼만 10% 할인
         sdAmount = Math.floor(perPerson * discountPersons * sdRate / 100);
-        familyNote = ` (부모${parentCount}명+자녀${multiChildCount}명=${discountPersons}명)`;
+        const overMsg = normalPersons > 0 ? ` / 초과 ${normalPersons}명 정상요금` : '';
+        familyNote = ` (부모${parentCount}+자녀${multiChildCount}=${discountPersons}명 할인${overMsg})`;
         // 미리보기 업데이트
         const preview = document.getElementById('multi-child-preview');
-        if (preview) preview.textContent = `할인 대상: 부모 ${parentCount}명 + 자녀 ${multiChildCount}명 = ${discountPersons}명 (총 예약 ${pax}명 중)`;
+        if (preview) {
+          if (normalPersons > 0) {
+            preview.style.color = '#92400e';
+            preview.style.background = '#fef3c7';
+            preview.textContent = `할인: ${discountPersons}명 / 정상요금: ${normalPersons}명 (총 ${pax}명 중 부모${parentCount}+자녀${multiChildCount}명만 할인)`;
+          } else {
+            preview.style.color = '#1e40af';
+            preview.style.background = '#eff6ff';
+            preview.textContent = `할인 대상: 부모 ${parentCount}명 + 자녀 ${multiChildCount}명 = ${discountPersons}명 전원 할인`;
+          }
+        }
       } else if (isUniform) {
         // 제복공무원: 전체 인원 할인
         discountPersons = pax;
