@@ -1495,7 +1495,6 @@ ${Footer.render()}
     } else {
       CustomerPages._state.specialDiscount = null;
     }
-    } // end multi_child check
 
     const sumTotal = document.getElementById('sum-total');
     const sumPax   = document.getElementById('sum-pax');
