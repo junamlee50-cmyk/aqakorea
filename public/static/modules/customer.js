@@ -1561,6 +1561,37 @@ ${Footer.render()}
       : '₩' + Utils.num(total);
     if (mobTotal) mobTotal.textContent = '₩' + Utils.num(finalTotal);
     if (discountArea) discountArea.innerHTML = discountHtml;
+
+    // 다자녀 인원 불일치 시 결제버튼 비활성화
+    const payBtn = document.getElementById('pay-btn');
+    const multiChildType = document.querySelector('input[name="special_discount"]:checked')?.value === 'multi_child';
+    if (multiChildType && payBtn) {
+      const yc = parseInt(document.getElementById('inp-youth-count')?.value||'0');
+      const cc = parseInt(document.getElementById('inp-child-count')?.value||'0');
+      const pc = Math.min(2, parseInt(document.getElementById('inp-parent-count')?.value||'2'));
+      const fares2 = CustomerPages._state.fares;
+      const youthBooked2 = Object.values(fares2).find(f=>f.type==='youth')?.count||0;
+      const childBooked2 = Object.values(fares2).find(f=>f.type==='child')?.count||0;
+      const adultBooked2 = Object.values(fares2).find(f=>f.type==='adult')?.count||0;
+      const totalChild = yc + cc;
+      let blockMsg = '';
+      if (totalChild < 3) blockMsg = `자녀 수를 3명 이상 입력하세요 (현재 ${totalChild}명)`;
+      else if (yc > youthBooked2) blockMsg = `청소년 자녀 ${yc}명 선택했으나 예약 청소년이 ${youthBooked2}명입니다`;
+      else if (cc > childBooked2) blockMsg = `어린이 자녀 ${cc}명 선택했으나 예약 어린이가 ${childBooked2}명입니다`;
+      else if (pc > adultBooked2) blockMsg = `부모 ${pc}명 선택했으나 예약 성인이 ${adultBooked2}명입니다`;
+      if (blockMsg) {
+        payBtn.disabled = true;
+        payBtn.style.opacity = '0.4';
+        payBtn.title = blockMsg;
+      } else {
+        payBtn.disabled = false;
+        payBtn.style.opacity = '1';
+        payBtn.title = '';
+      }
+    } else if (payBtn) {
+      payBtn.disabled = false;
+      payBtn.style.opacity = '1';
+    }
   },
 
   selectSource: (src, btn) => {
@@ -1599,6 +1630,19 @@ ${Footer.render()}
     if (!s.date) { Utils.toast('날짜를 선택해주세요', 'warning'); return; }
     if (!s.scheduleId) { Utils.toast('회차를 선택해주세요', 'warning'); return; }
     if (pax === 0) { Utils.toast('탑승 인원을 선택해주세요', 'warning'); return; }
+    // 다자녀 인원 검증
+    if (document.querySelector('input[name="special_discount"]:checked')?.value === 'multi_child') {
+      const yc = parseInt(document.getElementById('inp-youth-count')?.value||'0');
+      const cc = parseInt(document.getElementById('inp-child-count')?.value||'0');
+      const pc = Math.min(2, parseInt(document.getElementById('inp-parent-count')?.value||'2'));
+      const youthB = Object.values(s.fares).find(f=>f.type==='youth')?.count||0;
+      const childB = Object.values(s.fares).find(f=>f.type==='child')?.count||0;
+      const adultB = Object.values(s.fares).find(f=>f.type==='adult')?.count||0;
+      if (yc+cc < 3) { Utils.toast('다자녀 할인: 자녀(청소년+어린이) 합계 3명 이상이어야 합니다', 'warning'); return; }
+      if (yc > youthB) { Utils.toast(`청소년 자녀 ${yc}명을 선택했으나 예약 청소년이 ${youthB}명입니다`, 'warning'); return; }
+      if (cc > childB) { Utils.toast(`어린이 자녀 ${cc}명을 선택했으나 예약 어린이가 ${childB}명입니다`, 'warning'); return; }
+      if (pc > adultB) { Utils.toast(`부모 ${pc}명을 선택했으나 예약 성인이 ${adultB}명입니다`, 'warning'); return; }
+    }
     const name = document.getElementById('inp-name')?.value;
     const phone = document.getElementById('inp-phone')?.value;
     if (!name) { Utils.toast('예약자명을 입력해주세요', 'warning'); return; }
