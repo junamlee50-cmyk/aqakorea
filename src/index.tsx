@@ -327,15 +327,15 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app"></div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js"></script>
-<script src="/static/modules/customer.js"></script>
-<script src="/static/modules/payment.js"></script>
-<script src="/static/modules/field.js"></script>
-<script src="/static/modules/admin.js"></script>
-<script src="/static/modules/stats.js"></script>
-<script src="/static/modules/seo.js"></script>
-<script src="/static/modules/ticket.js"></script>
-<script src="/static/app.js"></script>
+<script src="/static/modules/core.js?v=3f3d72b6"></script>
+<script src="/static/modules/customer.js?v=3f3d72b6"></script>
+<script src="/static/modules/payment.js?v=3f3d72b6"></script>
+<script src="/static/modules/field.js?v=3f3d72b6"></script>
+<script src="/static/modules/admin.js?v=3f3d72b6"></script>
+<script src="/static/modules/stats.js?v=3f3d72b6"></script>
+<script src="/static/modules/seo.js?v=3f3d72b6"></script>
+<script src="/static/modules/ticket.js?v=3f3d72b6"></script>
+<script src="/static/app.js?v=3f3d72b6"></script>
 </body>
 </html>`
 
