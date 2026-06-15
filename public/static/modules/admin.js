@@ -287,12 +287,37 @@ const AdminModule = (() => {
               </button>
             </div>
 
-            <!-- 로그인 안내 -->
-            <div class="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-              <p class="text-xs text-blue-700 flex items-center gap-1">
-                <i class="fas fa-info-circle"></i>
-                관리자 계정은 본사에서 별도 발급합니다. 문의: <strong>aquamobility@gmail.com</strong>
-              </p>
+            <!-- 테스트 계정 안내 -->
+            <div class="mt-6 rounded-xl border border-amber-200 overflow-hidden">
+              <div class="bg-amber-50 px-4 py-2 flex items-center gap-2 border-b border-amber-200">
+                <i class="fas fa-key text-amber-500 text-xs"></i>
+                <span class="text-xs font-bold text-amber-700">🔑 테스트 계정 안내 (운영 전 삭제 예정)</span>
+              </div>
+              <div class="bg-white divide-y divide-gray-100">
+                ${[
+                  ['본사 슈퍼관리자', 'admin', 'admin1234', 'fas fa-crown', 'text-purple-600'],
+                  ['통영 지역관리자', 'tongyeong', 'tong1234', 'fas fa-map-marker-alt', 'text-blue-600'],
+                  ['부여 지역관리자', 'buyeo', 'buye1234', 'fas fa-map-marker-alt', 'text-blue-600'],
+                  ['합천 지역관리자', 'hapcheon', 'hapc1234', 'fas fa-map-marker-alt', 'text-blue-600'],
+                  ['현장 매표소', 'field01', 'field1234', 'fas fa-ticket-alt', 'text-green-600'],
+                  ['회계 담당자', 'account', 'acct1234', 'fas fa-calculator', 'text-orange-600'],
+                ].map(([label, id, pw, icon, color]) => `
+                  <div class="flex items-center justify-between px-3 py-2 hover:bg-gray-50 cursor-pointer group"
+                       onclick="AdminModule.fillLogin('${id}','${pw}')">
+                    <div class="flex items-center gap-2">
+                      <i class="${icon} ${color} text-xs w-4 text-center"></i>
+                      <span class="text-xs text-gray-700 font-medium">${label}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <code class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono">${id}</code>
+                      <code class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-mono">${pw}</code>
+                      <i class="fas fa-arrow-right text-xs text-gray-300 group-hover:text-blue-400 transition-colors"></i>
+                    </div>
+                  </div>`).join('')}
+              </div>
+              <div class="bg-amber-50 px-4 py-1.5">
+                <p class="text-xs text-amber-600">💡 계정을 클릭하면 자동으로 입력됩니다</p>
+              </div>
             </div>
           </div>
           <p class="text-center text-gray-500 text-xs mt-4">
