@@ -7099,7 +7099,7 @@ const backupPage = async () => {
         </td>
       </tr>`).join('') : '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">등록된 직원이 없습니다</td></tr>';
 
-    return `
+    const _staffContent = `
       <div class="p-6 max-w-5xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
@@ -7170,6 +7170,7 @@ const backupPage = async () => {
         </div>
       </div>
     `;
+    return renderAdminLayout('staff', _staffContent, '기사/해설사 관리');
   };
 
   const staffAddModal = () => {
@@ -7277,7 +7278,7 @@ const backupPage = async () => {
       </tr>`).join('')
       : '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">예약 고객 데이터가 없습니다. 예약이 완료되면 자동으로 저장됩니다.</td></tr>';
 
-    return `
+    const _custContent = `
       <div class="p-6 max-w-6xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
@@ -7308,6 +7309,7 @@ const backupPage = async () => {
           </table>
         </div>
       </div>`;
+    return renderAdminLayout('customers', _custContent, '고객 누적 DB');
   };
 
   const customerDetail = async (phone) => {
@@ -7378,7 +7380,7 @@ const backupPage = async () => {
       </tr>`).join('')
       : '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">캠페인이 없습니다. 새 캠페인을 작성하세요.</td></tr>';
 
-    return `
+    const _smsContent = `
       <div class="p-6 max-w-5xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
@@ -7450,6 +7452,7 @@ const backupPage = async () => {
         </div>
       </div>
     `;
+    return renderAdminLayout('sms-campaign', _smsContent, '단체문자 캠페인');
   };
 
   const smsCampaignNewModal = () => {
@@ -7519,7 +7522,7 @@ const backupPage = async () => {
       </tr>`).join('')
       : '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">등록된 주소가 없습니다.</td></tr>';
 
-    return `
+    const _mailContent = `
       <div class="p-6 max-w-6xl mx-auto">
         <div class="flex items-center justify-between mb-6">
           <div>
@@ -7610,6 +7613,7 @@ const backupPage = async () => {
         </div>
       </div>
     `;
+    return renderAdminLayout('mailing', _mailContent, '우편 주소 관리');
   };
 
   const mailingAddModal = () => {
