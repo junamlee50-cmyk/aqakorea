@@ -331,11 +331,11 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <script src="/static/modules/customer.js?v=3f3d72b6"></script>
 <script src="/static/modules/payment.js?v=3f3d72b6"></script>
 <script src="/static/modules/field.js?v=3f3d72b6"></script>
-<script src="/static/modules/admin.js?v=3f3d72b6"></script>
+<script src="/static/modules/admin.js?v=new123646"></script>
 <script src="/static/modules/stats.js?v=3f3d72b6"></script>
 <script src="/static/modules/seo.js?v=3f3d72b6"></script>
 <script src="/static/modules/ticket.js?v=3f3d72b6"></script>
-<script src="/static/app.js?v=3f3d72b6"></script>
+<script src="/static/app.js?v=new123646"></script>
 </body>
 </html>`
 

@@ -74,7 +74,14 @@ const AdminModule = (() => {
       { icon: 'fas fa-cog', label: '시스템 설정', section: 'settings-admin' },
       { icon: 'fas fa-map-marked-alt', label: '여행가이드 관리', section: 'travel-guides' },
       { icon: 'fas fa-handshake', label: '파트너 관리', section: 'partners' },
+      { icon: 'fas fa-id-badge', label: '기사/해설사 관리', section: 'staff' },
+      { icon: 'fas fa-users', label: '고객 DB', section: 'customers' },
+      { icon: 'fas fa-paper-plane', label: '단체문자 캠페인', section: 'sms-campaign' },
       { icon: 'fas fa-database', label: '백업/로그', section: 'backup' },
+      { icon: 'fas fa-id-badge', label: '기사/해설사 관리', section: 'staff' },
+      { icon: 'fas fa-users', label: '고객 누적 DB', section: 'customers' },
+      { icon: 'fas fa-paper-plane', label: '단체문자 캠페인', section: 'sms-campaign' },
+      { icon: 'fas fa-envelope', label: '우편 주소 관리', section: 'mailing' },
     ];
     const regionalMenus = [
       { icon: 'fas fa-tachometer-alt', label: '지역 대시보드', section: 'region-dashboard' },
@@ -92,6 +99,9 @@ const AdminModule = (() => {
       { icon: 'fas fa-chart-bar', label: '통계', section: 'stats-admin' },
       { icon: 'fas fa-map-marked-alt', label: '여행가이드 관리', section: 'travel-guides' },
       { icon: 'fas fa-handshake', label: '파트너 관리', section: 'partners' },
+      { icon: 'fas fa-id-badge', label: '기사/해설사 관리', section: 'staff' },
+      { icon: 'fas fa-users', label: '고객 DB', section: 'customers' },
+      { icon: 'fas fa-paper-plane', label: '단체문자 캠페인', section: 'sms-campaign' },
     ];
     return role === ROLES.SUPER ? superMenus : regionalMenus;
   };
@@ -7050,7 +7060,593 @@ const backupPage = async () => {
   // ── 공개 API ───────────────────────────────────────────────
   return {
     // 페이지
-    loginPage, hqDashboard, regionDashboard, vehiclesPage, schedulesPage, faresPage,
+  
+  // ══════════════════════════════════════════════════════════
+  // 기사/해설사 관리 페이지
+  // ══════════════════════════════════════════════════════════
+  const staffPage = async () => {
+    _adminState.currentSection = 'staff';
+    const regionId = _adminState.selectedRegion || '';
+    const [staffRes, dayoffRes] = await Promise.all([
+      API.get('/api/staff' + (regionId ? `?region_id=${regionId}` : '')),
+      API.get('/api/staff/dayoff/date/' + new Date().toISOString().slice(0,10)),
+    ]);
+    const staff = (staffRes.success && staffRes.data) ? staffRes.data : [];
+    const todayOff = (dayoffRes.success && dayoffRes.data) ? dayoffRes.data : [];
+    const offIds = todayOff.map(d => d.staff_id);
+
+    const rows = staff.length ? staff.map(s => `
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3">
+          <span class="px-2 py-1 rounded-full text-xs font-bold ${s.role==='driver'?'bg-blue-100 text-blue-700':'bg-green-100 text-green-700'}">
+            ${s.role==='driver'?'🚌 기사':'🎤 해설사'}
+          </span>
+        </td>
+        <td class="px-4 py-3 font-medium text-gray-800">${s.name}</td>
+        <td class="px-4 py-3 text-gray-600">${s.region_id}</td>
+        <td class="px-4 py-3 text-gray-600">${s.phone||'-'}</td>
+        <td class="px-4 py-3 text-gray-600 text-xs">${s.license_no||'-'}</td>
+        <td class="px-4 py-3 text-center">
+          ${offIds.includes(s.id)
+            ? '<span class="px-2 py-1 bg-red-100 text-red-600 text-xs rounded-full">오늘 휴무</span>'
+            : '<span class="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">근무가능</span>'}
+        </td>
+        <td class="px-4 py-3 text-center">
+          <button onclick="AdminModule.staffDayoffModal('${s.id}','${s.name}')"
+            class="text-xs px-3 py-1 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-100 mr-1">
+            휴무관리
+          </button>
+          <button onclick="AdminModule.deleteStaff('${s.id}','${s.name}')"
+            class="text-xs px-2 py-1 bg-red-50 text-red-500 border border-red-200 rounded-lg hover:bg-red-100">
+            삭제
+          </button>
+        </td>
+      </tr>`).join('') : '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">등록된 직원이 없습니다</td></tr>';
+
+    return `
+      <div class="p-6 max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-id-badge text-blue-500"></i> 기사/해설사 관리
+            </h1>
+            <p class="text-sm text-gray-500 mt-1">차량 기사 및 해설사 등록, 휴무 신청 관리</p>
+          </div>
+          <button onclick="AdminModule.staffAddModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
+            <i class="fas fa-plus"></i> 직원 등록
+          </button>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">구분</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">이름</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">지역</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">연락처</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">면허/자격번호</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">오늘 상태</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">관리</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 직원 등록 모달 -->
+      <div id="staff-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:none;align-items:center;justify-content:center">
+        <div style="background:white;border-radius:12px;padding:28px;width:420px;max-width:95vw">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">직원 등록</h3>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">구분</label>
+              <select id="staff-role" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px">
+                <option value="driver">🚌 기사</option>
+                <option value="guide">🎤 해설사</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">이름 *</label>
+              <input id="staff-name" type="text" placeholder="홍길동" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">지역 *</label>
+              <select id="staff-region" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px">
+                <option value="tongyeong">통영</option>
+                <option value="buyeo">부여</option>
+                <option value="hapcheon">합천</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">연락처</label>
+              <input id="staff-phone" type="text" placeholder="010-0000-0000" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">면허/자격번호</label>
+              <input id="staff-license" type="text" placeholder="면허번호 또는 자격증 번호" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px;box-sizing:border-box">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:20px">
+            <button onclick="AdminModule.staffAddSubmit()" style="flex:1;background:#2563eb;color:white;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer">등록</button>
+            <button onclick="document.getElementById('staff-add-modal').style.display='none'" style="flex:1;background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:10px;font-size:14px;cursor:pointer">취소</button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const staffAddModal = () => {
+    document.getElementById('staff-add-modal').style.display = 'flex';
+  };
+
+  const staffAddSubmit = async () => {
+    const data = {
+      role: document.getElementById('staff-role').value,
+      name: document.getElementById('staff-name').value,
+      region_id: document.getElementById('staff-region').value,
+      phone: document.getElementById('staff-phone').value,
+      license_no: document.getElementById('staff-license').value,
+    };
+    if (!data.name) return alert('이름을 입력하세요');
+    const res = await API.post('/api/staff', data);
+    if (res.success) {
+      document.getElementById('staff-add-modal').style.display = 'none';
+      AdminModule.navigate('staff');
+    } else {
+      alert('등록 실패: ' + (res.error || '오류'));
+    }
+  };
+
+  const staffDayoffModal = async (staffId, staffName) => {
+    const res = await API.get('/api/staff/' + staffId + '/dayoff');
+    const offs = (res.success && res.data) ? res.data : [];
+    const offList = offs.length
+      ? offs.map(o => `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f3f4f6">
+          <span style="font-size:13px">${o.off_date}</span>
+          <span style="font-size:12px;color:#6b7280">${o.reason||''}</span>
+          <button onclick="AdminModule.staffDayoffDelete('${staffId}','${o.off_date}','${staffName}')" style="font-size:11px;color:#ef4444;background:none;border:none;cursor:pointer">삭제</button>
+        </div>`).join('')
+      : '<p style="color:#9ca3af;font-size:13px;text-align:center;padding:12px">등록된 휴무 없음</p>';
+
+    const modal = document.createElement('div');
+    modal.id = 'dayoff-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:white;border-radius:12px;padding:24px;width:380px;max-width:95vw">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">휴무 관리 - ${staffName}</h3>
+        <p style="font-size:12px;color:#6b7280;margin-bottom:16px">휴무일 등록/삭제</p>
+        <div style="max-height:180px;overflow-y:auto;margin-bottom:16px">${offList}</div>
+        <div style="border-top:1px solid #e5e7eb;padding-top:16px">
+          <p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">새 휴무 추가</p>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="date" id="dayoff-date" style="flex:1;border:1px solid #d1d5db;border-radius:8px;padding:8px;font-size:13px"
+              value="${new Date().toISOString().slice(0,10)}">
+            <input type="text" id="dayoff-reason" placeholder="사유(선택)" style="flex:1;border:1px solid #d1d5db;border-radius:8px;padding:8px;font-size:13px">
+          </div>
+          <button onclick="AdminModule.staffDayoffAdd('${staffId}','${staffName}')" style="width:100%;margin-top:10px;background:#f97316;color:white;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer">휴무 등록</button>
+        </div>
+        <button onclick="document.getElementById('dayoff-modal').remove()" style="width:100%;margin-top:8px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:9px;font-size:13px;cursor:pointer">닫기</button>
+      </div>`;
+    document.body.appendChild(modal);
+  };
+
+  const staffDayoffAdd = async (staffId, staffName) => {
+    const date = document.getElementById('dayoff-date')?.value;
+    const reason = document.getElementById('dayoff-reason')?.value;
+    if (!date) return alert('날짜를 선택하세요');
+    const res = await API.post('/api/staff/' + staffId + '/dayoff', { off_date: date, reason });
+    if (res.success) {
+      document.getElementById('dayoff-modal')?.remove();
+      staffDayoffModal(staffId, staffName);
+    } else alert(res.error || '등록 실패');
+  };
+
+  const staffDayoffDelete = async (staffId, date, staffName) => {
+    if (!confirm(`${date} 휴무를 삭제하시겠습니까?`)) return;
+    await API.delete('/api/staff/' + staffId + '/dayoff/' + date);
+    document.getElementById('dayoff-modal')?.remove();
+    staffDayoffModal(staffId, staffName);
+  };
+
+  const deleteStaff = async (id, name) => {
+    if (!confirm(`${name}을(를) 삭제하시겠습니까?`)) return;
+    await API.delete('/api/staff/' + id);
+    AdminModule.navigate('staff');
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // 고객 누적 DB 페이지
+  // ══════════════════════════════════════════════════════════
+  const customersPage = async () => {
+    _adminState.currentSection = 'customers';
+    const res = await API.get('/api/customers?limit=100');
+    const customers = (res.success && res.data) ? res.data : [];
+    const total = res.total || customers.length;
+
+    const rows = customers.length ? customers.map(c => `
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="AdminModule.customerDetail('${c.phone}')">
+        <td class="px-4 py-3 font-medium text-gray-800">${c.name}</td>
+        <td class="px-4 py-3 text-gray-600">${c.phone}</td>
+        <td class="px-4 py-3 text-gray-500 text-sm">${c.email||'-'}</td>
+        <td class="px-4 py-3 text-center">
+          <span class="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-bold">${c.visit_count}회</span>
+        </td>
+        <td class="px-4 py-3 text-right font-medium text-gray-800">₩${(c.total_spent||0).toLocaleString()}</td>
+        <td class="px-4 py-3 text-gray-500 text-sm">${c.last_visit||'-'}</td>
+        <td class="px-4 py-3 text-gray-500 text-sm">${c.region_id||'-'}</td>
+        <td class="px-4 py-3 text-center">
+          ${c.sms_opt_out ? '<span class="text-xs text-red-500">수신거부</span>' : '<span class="text-xs text-green-600">수신동의</span>'}
+        </td>
+      </tr>`).join('')
+      : '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">예약 고객 데이터가 없습니다. 예약이 완료되면 자동으로 저장됩니다.</td></tr>';
+
+    return `
+      <div class="p-6 max-w-6xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-users text-green-500"></i> 고객 누적 DB
+            </h1>
+            <p class="text-sm text-gray-500 mt-1">예약 완료 시 자동 저장 · 총 ${total.toLocaleString()}명</p>
+          </div>
+          <button onclick="AdminModule.navigate('sms-campaign')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">
+            <i class="fas fa-paper-plane"></i> 단체문자 보내기
+          </button>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">이름</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">연락처</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">이메일</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">방문횟수</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">누적금액</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">최근방문</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">지역</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">SMS</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  };
+
+  const customerDetail = async (phone) => {
+    const res = await API.get('/api/customers/' + encodeURIComponent(phone));
+    if (!res.success) return alert('고객 정보를 불러올 수 없습니다.');
+    const c = res.data;
+    const resRows = (res.reservations||[]).map(r => `
+      <tr><td class="py-1 text-sm">${r.date}</td><td class="py-1 text-sm">${r.reservation_no}</td>
+      <td class="py-1 text-sm">${r.region_id}</td><td class="py-1 text-sm text-right">₩${(r.total_price||0).toLocaleString()}</td>
+      <td class="py-1 text-sm text-center"><span class="px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-xs">${r.status}</span></td></tr>`).join('');
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `
+      <div style="background:white;border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+          <h3 style="font-size:16px;font-weight:700">${c.name} 고객 정보</h3>
+          <button onclick="this.closest('[style]').remove()" style="background:none;border:none;font-size:20px;color:#9ca3af;cursor:pointer">×</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#f9fafb;border-radius:8px;padding:16px;margin-bottom:16px">
+          <div><div style="font-size:11px;color:#6b7280">연락처</div><div style="font-weight:600">${c.phone}</div></div>
+          <div><div style="font-size:11px;color:#6b7280">이메일</div><div style="font-weight:600">${c.email||'-'}</div></div>
+          <div><div style="font-size:11px;color:#6b7280">방문횟수</div><div style="font-weight:700;color:#2563eb">${c.visit_count}회</div></div>
+          <div><div style="font-size:11px;color:#6b7280">누적금액</div><div style="font-weight:700;color:#059669">₩${(c.total_spent||0).toLocaleString()}</div></div>
+          <div><div style="font-size:11px;color:#6b7280">첫 방문</div><div>${c.first_visit||'-'}</div></div>
+          <div><div style="font-size:11px;color:#6b7280">최근 방문</div><div>${c.last_visit||'-'}</div></div>
+        </div>
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:8px">예약 이력</h4>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid #e5e7eb">
+            <th style="text-align:left;font-size:11px;color:#6b7280;padding-bottom:6px">날짜</th>
+            <th style="text-align:left;font-size:11px;color:#6b7280">예약번호</th>
+            <th style="text-align:left;font-size:11px;color:#6b7280">지역</th>
+            <th style="text-align:right;font-size:11px;color:#6b7280">금액</th>
+            <th style="text-align:center;font-size:11px;color:#6b7280">상태</th>
+          </tr></thead>
+          <tbody>${resRows || '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:12px;font-size:13px">예약 이력 없음</td></tr>'}</tbody>
+        </table>
+      </div>`;
+    document.body.appendChild(modal);
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // 단체문자 캠페인 페이지
+  // ══════════════════════════════════════════════════════════
+  const smsCampaignPage = async () => {
+    _adminState.currentSection = 'sms-campaign';
+    const res = await API.get('/api/customers/sms/campaigns');
+    const campaigns = (res.success && res.data) ? res.data : [];
+
+    const statusBadge = (s) => ({
+      draft: '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700">작성중</span>',
+      scheduled: '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700">예약발송</span>',
+      sent: '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:700">발송완료</span>',
+    })[s] || s;
+
+    const rows = campaigns.length ? campaigns.map(c => `
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 font-medium text-gray-800">${c.title}</td>
+        <td class="px-4 py-3 text-gray-600 text-sm max-w-xs truncate">${c.message}</td>
+        <td class="px-4 py-3 text-center">${statusBadge(c.status)}</td>
+        <td class="px-4 py-3 text-center text-sm">${c.sent_count}명</td>
+        <td class="px-4 py-3 text-gray-500 text-sm">${(c.sent_at||c.created_at||'').slice(0,16)}</td>
+        <td class="px-4 py-3 text-center">
+          ${c.status !== 'sent' ? `<button onclick="AdminModule.sendCampaign(${c.id},'${c.title}')"
+            style="background:#16a34a;color:white;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer">발송</button>` : ''}
+        </td>
+      </tr>`).join('')
+      : '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">캠페인이 없습니다. 새 캠페인을 작성하세요.</td></tr>';
+
+    return `
+      <div class="p-6 max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-paper-plane text-blue-500"></i> 단체문자 캠페인
+            </h1>
+            <p class="text-sm text-gray-500 mt-1">고객 DB 기반 단체/개별 문자 발송</p>
+          </div>
+          <button onclick="AdminModule.smsCampaignNewModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
+            <i class="fas fa-plus"></i> 새 캠페인 작성
+          </button>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">제목</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">내용</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500">상태</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500">발송수</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500">발송일시</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500">액션</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 새 캠페인 모달 -->
+      <div id="campaign-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+        <div style="background:white;border-radius:12px;padding:28px;width:480px;max-width:95vw">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">새 단체문자 캠페인</h3>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">캠페인 제목 *</label>
+              <input id="camp-title" type="text" placeholder="예: 2024 여름 프로모션" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">발송 대상</label>
+              <select id="camp-target" onchange="AdminModule.campTargetChange()" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px">
+                <option value="all">전체 고객 (수신동의)</option>
+                <option value="region">특정 지역 고객</option>
+                <option value="custom">번호 직접 입력</option>
+              </select>
+            </div>
+            <div id="camp-region-wrap" style="display:none">
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">지역 선택</label>
+              <div style="display:flex;gap:8px">
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" value="tongyeong"> 통영</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" value="buyeo"> 부여</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" value="hapcheon"> 합천</label>
+              </div>
+            </div>
+            <div id="camp-phones-wrap" style="display:none">
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">전화번호 (줄바꿈으로 구분)</label>
+              <textarea id="camp-phones" rows="4" placeholder="010-1234-5678&#10;010-9876-5432" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;box-sizing:border-box;resize:vertical"></textarea>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">문자 내용 * <span style="font-weight:400;color:#9ca3af">(최대 80자 권장)</span></label>
+              <textarea id="camp-message" rows="4" placeholder="안녕하세요! 아쿠아모빌리티코리아입니다..." style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
+              <div id="camp-msg-count" style="text-align:right;font-size:11px;color:#9ca3af;margin-top:2px">0자</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:20px">
+            <button onclick="AdminModule.smsCampaignSave()" style="flex:1;background:#2563eb;color:white;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer">저장</button>
+            <button onclick="document.getElementById('campaign-modal').style.display='none'" style="flex:1;background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:10px;font-size:14px;cursor:pointer">취소</button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const smsCampaignNewModal = () => {
+    document.getElementById('campaign-modal').style.display = 'flex';
+    const msg = document.getElementById('camp-message');
+    if (msg) msg.addEventListener('input', () => {
+      document.getElementById('camp-msg-count').textContent = msg.value.length + '자';
+    });
+  };
+
+  const campTargetChange = () => {
+    const v = document.getElementById('camp-target').value;
+    document.getElementById('camp-region-wrap').style.display = v==='region' ? 'block' : 'none';
+    document.getElementById('camp-phones-wrap').style.display = v==='custom' ? 'block' : 'none';
+  };
+
+  const smsCampaignSave = async () => {
+    const title = document.getElementById('camp-title')?.value;
+    const message = document.getElementById('camp-message')?.value;
+    const targetType = document.getElementById('camp-target')?.value;
+    if (!title || !message) return alert('제목과 내용을 입력하세요');
+    let targetJson = [];
+    if (targetType === 'region') {
+      targetJson = Array.from(document.querySelectorAll('#camp-region-wrap input:checked')).map(el => el.value);
+    } else if (targetType === 'custom') {
+      targetJson = (document.getElementById('camp-phones')?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
+    }
+    const res = await API.post('/api/customers/sms/campaigns', { title, message, target_type: targetType, target_json: targetJson, created_by: 'admin' });
+    if (res.success) {
+      document.getElementById('campaign-modal').style.display = 'none';
+      alert(`캠페인 저장 완료! 대상: ${res.target_count}명\n발송하려면 목록에서 "발송" 버튼을 클릭하세요.`);
+      AdminModule.navigate('sms-campaign');
+    } else alert('저장 실패: ' + (res.error || '오류'));
+  };
+
+  const sendCampaign = async (id, title) => {
+    if (!confirm(`"${title}" 캠페인을 발송하시겠습니까?\n(SENS API 미연동 시 발송 목록만 저장됩니다)`)) return;
+    const res = await API.post('/api/customers/sms/campaigns/' + id + '/send', {});
+    if (res.success) {
+      alert(`발송 완료! ${res.sent_count}명에게 발송되었습니다.\n${res.message}`);
+      AdminModule.navigate('sms-campaign');
+    } else alert('발송 실패: ' + (res.error || '오류'));
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // 우편 주소 관리 페이지
+  // ══════════════════════════════════════════════════════════
+  const mailingPage = async () => {
+    _adminState.currentSection = 'mailing';
+    const res = await API.get('/api/mailing?limit=200');
+    const items = (res.success && res.data) ? res.data : [];
+    const catLabel = { travel_agency:'여행사', school:'교육기관', institution:'기관/단체', other:'기타' };
+    const catColor = { travel_agency:'bg-blue-50 text-blue-700', school:'bg-green-50 text-green-700', institution:'bg-purple-50 text-purple-700', other:'bg-gray-50 text-gray-600' };
+
+    const rows = items.length ? items.map(i => `
+      <tr class="hover:bg-gray-50">
+        <td class="px-3 py-2.5 text-center">
+          <span class="px-2 py-0.5 rounded text-xs font-medium ${catColor[i.category]||'bg-gray-50 text-gray-600'}">${catLabel[i.category]||i.category}</span>
+        </td>
+        <td class="px-3 py-2.5 font-medium text-gray-800 text-sm">${i.org_name}${i.dept?' <span class="text-gray-400 font-normal">'+i.dept+'</span>':''}</td>
+        <td class="px-3 py-2.5 text-gray-600 text-sm">${i.contact_name||'-'}</td>
+        <td class="px-3 py-2.5 text-gray-600 text-sm">[${i.zipcode||'     '}] ${i.address1}${i.address2?' '+i.address2:''}</td>
+        <td class="px-3 py-2.5 text-gray-500 text-sm">${i.region||'-'}</td>
+        <td class="px-3 py-2.5 text-center">
+          <button onclick="AdminModule.mailingDelete(${i.id},'${i.org_name}')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:13px">삭제</button>
+        </td>
+      </tr>`).join('')
+      : '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">등록된 주소가 없습니다.</td></tr>';
+
+    return `
+      <div class="p-6 max-w-6xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <i class="fas fa-envelope text-purple-500"></i> 우편 주소 관리
+            </h1>
+            <p class="text-sm text-gray-500 mt-1">여행사/교육기관 우편 주소 · 총 ${(res.total||items.length).toLocaleString()}건</p>
+          </div>
+          <div class="flex gap-2">
+            <a href="/api/mailing/labels/print" target="_blank" class="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">
+              <i class="fas fa-print"></i> 라벨 인쇄
+            </a>
+            <button onclick="AdminModule.mailingAddModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
+              <i class="fas fa-plus"></i> 주소 추가
+            </button>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-3 py-3 text-center text-xs font-semibold text-gray-500">구분</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500">기관명</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500">담당자</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500">주소</th>
+                <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500">지역</th>
+                <th class="px-3 py-3 text-center text-xs font-semibold text-gray-500">관리</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 주소 추가 모달 -->
+      <div id="mailing-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+        <div style="background:white;border-radius:12px;padding:28px;width:460px;max-width:95vw;max-height:85vh;overflow-y:auto">
+          <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">주소 추가</h3>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">구분</label>
+              <select id="mail-cat" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px">
+                <option value="travel_agency">여행사</option>
+                <option value="school">교육기관</option>
+                <option value="institution">기관/단체</option>
+                <option value="other">기타</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">기관명 *</label>
+              <input id="mail-org" type="text" placeholder="(주)○○여행사" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">부서명</label>
+              <input id="mail-dept" type="text" placeholder="영업팀" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">담당자명</label>
+              <input id="mail-contact" type="text" placeholder="홍길동" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+            </div>
+            <div style="display:flex;gap:8px">
+              <div style="width:120px">
+                <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">우편번호</label>
+                <input id="mail-zip" type="text" placeholder="12345" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+              </div>
+              <div style="flex:1">
+                <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">지역(시도)</label>
+                <input id="mail-region" type="text" placeholder="경남" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+              </div>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">주소 *</label>
+              <input id="mail-addr1" type="text" placeholder="경남 통영시 ○○로 123" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">상세주소</label>
+              <input id="mail-addr2" type="text" placeholder="○○빌딩 5층" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:3px">연락처</label>
+              <input id="mail-phone" type="text" placeholder="055-000-0000" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:13px;box-sizing:border-box">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:18px">
+            <button onclick="AdminModule.mailingAddSubmit()" style="flex:1;background:#7c3aed;color:white;border:none;border-radius:8px;padding:9px;font-size:14px;font-weight:600;cursor:pointer">추가</button>
+            <button onclick="document.getElementById('mailing-add-modal').style.display='none'" style="flex:1;background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:9px;font-size:14px;cursor:pointer">취소</button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const mailingAddModal = () => {
+    document.getElementById('mailing-add-modal').style.display = 'flex';
+  };
+
+  const mailingAddSubmit = async () => {
+    const data = {
+      category: document.getElementById('mail-cat')?.value,
+      org_name: document.getElementById('mail-org')?.value,
+      dept:     document.getElementById('mail-dept')?.value,
+      contact_name: document.getElementById('mail-contact')?.value,
+      zipcode:  document.getElementById('mail-zip')?.value,
+      address1: document.getElementById('mail-addr1')?.value,
+      address2: document.getElementById('mail-addr2')?.value,
+      phone:    document.getElementById('mail-phone')?.value,
+      region:   document.getElementById('mail-region')?.value,
+    };
+    if (!data.org_name || !data.address1) return alert('기관명과 주소는 필수입니다');
+    const res = await API.post('/api/mailing', data);
+    if (res.success) {
+      document.getElementById('mailing-add-modal').style.display = 'none';
+      AdminModule.navigate('mailing');
+    } else alert('추가 실패: ' + (res.error || '오류'));
+  };
+
+  const mailingDelete = async (id, name) => {
+    if (!confirm(`"${name}" 주소를 삭제하시겠습니까?`)) return;
+    await API.delete('/api/mailing/' + id);
+    AdminModule.navigate('mailing');
+  };
+
+  loginPage, hqDashboard, regionDashboard, vehiclesPage, schedulesPage, faresPage,
     seatsPage, reservationsPage, inquiriesPage, viewInquiry, replyInquiry, submitInquiryReply, wristbandsPage, popupsPage, termsPage, seoManagePage,
     regionsPage, settlementPage, adminsPage, settingsAdminPage, backupPage, statsAdminPage,
     tourismManagePage,
@@ -7059,6 +7655,10 @@ const backupPage = async () => {
     selectPartnerRegion, addPartner, editPartner, savePartner, deletePartner,
     // 액션
     doLogin, logout, navigate, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, approveFare, fillLogin,
+    staffPage, staffAddModal, staffAddSubmit, staffDayoffModal, staffDayoffAdd, staffDayoffDelete, deleteStaff,
+    customersPage, customerDetail,
+    smsCampaignPage, smsCampaignNewModal, campTargetChange, smsCampaignSave, sendCampaign,
+    mailingPage, mailingAddModal, mailingAddSubmit, mailingDelete,
     addVehicle, editVehicle, saveVehicle, deleteVehicle, closeVehicleModal, filterVehicles,
     selectScheduleRegion, addSchedule, editSchedule, saveSchedule, toggleScheduleStatus,
     deleteSchedule, showRecurringModal, addRecTime, generateRecurring, updateSeatPreview,
