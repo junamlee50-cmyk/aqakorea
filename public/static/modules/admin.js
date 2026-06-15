@@ -7057,10 +7057,6 @@ const backupPage = async () => {
     return pageMap[section] ? pageMap[section]() : hqDashboard();
   };
 
-  // ── 공개 API ───────────────────────────────────────────────
-  return {
-    // 페이지
-  
   // ══════════════════════════════════════════════════════════
   // 기사/해설사 관리 페이지
   // ══════════════════════════════════════════════════════════
@@ -7646,6 +7642,10 @@ const backupPage = async () => {
     AdminModule.navigate('mailing');
   };
 
+
+  // ── 공개 API ───────────────────────────────────────────────
+  return {
+    // 페이지
   loginPage, hqDashboard, regionDashboard, vehiclesPage, schedulesPage, faresPage,
     seatsPage, reservationsPage, inquiriesPage, viewInquiry, replyInquiry, submitInquiryReply, wristbandsPage, popupsPage, termsPage, seoManagePage,
     regionsPage, settlementPage, adminsPage, settingsAdminPage, backupPage, statsAdminPage,

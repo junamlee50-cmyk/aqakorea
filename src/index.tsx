@@ -317,7 +317,7 @@ ${metaTags}
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="/static/qrcode.min.js"></script>
 <link rel="stylesheet" href="/static/style.css">
 <script>
 tailwind.config={theme:{extend:{colors:{navy:{'50':'#f0f4ff','100':'#e0e9ff','600':'#1e3a8a','700':'#1e40af','800':'#0a2d6b','900':'#071f4e'},ocean:{'400':'#22d3ee','500':'#06b6d4','600':'#0891b2','700':'#0e7490'},mint:{'400':'#4ade80','500':'#22c55e','600':'#16a34a'}},fontFamily:{sans:['Noto Sans KR','Apple SD Gothic Neo','sans-serif']}}}}
