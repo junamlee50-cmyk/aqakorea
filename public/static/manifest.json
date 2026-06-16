@@ -2,43 +2,65 @@
   "name": "아쿠아모빌리티코리아",
   "short_name": "아쿠아모빌리티",
   "description": "전국 수륙양용투어 통합예약 플랫폼 - 통영·부여·합천",
-  "start_url": "/",
+  "start_url": "/?utm_source=pwa",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#071f4e",
   "theme_color": "#06b6d4",
   "lang": "ko-KR",
+  "dir": "ltr",
   "categories": ["travel", "lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/static/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "/static/og-image.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "아쿠아모빌리티코리아 메인 화면"
+    }
+  ],
   "shortcuts": [
     {
       "name": "통영 예약",
       "short_name": "통영",
-      "description": "통영 수륙양용투어 바로 예약",
-      "url": "/reservation/tongyeong",
+      "description": "통영해양관광 수륙양용투어 바로 예약",
+      "url": "/reservation/tongyeong?utm_source=pwa_shortcut",
       "icons": [{ "src": "/static/favicon.svg", "sizes": "any" }]
     },
     {
       "name": "부여 예약",
       "short_name": "부여",
-      "description": "부여 수륙양용투어 바로 예약",
-      "url": "/reservation/buyeo",
+      "description": "부여수륙양용투어 바로 예약",
+      "url": "/reservation/buyeo?utm_source=pwa_shortcut",
       "icons": [{ "src": "/static/favicon.svg", "sizes": "any" }]
     },
     {
       "name": "예약 확인",
       "short_name": "예약확인",
       "description": "내 예약 확인 및 취소",
-      "url": "/booking-check",
+      "url": "/booking-check?utm_source=pwa_shortcut",
       "icons": [{ "src": "/static/favicon.svg", "sizes": "any" }]
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/inquiry",
+    "method": "GET",
+    "params": { "text": "message" }
+  }
 }

@@ -8,13 +8,68 @@ const app = new Hono()
 // Static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
-// Service Worker (PWA) - 404 방지용 최소 구현
+// Service Worker (PWA) - 웹 변경 시 앱 즉시 반영 + 오프라인 지원
 app.get('/sw.js', (c) => {
-  return c.text(
-    `// AMK Service Worker\nself.addEventListener('install',()=>self.skipWaiting());\nself.addEventListener('activate',(e)=>e.waitUntil(self.clients.claim()));\nself.addEventListener('fetch',(e)=>e.respondWith(fetch(e.request).catch(()=>new Response(''))));`,
-    200,
-    { 'Content-Type': 'application/javascript; charset=utf-8' }
-  )
+  const version = 'AMK-v' + new Date().toISOString().slice(0,10).replace(/-/g,'')
+  const sw = `
+// AMK Service Worker - ${version}
+// 웹 변경 시 앱 자동 업데이트 (Network First 전략)
+const CACHE = '${version}';
+const OFFLINE_PAGE = '/';
+const STATIC_ASSETS = [
+  '/', '/static/vendor/tailwind.min.css', '/static/vendor/fontawesome/css/all.min.css',
+  '/static/vendor/axios.min.js', '/static/style.css',
+  '/static/modules/core.js', '/static/modules/customer.js',
+  '/static/modules/payment.js', '/static/modules/field.js',
+  '/static/modules/admin.js', '/static/modules/stats.js',
+  '/static/modules/seo.js', '/static/modules/ticket.js',
+  '/static/app.js', '/static/qrcode.min.js',
+  '/static/manifest.json', '/static/favicon.svg'
+];
+
+// 설치: 정적 에셋 캐시
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())
+  );
+});
+
+// 활성화: 이전 캐시 삭제 (버전 업 시 자동 정리 → 앱에 즉시 반영)
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+// Fetch: Network First (웹 최신 버전 우선, 오프라인 시 캐시)
+self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // API 요청은 캐시 안 함
+  if (url.pathname.startsWith('/api/')) return;
+
+  e.respondWith(
+    fetch(e.request)
+      .then(res => {
+        // 성공 시 캐시 갱신 (다음번 오프라인에서도 최신 버전)
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(e.request).then(r => r || caches.match(OFFLINE_PAGE)))
+  );
+});
+
+// 새 SW 감지 시 클라이언트에 업데이트 알림
+self.addEventListener('message', (e) => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
+});
+`.trim()
+  return c.text(sw, 200, { 'Content-Type': 'application/javascript; charset=utf-8' })
 })
 
 // ============================================================
@@ -327,15 +382,37 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app"></div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=3f3d72b6"></script>
-<script src="/static/modules/customer.js?v=3f3d72b6"></script>
-<script src="/static/modules/payment.js?v=3f3d72b6"></script>
-<script src="/static/modules/field.js?v=3f3d72b6"></script>
-<script src="/static/modules/admin.js?v=new123646"></script>
-<script src="/static/modules/stats.js?v=3f3d72b6"></script>
-<script src="/static/modules/seo.js?v=3f3d72b6"></script>
-<script src="/static/modules/ticket.js?v=3f3d72b6"></script>
-<script src="/static/app.js?v=new123646"></script>
+<script src="/static/modules/core.js?v=7f27d0a5"></script>
+<script src="/static/modules/customer.js?v=7f27d0a5"></script>
+<script src="/static/modules/payment.js?v=7f27d0a5"></script>
+<script src="/static/modules/field.js?v=7f27d0a5"></script>
+<script src="/static/modules/admin.js?v=7f27d0a5"></script>
+<script src="/static/modules/stats.js?v=7f27d0a5"></script>
+<script src="/static/modules/seo.js?v=7f27d0a5"></script>
+<script src="/static/modules/ticket.js?v=7f27d0a5"></script>
+<script src="/static/app.js?v=7f27d0a5"></script>
+<script>
+// PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            // 새 버전 감지 → 자동 새로고침 (앱에서 즉시 반영)
+            newSW.postMessage('skipWaiting');
+            window.location.reload();
+          }
+        });
+      });
+    } catch(e) {}
+  });
+  // 컨트롤러 변경 시 자동 새로고침
+  navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+}
+</script>
 </body>
 </html>`
 
