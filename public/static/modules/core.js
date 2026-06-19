@@ -187,6 +187,7 @@ const Utils = {
 
     const box = document.createElement('div');
     box.className = 'modal-box';
+    if (opts.size) box.style.maxWidth = opts.size; // e.g. '860px'
 
     const header = document.createElement('div');
     header.className = 'modal-header';

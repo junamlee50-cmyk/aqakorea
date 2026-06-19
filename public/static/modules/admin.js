@@ -5959,7 +5959,7 @@ const AdminModule = (() => {
     allRes.forEach(r => {
       const date = r.date || '';
       if (!date) return;
-      if (!byDate[date]) byDate[date] = { date, online:0, onsite:0, cash:0, card:0, count:0 };
+      if (!byDate[date]) byDate[date] = { date, online:0, onsite:0, cash:0, card:0, count:0, pax:0 };
       const amt = r.totalPrice || 0;
       const isOnsite = r.channel === 'onsite';
       if (isOnsite) {
@@ -5971,6 +5971,7 @@ const AdminModule = (() => {
         byDate[date].card += amt;
       }
       byDate[date].count++;
+      byDate[date].pax += (r.pax || 0);
     });
 
     const today = new Date().toISOString().slice(0,10);
@@ -5987,30 +5988,30 @@ const AdminModule = (() => {
       const cash   = agg ? agg.cash : 0;
       const card   = agg ? agg.card : 0;
       const count  = agg ? agg.count : 0;
+      const pax    = agg ? agg.pax : 0;
       const RNAMES = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
       const rLabel = filterRegion ? (RNAMES[filterRegion]||filterRegion) : '전체';
       const isClosed = dateStr < today;
       rows.push(`
-        <tr class="hover:bg-gray-50">
-          <td class="px-3 py-2 text-sm text-gray-600">${dateStr}</td>
+        <tr class="hover:bg-gray-50 ${count===0?'opacity-40':''}">
+          <td class="px-3 py-2 text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
           <td class="px-3 py-2 text-sm text-center font-medium text-gray-700">${rLabel}</td>
-          <td class="px-3 py-2 text-sm text-right ${online>0?'text-blue-600 font-medium':'text-gray-400'}">₩${online.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right ${onsite>0?'text-green-600 font-medium':'text-gray-400'}">₩${onsite.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right font-semibold ${total>0?'text-gray-800':'text-gray-300'}">₩${total.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right text-gray-500">₩${cash.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-right text-gray-500">₩${card.toLocaleString()}</td>
-          <td class="px-3 py-2 text-sm text-center ${count>0?'text-gray-700 font-medium':'text-gray-300'}">${count}건</td>
+          <td class="px-3 py-2 text-sm text-center font-semibold ${pax>0?'text-indigo-600':'text-gray-300'}">${pax>0?pax+'명':'-'}</td>
+          <td class="px-3 py-2 text-sm text-right ${online>0?'text-blue-600 font-medium':'text-gray-300'}">${online>0?'₩'+online.toLocaleString():'-'}</td>
+          <td class="px-3 py-2 text-sm text-right ${onsite>0?'text-green-600 font-medium':'text-gray-300'}">${onsite>0?'₩'+onsite.toLocaleString():'-'}</td>
+          <td class="px-3 py-2 text-sm text-right font-bold ${total>0?'text-gray-800':'text-gray-300'}">${total>0?'₩'+total.toLocaleString():'-'}</td>
+          <td class="px-3 py-2 text-sm text-right ${cash>0?'text-gray-600':'text-gray-300'}">${cash>0?'₩'+cash.toLocaleString():'-'}</td>
+          <td class="px-3 py-2 text-sm text-right ${card>0?'text-gray-600':'text-gray-300'}">${card>0?'₩'+card.toLocaleString():'-'}</td>
+          <td class="px-3 py-2 text-sm text-center ${count>0?'text-gray-700 font-medium':'text-gray-300'}">${count>0?count+'건':'-'}</td>
           <td class="px-3 py-2 text-center">
-            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${isClosed?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'}">
-              ${isClosed?'마감완료':'마감전'}
-            </span>
+            ${count>0?`<span class="px-2 py-0.5 rounded-full text-xs font-medium ${isClosed?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'}">${isClosed?'마감완료':'마감전'}</span>`:''}
           </td>
           <td class="px-3 py-2 text-center">
-            <button onclick="AdminModule.viewSettlement('${dateStr}')" class="text-blue-600 hover:underline text-xs">상세</button>
+            ${count>0?`<button onclick="AdminModule.viewSettlement('${dateStr}')" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs font-medium">상세보기</button>`:''}
           </td>
         </tr>`);
     }
-    return rows.length ? rows.join('') : '<tr><td colspan="10" class="text-center py-8 text-gray-400">해당 기간 정산 데이터가 없습니다.</td></tr>';
+    return rows.length ? rows.join('') : '<tr><td colspan="11" class="text-center py-8 text-gray-400">해당 기간 정산 데이터가 없습니다.</td></tr>';
   };
 
   const filterSettlement = async () => {
@@ -6127,7 +6128,7 @@ const AdminModule = (() => {
           <div class="overflow-x-auto">
             <table class="admin-table w-full text-sm">
               <thead><tr class="bg-gray-50">
-                ${['날짜','지역','온라인 매출','현장 매출','총 매출','현금','카드','건수','상태','관리'].map(h=>`<th class="px-3 py-3 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
+                ${['날짜','지역','탑승인원','온라인 매출','현장 매출','총 매출','현금','카드','건수','상태','관리'].map(h=>`<th class="px-3 py-3 text-xs font-semibold text-gray-600 text-center whitespace-nowrap">${h}</th>`).join('')}
               </tr></thead>
               <tbody id="stl-tbody" class="divide-y divide-gray-100">${settlementRows}</tbody>
             </table>
@@ -6305,7 +6306,7 @@ const AdminModule = (() => {
         </div>
       </div>`;
 
-    Utils.confirm(html, () => {}, { confirmText: '닫기', cancelText: null, title: '일일 정산 상세', size: 'max-w-3xl' });
+    Utils.confirm(html, () => {}, { confirmText: '닫기', cancelText: null, title: '일일 정산 상세', size: '860px' });
   };
   const exportSettlement = () => {
     const user = _adminState.user || { role: 'super', regionId: null };
