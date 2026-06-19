@@ -5957,6 +5957,7 @@ const AdminModule = (() => {
 
     const today = new Date().toISOString().slice(0,10);
     const rows = [];
+    // 해당 월의 모든 날짜 순회 (최신순)
     const [mYear, mMonth] = monthPrefix.split('-').map(Number);
     const daysInMonth = new Date(mYear, mMonth, 0).getDate();
     for (let day = daysInMonth; day >= 1; day--) {
@@ -6009,21 +6010,22 @@ const AdminModule = (() => {
   const _updateSettlementSummary = async (filterRegion, filterMonth) => {
     const monthPrefix = filterMonth || new Date().toISOString().slice(0,7);
     const todayStr = new Date().toISOString().slice(0,10);
-    let urlM = `/api/reservations?limit=1000&month=${monthPrefix}`;
-    if (filterRegion) urlM += `&regionId=${filterRegion}`;
-    const resM = await API.get(urlM);
-    const monthData = (resM.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    let urlMonth = `/api/reservations?limit=1000&month=${monthPrefix}`;
+    if (filterRegion) urlMonth += `&regionId=${filterRegion}`;
+    const resMonth = await API.get(urlMonth);
+    const monthData = (resMonth.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
     const todayData = monthData.filter(r => r.date === todayStr);
     const monthTotal = monthData.reduce((s,r) => s+(r.totalPrice||0), 0);
+    // 누적 정산 (전체)
     let urlAll = `/api/reservations?limit=5000`;
     if (filterRegion) urlAll += `&regionId=${filterRegion}`;
     const resAll = await API.get(urlAll);
-    const allRes = (resAll.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    const allActive = (resAll.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
     const el = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
     el('stl-sum-today', `${todayData.length}건`);
     el('stl-sum-month', `${monthData.length}건`);
     el('stl-sum-total', `₩${monthTotal.toLocaleString()}`);
-    el('stl-sum-total2', `₩${allRes.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}`);
+    el('stl-sum-total2', `₩${allActive.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}`);
   };
 
   const settlementPage = async () => {
@@ -6036,18 +6038,18 @@ const AdminModule = (() => {
     const initRegion = isRegional ? user.regionId : '';
     const initMonth  = new Date().toISOString().slice(0,7);
 
-    // DB에서 실제 데이터 조회
+    // DB에서 실제 데이터 조회 (월 필터 적용)
     const todayStr = new Date().toISOString().slice(0,10);
-    let urlI = `/api/reservations?limit=1000&month=${initMonth}`;
-    if (initRegion) urlI += `&regionId=${initRegion}`;
-    const resI = await API.get(urlI);
-    const monthData = (resI.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    let urlM = `/api/reservations?limit=1000&month=${initMonth}`;
+    if (initRegion) urlM += `&regionId=${initRegion}`;
+    const resM = await API.get(urlM);
+    const monthData = (resM.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
     const todayData = monthData.filter(r => r.date === todayStr);
     const monthTotal = monthData.reduce((s,r) => s+(r.totalPrice||0), 0);
-    let urlI2 = `/api/reservations?limit=5000`;
-    if (initRegion) urlI2 += `&regionId=${initRegion}`;
-    const resI2 = await API.get(urlI2);
-    const allRes = (resI2.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    let urlAll2 = `/api/reservations?limit=5000`;
+    if (initRegion) urlAll2 += `&regionId=${initRegion}`;
+    const resAll2 = await API.get(urlAll2);
+    const allRes = (resAll2.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
 
     const regionOpts = isRegional
       ? `<option value="${user.regionId}">${RNAMES[user.regionId]||user.regionId}</option>`
@@ -6648,6 +6650,7 @@ const AdminModule = (() => {
 
 const backupPage = async () => {
     _adminState.currentSection = 'backup';
+    // 실제 admin_logs API 호출
     let logRows = [];
     let logTotal = 0;
     try {
