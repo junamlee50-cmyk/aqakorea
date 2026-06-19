@@ -142,11 +142,22 @@ body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; backgroun
 
 /* ---- Sticky Book Button ---- */
 .sticky-book-btn {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  z-index: 999; width: calc(100% - 32px); max-width: 480px;
+  position: fixed;
+  /* 모바일: 스크롤바 없음 → left/right 16px 완벽 대칭 */
+  /* PC 브라우저: 스크롤바 6px 차지 → 실제 폰에선 문제없음 */
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: min(480px, calc(100% - 32px));
+  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 999;
+  box-sizing: border-box;
   background: linear-gradient(135deg, #06b6d4, #0891b2);
   color: white; border: none; border-radius: 16px;
-  padding: 18px; font-size: 18px; font-weight: 800;
+  padding: 18px;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  font-size: 18px; font-weight: 800;
   cursor: pointer; box-shadow: 0 8px 30px rgba(6,182,212,0.5);
   display: flex; align-items: center; justify-content: center; gap: 8px;
   animation: bounce 2s ease-in-out infinite;
@@ -334,8 +345,8 @@ body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; backgroun
   body { overflow-x: hidden; }
 
   /* ★ 모바일: sticky 결제버튼이 콘텐츠를 가리지 않도록 하단 여백 확보 */
-  /* sticky-book-btn 높이(약 64px) + 여유 공간 = 120px */
-  #app > div[style*="padding-top"] { padding-bottom: 120px; }
+  /* sticky-book-btn 높이(약 80px) + safe-area + 여유 = 120px */
+  #app > div[style*="padding-top"] { padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
 
   /* ★ 모바일: 회차 목록 overflow 제거 — 전체 회차 세로 스크롤 표시 */
   #schedule-section { overflow: visible !important; max-height: none !important; }
