@@ -7415,11 +7415,23 @@ const backupPage = async () => {
             </div>
             <div>
               <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">지역 *</label>
-              <select id="staff-region" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px">
-                <option value="tongyeong">통영</option>
-                <option value="buyeo">부여</option>
-                <option value="hapcheon">합천</option>
-              </select>
+              ${(()=>{
+                const u = _adminState.user || {};
+                const isSuper = u.role === 'super';
+                if (isSuper) {
+                  return `<select id="staff-region" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px">
+                    <option value="tongyeong">통영</option>
+                    <option value="buyeo">부여</option>
+                    <option value="hapcheon">합천</option>
+                  </select>`;
+                } else {
+                  const rLabel = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'}[u.regionId] || u.regionId;
+                  return `<input type="hidden" id="staff-region" value="${u.regionId}">
+                    <div style="width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;font-size:14px;background:#f9fafb;color:#374151">
+                      ${rLabel} <span style="font-size:11px;color:#6b7280">(담당 지역 고정)</span>
+                    </div>`;
+                }
+              })()}
             </div>
             <div>
               <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">연락처</label>
