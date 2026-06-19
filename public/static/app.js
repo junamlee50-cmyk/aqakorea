@@ -134,6 +134,7 @@
     Router.add('/admin/inquiries',      _adminGuard(() => AdminModule.inquiriesPage()));
     Router.add('/admin/reports',      _adminGuard(AdminModule.statsAdminPage));  // 보고서 → statsAdminPage
     Router.add('/admin/staff',        _adminGuard(AdminModule.staffPage));
+    Router.add('/admin/work-log',     _adminGuard(() => AdminModule.workLogPage()));
     Router.add('/admin/customers',    _adminGuard(AdminModule.customersPage));
     Router.add('/admin/sms-campaign', _adminGuard(AdminModule.smsCampaignPage));
     Router.add('/admin/mailing',      _adminGuard(AdminModule.mailingPage));
