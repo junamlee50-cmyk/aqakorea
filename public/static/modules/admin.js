@@ -301,28 +301,7 @@ const AdminModule = (() => {
             </div>
 
           </div>
-          <!-- 🧪 테스트 계정 안내 (개발/테스트 기간 중 표시) -->
-          <div class="mt-4 bg-amber-50 border border-amber-300 rounded-xl p-4 text-xs">
-            <div class="flex items-center gap-1.5 mb-2 text-amber-700 font-semibold">
-              <i class="fas fa-flask"></i> 테스트 계정 (개발 기간 임시 표시)
-            </div>
-            <div class="grid grid-cols-2 gap-1.5">
-              ${[
-                {label:'최고관리자', id:'admin', pw:'admin1234', color:'bg-purple-100 text-purple-700 border-purple-200'},
-                {label:'통영 관리자', id:'tongyeong', pw:'tongyeong1234', color:'bg-blue-100 text-blue-700 border-blue-200'},
-                {label:'부여 관리자', id:'buyeo', pw:'buyeo1234', color:'bg-green-100 text-green-700 border-green-200'},
-                {label:'합천 관리자', id:'hapcheon', pw:'hapcheon1234', color:'bg-cyan-100 text-cyan-700 border-cyan-200'},
-                {label:'현장직원', id:'field01', pw:'field1234', color:'bg-orange-100 text-orange-700 border-orange-200'},
-                {label:'정산담당', id:'account', pw:'account1234', color:'bg-gray-100 text-gray-700 border-gray-200'},
-              ].map(a => `
-                <button onclick="AdminModule.fillLogin('${a.id}','${a.pw}')"
-                  class="flex items-center justify-between ${a.color} border rounded-lg px-2 py-1.5 hover:opacity-80 transition text-left">
-                  <span class="font-medium">${a.label}</span>
-                  <span class="text-gray-500 ml-1">${a.id} / ${a.pw}</span>
-                </button>`).join('')}
-            </div>
-            <p class="text-amber-600 mt-2 text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>운영 배포 전 반드시 제거하세요.</p>
-          </div>
+          <!-- 테스트 계정 안내 제거됨 (보안) -->
           <p class="text-center text-gray-500 text-xs mt-3">
             <i class="fas fa-shield-alt mr-1"></i>보안 접속 · 무단 접근 시 법적 조치
           </p>
@@ -5950,12 +5929,11 @@ const AdminModule = (() => {
   // 정산 집계: DB API에서 날짜+지역 기준 집계
   const _fetchSettlementRows = async (filterRegion, filterMonth) => {
     const monthPrefix = filterMonth || new Date().toISOString().slice(0,7);
-    let url = `/api/reservations?limit=500`;
+    let url = `/api/reservations?limit=1000&month=${monthPrefix}`;
     if (filterRegion) url += `&regionId=${filterRegion}`;
     const res = await API.get(url);
     const allRes = (res.data || []).filter(r =>
-      r.status !== 'cancelled' && r.status !== 'refunded' &&
-      (r.date||'').startsWith(monthPrefix)
+      r.status !== 'cancelled' && r.status !== 'refunded'
     );
 
     // 날짜별 집계
@@ -5977,13 +5955,12 @@ const AdminModule = (() => {
       byDate[date].count++;
     });
 
-    const today = new Date();
+    const today = new Date().toISOString().slice(0,10);
     const rows = [];
-    for (let i = 0; i < 31; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0,10);
-      if (!dateStr.startsWith(monthPrefix)) continue;
+    const [mYear, mMonth] = monthPrefix.split('-').map(Number);
+    const daysInMonth = new Date(mYear, mMonth, 0).getDate();
+    for (let day = daysInMonth; day >= 1; day--) {
+      const dateStr = `${monthPrefix}-${String(day).padStart(2,'0')}`;
       const agg = byDate[dateStr];
       const online = agg ? agg.online : 0;
       const onsite = agg ? agg.onsite : 0;
@@ -5993,7 +5970,7 @@ const AdminModule = (() => {
       const count  = agg ? agg.count : 0;
       const RNAMES = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
       const rLabel = filterRegion ? (RNAMES[filterRegion]||filterRegion) : '전체';
-      const isClosed = i > 0;
+      const isClosed = dateStr < today;
       rows.push(`
         <tr class="hover:bg-gray-50">
           <td class="px-3 py-2 text-sm text-gray-600">${dateStr}</td>
@@ -6032,13 +6009,16 @@ const AdminModule = (() => {
   const _updateSettlementSummary = async (filterRegion, filterMonth) => {
     const monthPrefix = filterMonth || new Date().toISOString().slice(0,7);
     const todayStr = new Date().toISOString().slice(0,10);
-    let url = `/api/reservations?limit=500`;
-    if (filterRegion) url += `&regionId=${filterRegion}`;
-    const res = await API.get(url);
-    const allRes = (res.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
-    const monthData = allRes.filter(r => (r.date||'').startsWith(monthPrefix));
-    const todayData = allRes.filter(r => r.date === todayStr);
+    let urlM = `/api/reservations?limit=1000&month=${monthPrefix}`;
+    if (filterRegion) urlM += `&regionId=${filterRegion}`;
+    const resM = await API.get(urlM);
+    const monthData = (resM.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    const todayData = monthData.filter(r => r.date === todayStr);
     const monthTotal = monthData.reduce((s,r) => s+(r.totalPrice||0), 0);
+    let urlAll = `/api/reservations?limit=5000`;
+    if (filterRegion) urlAll += `&regionId=${filterRegion}`;
+    const resAll = await API.get(urlAll);
+    const allRes = (resAll.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
     const el = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
     el('stl-sum-today', `${todayData.length}건`);
     el('stl-sum-month', `${monthData.length}건`);
@@ -6057,14 +6037,17 @@ const AdminModule = (() => {
     const initMonth  = new Date().toISOString().slice(0,7);
 
     // DB에서 실제 데이터 조회
-    let url = `/api/reservations?limit=500`;
-    if (initRegion) url += `&regionId=${initRegion}`;
-    const res = await API.get(url);
-    const allRes = (res.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
     const todayStr = new Date().toISOString().slice(0,10);
-    const monthData = allRes.filter(r => (r.date||'').startsWith(initMonth));
-    const todayData = allRes.filter(r => r.date === todayStr);
+    let urlI = `/api/reservations?limit=1000&month=${initMonth}`;
+    if (initRegion) urlI += `&regionId=${initRegion}`;
+    const resI = await API.get(urlI);
+    const monthData = (resI.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    const todayData = monthData.filter(r => r.date === todayStr);
     const monthTotal = monthData.reduce((s,r) => s+(r.totalPrice||0), 0);
+    let urlI2 = `/api/reservations?limit=5000`;
+    if (initRegion) urlI2 += `&regionId=${initRegion}`;
+    const resI2 = await API.get(urlI2);
+    const allRes = (resI2.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
 
     const regionOpts = isRegional
       ? `<option value="${user.regionId}">${RNAMES[user.regionId]||user.regionId}</option>`
@@ -6665,6 +6648,30 @@ const AdminModule = (() => {
 
 const backupPage = async () => {
     _adminState.currentSection = 'backup';
+    let logRows = [];
+    let logTotal = 0;
+    try {
+      const resp = await API.get('/api/admin/logs?limit=50');
+      if (resp.success) { logRows = resp.data || []; logTotal = resp.total || 0; }
+    } catch(e) {}
+
+    const actionColor = (a) => {
+      if (a.includes('로그인')) return 'text-blue-600';
+      if (a.includes('취소') || a.includes('삭제')) return 'text-red-600';
+      if (a.includes('환불') || a.includes('배불')) return 'text-orange-600';
+      if (a.includes('등록') || a.includes('저장')) return 'text-green-600';
+      if (a.includes('로그아웃')) return 'text-gray-500';
+      return 'text-gray-700';
+    };
+
+    const logHtml = logRows.length ? logRows.map(l => `
+      <div class="flex gap-2 py-1 border-b border-gray-100 last:border-0">
+        <span class="text-gray-400 shrink-0 w-36">${(l.created_at||'').slice(0,16)}</span>
+        <span class="font-medium ${actionColor(l.action)} w-20 shrink-0">[${l.action}]</span>
+        <span class="text-gray-600 shrink-0 w-24">${l.admin_name||''}</span>
+        <span class="text-gray-500 truncate">${l.detail||''}</span>
+      </div>`).join('') : '<p class="text-gray-400">로그 데이터가 없습니다.</p>';
+
     const content = `
       <div class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6687,13 +6694,12 @@ const backupPage = async () => {
           </div>
 
           <div class="bg-white rounded-xl shadow-sm p-6">
-            <h2 class="font-semibold text-gray-800 mb-4"><i class="fas fa-list text-orange-500 mr-2"></i>시스템 로그</h2>
-            <div class="space-y-2 text-xs font-mono text-gray-600 bg-gray-50 rounded-lg p-3 h-40 overflow-y-auto">
-              <p>[2025-05-11 09:15] admin 로그인 성공</p>
-              <p>[2025-05-11 09:20] 통영 일정 수정 (10:00 회차)</p>
-              <p>[2025-05-11 09:35] 부여 요금 변경 요청 (성인 30000→32000)</p>
-              <p>[2025-05-11 10:12] 팝업 생성 (통영 특별할인)</p>
-              <p>[2025-05-11 11:00] 일일 정산 마감 (2025-05-10)</p>
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-semibold text-gray-800"><i class="fas fa-list text-orange-500 mr-2"></i>관리자 활동 로그</h2>
+              <span class="text-xs text-gray-400">전체 ${logTotal.toLocaleString()}건 (최근 50건)</span>
+            </div>
+            <div class="space-y-0 text-xs font-mono text-gray-600 bg-gray-50 rounded-lg p-3 h-64 overflow-y-auto">
+              ${logHtml}
             </div>
           </div>
         </div>
