@@ -6166,10 +6166,38 @@ const AdminModule = (() => {
     Utils.toast('CSV 다운로드 완료', 'success');
   };
 
+  const printSettlement = (date) => {
+    const el = document.getElementById('settlement-print-area');
+    if (!el) return;
+    const win = window.open('', '_blank', 'width=900,height=700');
+    win.document.write(`<!DOCTYPE html><html><head><meta charset='utf-8'><title>일일정산 ${date}</title>
+      <style>
+        body{font-family:'Malgun Gothic',sans-serif;font-size:12px;color:#111;padding:20px;}
+        h2{font-size:16px;margin-bottom:4px;} .sub{color:#666;font-size:11px;margin-bottom:16px;}
+        .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}
+        .card{border:1px solid #ddd;border-radius:6px;padding:10px;text-align:center;}
+        .card .label{font-size:10px;color:#666;margin-bottom:4px;}
+        .card .val{font-size:14px;font-weight:bold;} .card .sub2{font-size:10px;color:#999;}
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+        .box{border:1px solid #eee;border-radius:6px;padding:10px;background:#fafafa;}
+        .box .ttl{font-size:11px;font-weight:bold;color:#444;margin-bottom:6px;}
+        .row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;}
+        table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;}
+        th{background:#f3f4f6;padding:5px 6px;border:1px solid #ddd;text-align:center;}
+        td{padding:4px 6px;border:1px solid #eee;text-align:center;}
+        .total-row{border-top:2px solid #333;padding-top:8px;display:flex;justify-content:space-between;font-weight:bold;font-size:13px;margin-top:8px;}
+        @media print{body{padding:10px;} button{display:none;}}
+      </style></head><body>
+      ${el.innerHTML}
+      <script>window.onload=function(){window.print();}<\/script>
+    </body></html>`);
+    win.document.close();
+  };
+
   const viewSettlement = async (date) => {
     const user = _adminState.user || {};
     const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
-    // 로딩 토스트
+    const scheduleNames = {}; // scheduleId → 시간 매핑
     Utils.toast('정산 데이터 조회 중...', 'info');
     // API에서 해당 날짜 실제 데이터 조회
     let url = `/api/reservations?limit=500&date=${date}`;
@@ -6178,19 +6206,42 @@ const AdminModule = (() => {
     const all = (res.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
     if (!all.length) { Utils.toast(`${date} 정산 데이터가 없습니다.`, 'info'); return; }
 
-    // ── 집계 ──
+    // ── passengers_json 기반 성별 집계 ──
+    let maleTotal = 0, femaleTotal = 0, unknownGender = 0;
+    all.forEach(r => {
+      const passengers = r.passengers || r.passengersJson || [];
+      if (passengers && passengers.length) {
+        passengers.forEach(p => {
+          if (p.gender === 'M') maleTotal++;
+          else if (p.gender === 'F') femaleTotal++;
+          else unknownGender++;
+        });
+      } else {
+        unknownGender += (r.pax || 0);
+      }
+    });
+    const hasGenderData = (maleTotal + femaleTotal) > 0;
+
+    // ── 기본 집계 ──
     const totalPax   = all.reduce((s,r) => s + (r.pax||0), 0);
     const totalAmt   = all.reduce((s,r) => s + (r.totalPrice||0), 0);
-    const cash       = all.filter(r => r.paymentMethod === 'cash');
-    const card       = all.filter(r => r.paymentMethod === 'card' || r.paymentMethod === 'credit_card');
-    const transfer   = all.filter(r => r.paymentMethod === 'transfer' || r.paymentMethod === 'bank_transfer');
-    const online     = all.filter(r => r.channel === 'online');
-    const onsite     = all.filter(r => r.channel === 'onsite');
-    const discounted = all.filter(r => (r.specialDiscountType && r.specialDiscountType !== '') || r.groupDiscountRate > 0);
-    const military   = all.filter(r => r.specialDiscountType === 'military');
-    const senior     = all.filter(r => r.specialDiscountType === 'senior');
-    const local      = all.filter(r => r.specialDiscountType === 'local');
-    const group      = all.filter(r => r.groupDiscountRate > 0);
+    const discountAmt= all.reduce((s,r) => s + ((r.groupDiscountAmount||0)+(r.specialDiscountAmount||0)), 0);
+    const cashList   = all.filter(r => r.paymentMethod === 'cash');
+    const cardList   = all.filter(r => r.paymentMethod === 'card' || r.paymentMethod === 'credit_card');
+    const transList  = all.filter(r => r.paymentMethod === 'transfer' || r.paymentMethod === 'bank_transfer');
+    const onlineList = all.filter(r => r.channel === 'online');
+    const onsiteList = all.filter(r => r.channel === 'onsite');
+    const militaryList= all.filter(r => r.specialDiscountType === 'military');
+    const seniorList  = all.filter(r => r.specialDiscountType === 'senior');
+    const localList   = all.filter(r => r.specialDiscountType === 'local');
+    const groupList   = all.filter(r => r.groupDiscountRate > 0);
+    const discounted  = [...new Set([...militaryList,...seniorList,...localList,...groupList])];
+    const cashAmt = cashList.reduce((s,r)=>s+(r.totalPrice||0),0);
+    const cardAmt = cardList.reduce((s,r)=>s+(r.totalPrice||0),0);
+    const transAmt= transList.reduce((s,r)=>s+(r.totalPrice||0),0);
+    const onlinePax = onlineList.reduce((s,r)=>s+(r.pax||0),0);
+    const onsitePax = onsiteList.reduce((s,r)=>s+(r.pax||0),0);
+
     // 지역별
     const byRegion = {};
     all.forEach(r => {
@@ -6199,114 +6250,121 @@ const AdminModule = (() => {
       byRegion[rn].count++; byRegion[rn].pax += r.pax||0; byRegion[rn].amt += r.totalPrice||0;
     });
 
+    // 시간대별
+    const byTime = {};
+    all.forEach(r => {
+      const sid = r.scheduleId || 'etc';
+      const tLabel = sid.match(/(\d{4})$/) ? sid.match(/(\d{4})$/)[1].replace(/(\d{2})(\d{2})/,'$1:$2') : sid;
+      if (!byTime[tLabel]) byTime[tLabel] = {count:0, pax:0, amt:0};
+      byTime[tLabel].count++; byTime[tLabel].pax += r.pax||0; byTime[tLabel].amt += r.totalPrice||0;
+    });
+
     // ── 예약 목록 행 ──
-    const listRows = all.map((r,i) => `
-      <tr class="${i%2===0?'bg-white':'bg-gray-50'} text-xs">
-        <td class="px-2 py-1.5 font-mono text-blue-600 whitespace-nowrap">${r.reservationNo||r.id||'-'}</td>
-        <td class="px-2 py-1.5 text-gray-700">${r.name||'-'}</td>
-        <td class="px-2 py-1.5 text-center">${RNAMES[r.regionId]||r.regionId||'-'}</td>
-        <td class="px-2 py-1.5 text-center">${r.pax||0}명</td>
-        <td class="px-2 py-1.5 text-center">
-          <span class="px-1.5 py-0.5 rounded text-xs ${
-            r.paymentMethod==='cash' ? 'bg-green-100 text-green-700' :
-            r.paymentMethod==='transfer'||r.paymentMethod==='bank_transfer' ? 'bg-purple-100 text-purple-700' :
-            'bg-blue-100 text-blue-700'
-          }">${r.paymentMethod==='cash'?'현금':r.paymentMethod==='transfer'||r.paymentMethod==='bank_transfer'?'계좌이체':'카드'}</span>
-        </td>
-        <td class="px-2 py-1.5 text-center">
-          <span class="px-1.5 py-0.5 rounded text-xs ${r.channel==='onsite'?'bg-orange-100 text-orange-700':'bg-gray-100 text-gray-600'}">
-            ${r.channel==='onsite'?'현장':'온라인'}
-          </span>
-        </td>
-        <td class="px-2 py-1.5 text-center text-gray-500">${r.specialDiscountType==='military'?'🎖군인':r.specialDiscountType==='senior'?'🧓경로':r.specialDiscountType==='local'?'🏠지역민':r.groupDiscountRate>0?'👥단체':'-'}</td>
-        <td class="px-2 py-1.5 text-right font-medium text-gray-800">₩${(r.totalPrice||0).toLocaleString()}</td>
-      </tr>`).join('');
+    const listRows = all.map((r,i) => {
+      const payLabel = r.paymentMethod==='cash'?'현금':r.paymentMethod==='transfer'||r.paymentMethod==='bank_transfer'?'계좌':'카드';
+      const payColor = r.paymentMethod==='cash'?'#15803d':r.paymentMethod==='transfer'||r.paymentMethod==='bank_transfer'?'#7c3aed':'#1d4ed8';
+      const chLabel = r.channel==='onsite'?'현장':'온라인';
+      const discLabel = r.specialDiscountType==='military'?'군인':r.specialDiscountType==='senior'?'경로':r.specialDiscountType==='local'?'지역민':r.groupDiscountRate>0?'단체':'';
+      const sid = r.scheduleId || '';
+      const timeLabel = sid.match(/(\d{4})$/) ? sid.match(/(\d{4})$/)[1].replace(/(\d{2})(\d{2})/,'$1:$2') : '-';
+      return `<tr style="background:${i%2===0?'#fff':'#f9fafb'};font-size:11px">
+        <td style="padding:5px 6px;border:1px solid #eee;font-family:monospace;color:#1d4ed8">${r.reservationNo||'-'}</td>
+        <td style="padding:5px 6px;border:1px solid #eee">${r.name||'-'}</td>
+        <td style="padding:5px 6px;border:1px solid #eee;text-align:center">${RNAMES[r.regionId]||r.regionId||'-'}</td>
+        <td style="padding:5px 6px;border:1px solid #eee;text-align:center">${timeLabel}</td>
+        <td style="padding:5px 6px;border:1px solid #eee;text-align:center;font-weight:600">${r.pax||0}명</td>
+        <td style="padding:5px 6px;border:1px solid #eee;text-align:center;color:${payColor};font-weight:600">${payLabel}</td>
+        <td style="padding:5px 6px;border:1px solid #eee;text-align:center;color:${r.channel==='onsite'?'#c2410c':'#374151'}">${chLabel}</td>
+        <td style="padding:5px 6px;border:1px solid #eee;text-align:center;color:#7c3aed">${discLabel||'-'}</td>
+        <td style="padding:5px 6px;border:1px solid #eee;text-align:right;font-weight:600">₩${(r.totalPrice||0).toLocaleString()}</td>
+      </tr>`;
+    }).join('');
 
-    // ── 지역별 소계 ──
-    const regionRows = Object.entries(byRegion).map(([rn,v])=>`
-      <div class="flex justify-between text-sm py-1">
-        <span class="text-gray-600">📍 ${rn}</span>
-        <span class="text-gray-500">${v.count}건 / ${v.pax}명</span>
-        <span class="font-medium text-gray-800">₩${v.amt.toLocaleString()}</span>
-      </div>`).join('');
+    // ── 지역별 / 시간별 소계 행 ──
+    const regionRows = Object.entries(byRegion).map(([rn,v])=>
+      `<div class="row"><span>📍 ${rn}</span><span>${v.count}건 / ${v.pax}명</span><span style="font-weight:600">₩${v.amt.toLocaleString()}</span></div>`).join('');
+    const timeRows = Object.entries(byTime).sort(([a],[b])=>a.localeCompare(b)).map(([t,v])=>
+      `<div class="row"><span>⏰ ${t}</span><span>${v.count}건 / ${v.pax}명</span><span style="font-weight:600">₩${v.amt.toLocaleString()}</span></div>`).join('');
 
-    const html = `
-      <div class="text-left" style="min-width:600px">
-        <!-- 헤더 -->
-        <div class="flex items-center gap-2 mb-4">
-          <i class="fas fa-calculator text-blue-500"></i>
-          <span class="font-bold text-base text-gray-800">${date} 일일 정산 상세</span>
-          <span class="ml-auto text-sm text-gray-500">${all.length}건 · 총 ${totalPax}명</span>
+    // ── 프린트 영역 HTML ──
+    const printHtml = `
+      <h2>아쿠아모빌리티코리아 일일 정산 보고서</h2>
+      <div class="sub">날짜: ${date} &nbsp;|&nbsp; 인쇄: ${new Date().toLocaleString('ko-KR')}</div>
+
+      <div class="grid4">
+        <div class="card"><div class="label">총 탑승인원</div><div class="val">${totalPax}명</div><div class="sub2">${all.length}건</div></div>
+        <div class="card"><div class="label">총 매출</div><div class="val">₩${totalAmt.toLocaleString()}</div><div class="sub2">할인 ₩${discountAmt.toLocaleString()}</div></div>
+        <div class="card"><div class="label">온라인 / 현장</div><div class="val">${onlineList.length} / ${onsiteList.length}건</div><div class="sub2">${onlinePax} / ${onsitePax}명</div></div>
+        <div class="card"><div class="label">할인 대상</div><div class="val">${discounted.length}건</div><div class="sub2">${discounted.reduce((s,r)=>s+(r.pax||0),0)}명</div></div>
+      </div>
+
+      <div class="grid2">
+        <div class="box">
+          <div class="ttl">결제수단별</div>
+          <div class="row"><span>현금</span><span>${cashList.length}건 / ${cashList.reduce((s,r)=>s+(r.pax||0),0)}명</span><span style="font-weight:600;color:#15803d">₩${cashAmt.toLocaleString()}</span></div>
+          <div class="row"><span>카드</span><span>${cardList.length}건 / ${cardList.reduce((s,r)=>s+(r.pax||0),0)}명</span><span style="font-weight:600;color:#1d4ed8">₩${cardAmt.toLocaleString()}</span></div>
+          <div class="row"><span>계좌이체</span><span>${transList.length}건 / ${transList.reduce((s,r)=>s+(r.pax||0),0)}명</span><span style="font-weight:600;color:#7c3aed">₩${transAmt.toLocaleString()}</span></div>
         </div>
-
-        <!-- 요약 카드 4개 -->
-        <div class="grid grid-cols-4 gap-2 mb-4">
-          <div class="bg-blue-50 rounded-lg p-3 text-center">
-            <div class="text-xs text-blue-500 mb-1">총 매출</div>
-            <div class="font-bold text-blue-700 text-sm">₩${totalAmt.toLocaleString()}</div>
-          </div>
-          <div class="bg-green-50 rounded-lg p-3 text-center">
-            <div class="text-xs text-green-500 mb-1">현금</div>
-            <div class="font-bold text-green-700 text-sm">₩${cash.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}</div>
-            <div class="text-xs text-gray-400">${cash.length}건</div>
-          </div>
-          <div class="bg-indigo-50 rounded-lg p-3 text-center">
-            <div class="text-xs text-indigo-500 mb-1">카드</div>
-            <div class="font-bold text-indigo-700 text-sm">₩${card.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}</div>
-            <div class="text-xs text-gray-400">${card.length}건</div>
-          </div>
-          <div class="bg-purple-50 rounded-lg p-3 text-center">
-            <div class="text-xs text-purple-500 mb-1">계좌이체</div>
-            <div class="font-bold text-purple-700 text-sm">₩${transfer.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}</div>
-            <div class="text-xs text-gray-400">${transfer.length}건</div>
-          </div>
+        <div class="box">
+          <div class="ttl">할인/특가 적용</div>
+          ${militaryList.length?`<div class="row"><span>군인</span><span>${militaryList.length}건 / ${militaryList.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>`:''}
+          ${seniorList.length?`<div class="row"><span>경로</span><span>${seniorList.length}건 / ${seniorList.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>`:''}
+          ${localList.length?`<div class="row"><span>지역민</span><span>${localList.length}건 / ${localList.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>`:''}
+          ${groupList.length?`<div class="row"><span>단체</span><span>${groupList.length}건 / ${groupList.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>`:''}
+          ${!discounted.length?'<div style="font-size:11px;color:#aaa">할인 없음</div>':''}
+          ${hasGenderData?`<div class="ttl" style="margin-top:8px">성별</div>
+            <div class="row"><span>남성</span><span>${maleTotal}명</span></div>
+            <div class="row"><span>여성</span><span>${femaleTotal}명</span></div>`:''}
         </div>
+      </div>
 
-        <!-- 채널 / 할인 요약 -->
-        <div class="grid grid-cols-2 gap-3 mb-4">
-          <div class="bg-gray-50 rounded-lg p-3">
-            <div class="text-xs font-semibold text-gray-600 mb-2">📊 채널별</div>
-            <div class="flex justify-between text-sm"><span class="text-gray-500">온라인</span><span class="font-medium">${online.length}건 / ${online.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>
-            <div class="flex justify-between text-sm mt-1"><span class="text-gray-500">현장</span><span class="font-medium">${onsite.length}건 / ${onsite.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>
-          </div>
-          <div class="bg-gray-50 rounded-lg p-3">
-            <div class="text-xs font-semibold text-gray-600 mb-2">🎫 할인/특가</div>
-            ${military.length ? `<div class="flex justify-between text-sm"><span class="text-gray-500">🎖 군인</span><span class="font-medium">${military.length}건 / ${military.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
-            ${senior.length ? `<div class="flex justify-between text-sm mt-1"><span class="text-gray-500">🧓 경로</span><span class="font-medium">${senior.length}건 / ${senior.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
-            ${local.length ? `<div class="flex justify-between text-sm mt-1"><span class="text-gray-500">🏠 지역민</span><span class="font-medium">${local.length}건 / ${local.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
-            ${group.length ? `<div class="flex justify-between text-sm mt-1"><span class="text-gray-500">👥 단체</span><span class="font-medium">${group.length}건 / ${group.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
-            ${!discounted.length ? '<div class="text-xs text-gray-400">할인 예약 없음</div>' : ''}
-          </div>
-        </div>
+      <div class="grid2">
+        <div class="box"><div class="ttl">지역별 소계</div>${regionRows||'<div style="color:#aaa;font-size:11px">데이터없음</div>'}</div>
+        <div class="box"><div class="ttl">회차별 소계</div>${timeRows||'<div style="color:#aaa;font-size:11px">데이터없음</div>'}</div>
+      </div>
 
-        <!-- 지역별 소계 -->
-        ${Object.keys(byRegion).length > 1 ? `
-        <div class="bg-gray-50 rounded-lg p-3 mb-4">
-          <div class="text-xs font-semibold text-gray-600 mb-2">📍 지역별 소계</div>
-          ${regionRows}
-        </div>` : ''}
+      <div class="ttl" style="margin-top:12px;font-size:12px;font-weight:bold">탑승게스트 전체 목록 (${all.length}건)</div>
+      <table>
+        <thead><tr>${['예약번호','예약자','지역','회차','인원','결제','채널','할인','지불금액'].map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${listRows}</tbody>
+      </table>
+      <div class="total-row"><span>합계 ${all.length}건 / ${totalPax}명</span><span>₩${totalAmt.toLocaleString()}</span></div>`;
 
-        <!-- 예약 목록 -->
-        <div class="mb-2">
-          <div class="text-xs font-semibold text-gray-600 mb-1">📋 예약 목록</div>
-          <div class="overflow-y-auto" style="max-height:220px">
-            <table class="w-full text-xs">
-              <thead class="bg-gray-100 sticky top-0">
-                <tr>${['예약번호','예약자','지역','인원','결제','채널','할인','금액'].map(h=>`<th class="px-2 py-1.5 text-gray-600 text-center whitespace-nowrap font-medium">${h}</th>`).join('')}</tr>
-              </thead>
-              <tbody>${listRows}</tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- 합계 -->
-        <div class="pt-3 border-t flex justify-between items-center font-bold text-gray-800">
-          <span>합계 ${all.length}건 / ${totalPax}명</span>
-          <span class="text-blue-700 text-base">₩${totalAmt.toLocaleString()}</span>
-        </div>
+    // ── 화면 팔업 HTML ──
+    const popupHtml = `
+      <div id="settlement-print-area">${printHtml}</div>
+      <div style="margin-top:12px;text-align:right">
+        <button onclick="AdminModule.printSettlement('${date}')" style="background:#1d4ed8;color:#fff;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px">
+          <span>🖨️</span> 인쇄하기
+        </button>
       </div>`;
 
-    Utils.confirm(html, () => {}, { confirmText: '닫기', cancelText: null, title: '일일 정산 상세', size: '860px' });
+    // 스타일 주입
+    const style = document.getElementById('settlement-print-style');
+    if (!style) {
+      const s = document.createElement('style');
+      s.id = 'settlement-print-style';
+      s.textContent = `
+        #settlement-print-area h2{font-size:15px;font-weight:bold;margin-bottom:2px;color:#111}
+        #settlement-print-area .sub{font-size:11px;color:#666;margin-bottom:12px}
+        #settlement-print-area .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+        #settlement-print-area .card{border:1px solid #e5e7eb;border-radius:8px;padding:10px;text-align:center;background:#f8fafc}
+        #settlement-print-area .card .label{font-size:10px;color:#6b7280;margin-bottom:3px}
+        #settlement-print-area .card .val{font-size:13px;font-weight:bold;color:#1e293b}
+        #settlement-print-area .card .sub2{font-size:10px;color:#9ca3af;margin-top:2px}
+        #settlement-print-area .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+        #settlement-print-area .box{border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#f9fafb}
+        #settlement-print-area .box .ttl{font-size:11px;font-weight:600;color:#374151;margin-bottom:6px}
+        #settlement-print-area .row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;color:#374151}
+        #settlement-print-area table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+        #settlement-print-area th{background:#f3f4f6;padding:5px 4px;border:1px solid #d1d5db;text-align:center;font-size:10px}
+        #settlement-print-area td{padding:4px;border:1px solid #e5e7eb}
+        #settlement-print-area .total-row{display:flex;justify-content:space-between;font-weight:bold;font-size:13px;border-top:2px solid #374151;padding-top:8px;margin-top:8px}
+      `;
+      document.head.appendChild(s);
+    }
+
+    Utils.confirm(popupHtml, () => {}, { confirmText: '닫기', cancelText: null, title: `${date} 일일 정산 보고서`, size: '900px' });
   };
   const exportSettlement = () => {
     const user = _adminState.user || { role: 'super', regionId: null };
@@ -8246,7 +8304,7 @@ const backupPage = async () => {
     selectSeoRegion, saveSeoGlobal, saveSeoSettings, smsPage, showSmsDetail, showSmsRecipients, showSmsRecipientsByIdx, loadSmsPassengers, onSmsTypeChange, smsSelectAll, updateSmsSelectedCount, sendSms, setSmsTemplate, updateSmsCharCount, updateSmsPreview, previewSms,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
-    sendDailyReport, sendMonthlyReport, saveAutoReport,
+    sendDailyReport, sendMonthlyReport, saveAutoReport, printSettlement,
     addAdmin, resetPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,
     switchRegionDashboard,
