@@ -75,10 +75,12 @@ const AdminModule = (() => {
       { icon: 'fas fa-map-marked-alt', label: '여행가이드 관리', section: 'travel-guides' },
       { icon: 'fas fa-handshake', label: '파트너 관리', section: 'partners' },
       { icon: 'fas fa-id-badge', label: '기사/해설사 관리', section: 'staff' },
+      { icon: 'fas fa-clipboard-list', label: '근무일지', section: 'work-log' },
       { icon: 'fas fa-users', label: '고객 DB', section: 'customers' },
       { icon: 'fas fa-paper-plane', label: '단체문자 캠페인', section: 'sms-campaign' },
       { icon: 'fas fa-database', label: '백업/로그', section: 'backup' },
       { icon: 'fas fa-id-badge', label: '기사/해설사 관리', section: 'staff' },
+      { icon: 'fas fa-clipboard-list', label: '근무일지', section: 'work-log' },
       { icon: 'fas fa-users', label: '고객 누적 DB', section: 'customers' },
       { icon: 'fas fa-paper-plane', label: '단체문자 캠페인', section: 'sms-campaign' },
       { icon: 'fas fa-envelope', label: '우편 주소 관리', section: 'mailing' },
@@ -100,6 +102,7 @@ const AdminModule = (() => {
       { icon: 'fas fa-map-marked-alt', label: '여행가이드 관리', section: 'travel-guides' },
       { icon: 'fas fa-handshake', label: '파트너 관리', section: 'partners' },
       { icon: 'fas fa-id-badge', label: '기사/해설사 관리', section: 'staff' },
+      { icon: 'fas fa-clipboard-list', label: '근무일지', section: 'work-log' },
       { icon: 'fas fa-users', label: '고객 DB', section: 'customers' },
       { icon: 'fas fa-paper-plane', label: '단체문자 캠페인', section: 'sms-campaign' },
     ];
@@ -298,7 +301,29 @@ const AdminModule = (() => {
             </div>
 
           </div>
-          <p class="text-center text-gray-500 text-xs mt-4">
+          <!-- 🧪 테스트 계정 안내 (개발/테스트 기간 중 표시) -->
+          <div class="mt-4 bg-amber-50 border border-amber-300 rounded-xl p-4 text-xs">
+            <div class="flex items-center gap-1.5 mb-2 text-amber-700 font-semibold">
+              <i class="fas fa-flask"></i> 테스트 계정 (개발 기간 임시 표시)
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              ${[
+                {label:'최고관리자', id:'admin', pw:'admin1234', color:'bg-purple-100 text-purple-700 border-purple-200'},
+                {label:'통영 관리자', id:'tongyeong', pw:'tongyeong1234', color:'bg-blue-100 text-blue-700 border-blue-200'},
+                {label:'부여 관리자', id:'buyeo', pw:'buyeo1234', color:'bg-green-100 text-green-700 border-green-200'},
+                {label:'합천 관리자', id:'hapcheon', pw:'hapcheon1234', color:'bg-cyan-100 text-cyan-700 border-cyan-200'},
+                {label:'현장직원', id:'field01', pw:'field1234', color:'bg-orange-100 text-orange-700 border-orange-200'},
+                {label:'정산담당', id:'account', pw:'account1234', color:'bg-gray-100 text-gray-700 border-gray-200'},
+              ].map(a => `
+                <button onclick="AdminModule.fillLogin('${a.id}','${a.pw}')"
+                  class="flex items-center justify-between ${a.color} border rounded-lg px-2 py-1.5 hover:opacity-80 transition text-left">
+                  <span class="font-medium">${a.label}</span>
+                  <span class="text-gray-500 ml-1">${a.id} / ${a.pw}</span>
+                </button>`).join('')}
+            </div>
+            <p class="text-amber-600 mt-2 text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>운영 배포 전 반드시 제거하세요.</p>
+          </div>
+          <p class="text-center text-gray-500 text-xs mt-3">
             <i class="fas fa-shield-alt mr-1"></i>보안 접속 · 무단 접근 시 법적 조치
           </p>
         </div>
@@ -7044,9 +7069,259 @@ const backupPage = async () => {
       'tourism': () => tourismManagePage(),
       'travel-guides': () => travelGuidesPage(),
       'partners': () => partnersPage(),
+      'staff': () => staffPage(),
+      'work-log': () => workLogPage(),
       'reports': () => statsAdminPage(), // /admin/reports → statsAdminPage
     };
     return pageMap[section] ? pageMap[section]() : hqDashboard();
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // 근무일지 페이지
+  // ══════════════════════════════════════════════════════════
+  const workLogPage = async () => {
+    _adminState.currentSection = 'work-log';
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super';
+
+    // 상태: 선택한 지역/월
+    if (!window._wlState) window._wlState = {};
+    const today = new Date();
+    const wlState = window._wlState;
+    if (!wlState.year) wlState.year = today.getFullYear();
+    if (!wlState.month) wlState.month = today.getMonth() + 1;
+    if (!wlState.regionId) wlState.regionId = user.regionId || 'tongyeong';
+
+    const year = wlState.year;
+    const month = wlState.month;
+    const regionId = wlState.regionId;
+    const monthStr = `${year}-${String(month).padStart(2,'0')}`;
+
+    // 데이터 로드
+    const [assignRes, dayoffRes, staffRes, scheduleRes] = await Promise.all([
+      API.get(`/api/assignment/monthly?regionId=${regionId}&year=${year}&month=${month}`),
+      API.get(`/api/assignment/dayoff?regionId=${regionId}&startDate=${monthStr}-01&endDate=${monthStr}-31`),
+      API.get(`/api/staff?region_id=${regionId}`),
+      API.get(`/api/schedules?regionId=${regionId}`),
+    ]);
+
+    const assignments = assignRes.success ? assignRes.data : {};
+    const dayoffs = dayoffRes.success ? dayoffRes.data : [];
+    const staffList = staffRes.success ? staffRes.data : [];
+    const schedules = scheduleRes.success ? scheduleRes.data : [];
+
+    // 직원 맵
+    const staffMap = {};
+    staffList.forEach(s => { staffMap[s.id] = s; });
+
+    // 스케줄 맵 (id → {time, ...})
+    const schedMap = {};
+    schedules.forEach(sc => { schedMap[sc.id] = sc; });
+
+    // 이번 달 날짜 목록
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const days = Array.from({length: daysInMonth}, (_,i) => {
+      const d = new Date(year, month-1, i+1);
+      const dateStr = d.toISOString().slice(0,10);
+      const dayNames = ['일','월','화','수','목','금','토'];
+      return { date: dateStr, day: i+1, dayName: dayNames[d.getDay()], isWeekend: d.getDay()===0||d.getDay()===6 };
+    });
+
+    // 지역 목록
+    const regions = window.REGIONS || [];
+
+    // 지역 탭 (슈퍼관리자만)
+    const regionTabsHtml = isSuper ? `
+      <div class="flex gap-2 flex-wrap mb-4">
+        ${regions.filter(r=>r.status==='active'||r.status==='open').map(r => `
+          <button onclick="window._wlState.regionId='${r.id}';AdminModule.navigate('work-log')"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${regionId===r.id?'bg-blue-600 text-white':'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'}">
+            ${r.name}
+          </button>`).join('')}
+      </div>` : '';
+
+    // 월 이동
+    const prevMonth = month === 1 ? `year=${year-1}&month=12` : `year=${year}&month=${month-1}`;
+    const nextMonth = month === 12 ? `year=${year+1}&month=1` : `year=${year}&month=${month+1}`;
+
+    // 달력 형태로 근무일지 생성
+    const calendarRows = days.map(({date, day, dayName, isWeekend}) => {
+      const dayAssigns = assignments[date] || [];
+      const dayOffs = dayoffs.filter(d => d.off_date === date);
+      const offNames = dayOffs.map(d => staffMap[d.staff_id]?.name || d.staff_id).join(', ');
+
+      // 기사/해설사 그룹핑
+      const driverAssigns = dayAssigns.filter(a => a.role === 'driver');
+      const guideAssigns = dayAssigns.filter(a => a.role === 'guide');
+
+      const assignHtml = dayAssigns.length === 0
+        ? '<span class="text-gray-300 text-xs">-</span>'
+        : `<div class="space-y-0.5">
+            ${driverAssigns.map(a => {
+              const sc = schedMap[a.schedule_id] || {};
+              return `<div class="text-xs bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 flex items-center gap-1">
+                <span class="text-blue-600">🚌</span>
+                <span class="font-medium text-blue-800">${a.staff_name||'?'}</span>
+                <span class="text-gray-400">${sc.time||''}회</span>
+              </div>`;
+            }).join('')}
+            ${guideAssigns.map(a => {
+              const sc = schedMap[a.schedule_id] || {};
+              return `<div class="text-xs bg-green-50 border border-green-100 rounded px-1.5 py-0.5 flex items-center gap-1">
+                <span class="text-green-600">🎤</span>
+                <span class="font-medium text-green-800">${a.staff_name||'?'}</span>
+                <span class="text-gray-400">${sc.time||''}회</span>
+              </div>`;
+            }).join('')}
+          </div>`;
+
+      return `
+        <tr class="${isWeekend?'bg-red-50/30':''} hover:bg-gray-50 border-b border-gray-100">
+          <td class="px-3 py-2 text-center">
+            <span class="font-bold text-sm ${isWeekend?'text-red-500':'text-gray-700'}">${day}</span>
+            <span class="text-xs ml-1 ${isWeekend?'text-red-400':'text-gray-400'}">${dayName}</span>
+          </td>
+          <td class="px-3 py-2">${assignHtml}</td>
+          <td class="px-3 py-2">
+            ${dayOffs.length > 0
+              ? `<span class="text-xs bg-red-100 text-red-700 border border-red-200 rounded px-1.5 py-0.5">${offNames}</span>`
+              : '<span class="text-gray-300 text-xs">-</span>'}
+          </td>
+          <td class="px-3 py-2 text-xs text-gray-500">${dayAssigns.length > 0 ? dayAssigns[0]?.notes||'' : ''}</td>
+        </tr>`;
+    }).join('');
+
+    // 직원별 월간 근무 요약
+    const staffSummary = staffList.map(s => {
+      const workDays = Object.values(assignments).flat().filter(a => a.staff_name === s.name || a.staff_id === s.id).length;
+      const offDays = dayoffs.filter(d => d.staff_id === s.id).length;
+      const assignedSchedules = Object.values(assignments).flat().filter(a => a.staff_name === s.name);
+      // 차량 정보
+      return { ...s, workDays, offDays };
+    });
+
+    const summaryRows = staffSummary.map(s => `
+      <tr class="hover:bg-gray-50">
+        <td class="px-3 py-2">
+          <span class="px-2 py-0.5 rounded-full text-xs font-bold ${s.role==='driver'?'bg-blue-100 text-blue-700':'bg-green-100 text-green-700'}">
+            ${s.role==='driver'?'🚌 기사':'🎤 해설사'}
+          </span>
+        </td>
+        <td class="px-3 py-2 font-medium text-gray-800">${s.name}</td>
+        <td class="px-3 py-2 text-center">
+          <span class="font-semibold text-blue-600">${s.workDays}</span><span class="text-xs text-gray-400">회</span>
+        </td>
+        <td class="px-3 py-2 text-center">
+          <span class="font-semibold ${s.offDays>0?'text-red-500':'text-gray-400'}">${s.offDays}</span><span class="text-xs text-gray-400">일</span>
+        </td>
+        <td class="px-3 py-2 text-center text-xs text-gray-500">${s.phone||'-'}</td>
+      </tr>`).join('') || '<tr><td colspan="5" class="text-center py-4 text-gray-400 text-sm">직원이 없습니다.</td></tr>';
+
+    const content = `
+      <div class="space-y-4">
+        <div class="flex justify-between items-center flex-wrap gap-3">
+          <h2 class="font-semibold text-gray-800">
+            <i class="fas fa-clipboard-list text-blue-500 mr-2"></i>근무일지
+            <span class="ml-2 text-sm font-normal text-gray-500">${year}년 ${month}월 · ${(regions.find(r=>r.id===regionId)||{}).name||regionId}</span>
+          </h2>
+          <div class="flex items-center gap-2">
+            <button onclick="const p='${prevMonth}'.split('&');window._wlState.year=+p[0].split('=')[1];window._wlState.month=+p[1].split('=')[1];AdminModule.navigate('work-log')"
+              class="border rounded-lg px-3 py-1.5 text-sm hover:bg-gray-50">← 이전달</button>
+            <span class="font-medium text-gray-700">${year}.${String(month).padStart(2,'0')}</span>
+            <button onclick="const n='${nextMonth}'.split('&');window._wlState.year=+n[0].split('=')[1];window._wlState.month=+n[1].split('=')[1];AdminModule.navigate('work-log')"
+              class="border rounded-lg px-3 py-1.5 text-sm hover:bg-gray-50">다음달 →</button>
+            <button onclick="AdminModule.autoAssignWorkLog('${regionId}','${monthStr}')"
+              class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1">
+              <i class="fas fa-magic"></i>자동배정
+            </button>
+          </div>
+        </div>
+
+        ${regionTabsHtml}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <!-- 월간 달력 근무표 -->
+          <div class="lg:col-span-2 bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
+              <i class="fas fa-calendar-check text-blue-500"></i>
+              <span class="font-medium text-gray-700 text-sm">일별 근무 현황</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-gray-50 border-b">
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-16">날짜</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600">배정 기사/해설사</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-28">휴무</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-24">비고</th>
+                  </tr>
+                </thead>
+                <tbody>${calendarRows}</tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 직원별 월간 요약 -->
+          <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
+              <i class="fas fa-users text-green-500"></i>
+              <span class="font-medium text-gray-700 text-sm">직원별 월간 요약</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-gray-50 border-b">
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-600">구분</th>
+                    <th class="px-3 py-2 text-xs font-semibold text-gray-600">이름</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">근무</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">휴무</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600">연락처</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">${summaryRows}</tbody>
+              </table>
+            </div>
+            <!-- 범례 -->
+            <div class="px-4 py-3 border-t bg-gray-50 space-y-1">
+              <div class="flex items-center gap-2 text-xs text-gray-500">
+                <span class="bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 text-blue-600">🚌 기사</span>
+                <span class="bg-green-50 border border-green-100 rounded px-1.5 py-0.5 text-green-600">🎤 해설사</span>
+                <span class="bg-red-100 text-red-700 rounded px-1.5 py-0.5">휴무</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 휴무 등록 안내 -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 flex items-start gap-2">
+          <i class="fas fa-info-circle mt-0.5 text-amber-500"></i>
+          <span>휴무를 등록하면 해당 날짜는 자동배정에서 제외됩니다. 기사/해설사 관리에서 휴무를 먼저 등록한 후 <strong>자동배정</strong>을 실행하면 일정이 갱신됩니다.</span>
+        </div>
+      </div>
+    `;
+    return renderAdminLayout('work-log', content, '근무일지');
+  };
+
+  // 근무일지 자동배정
+  const autoAssignWorkLog = async (regionId, monthStr) => {
+    const [year, month] = monthStr.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    const startDate = `${monthStr}-01`;
+    const endDate = `${monthStr}-${String(lastDay).padStart(2,'0')}`;
+    Utils.loading(true);
+    try {
+      const res = await API.post('/api/assignment/auto', { regionId, startDate, endDate });
+      if (res.success) {
+        Utils.toast(`✅ 자동배정 완료: 신규 ${res.data.assigned}건 배정, 건너뜀 ${res.data.skipped}건${res.data.conflicts?.length?`, ⚠️ 충돌 ${res.data.conflicts.length}건`:''}`, 'success');
+      } else {
+        Utils.toast('자동배정 실패: ' + (res.message || res.error), 'error');
+      }
+    } catch(e) {
+      Utils.toast('오류: ' + e.message, 'error');
+    } finally {
+      Utils.loading(false);
+      workLogPage().then(html => { document.getElementById('app').innerHTML = html; });
+    }
   };
 
   // ══════════════════════════════════════════════════════════
@@ -7676,6 +7951,7 @@ const backupPage = async () => {
     saveSmsTemplates, resetSettings,
     switchRegionDashboard,
     setTourismFilter, addTourism, editTourism, saveTourism, toggleTourismVisible, deleteTourism,
+    workLogPage, autoAssignWorkLog,
   };
 })();
 
