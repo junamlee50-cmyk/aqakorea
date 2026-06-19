@@ -6165,41 +6165,147 @@ const AdminModule = (() => {
     Utils.toast('CSV 다운로드 완료', 'success');
   };
 
-  const viewSettlement = (date) => {
-    // 해당 날짜 실제 예약 목록 표시
-    let allRes = [];
-    try { allRes = JSON.parse(localStorage.getItem('amk_reservations') || '[]'); } catch(e) {}
-    let onsiteRes = [];
-    try { onsiteRes = JSON.parse(localStorage.getItem('amk_onsite_tickets') || '[]'); } catch(e) {}
-    const combined = [...allRes, ...onsiteRes].filter(r => {
-      const rDate = r.date || r.createdAt?.slice(0,10) || '';
-      return rDate === date && r.status !== 'cancelled';
+  const viewSettlement = async (date) => {
+    const user = _adminState.user || {};
+    const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
+    // 로딩 토스트
+    Utils.toast('정산 데이터 조회 중...', 'info');
+    // API에서 해당 날짜 실제 데이터 조회
+    let url = `/api/reservations?limit=500&date=${date}`;
+    if (user.role === 'regional' && user.regionId) url += `&regionId=${user.regionId}`;
+    const res = await API.get(url);
+    const all = (res.data || []).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    if (!all.length) { Utils.toast(`${date} 정산 데이터가 없습니다.`, 'info'); return; }
+
+    // ── 집계 ──
+    const totalPax   = all.reduce((s,r) => s + (r.pax||0), 0);
+    const totalAmt   = all.reduce((s,r) => s + (r.totalPrice||0), 0);
+    const cash       = all.filter(r => r.paymentMethod === 'cash');
+    const card       = all.filter(r => r.paymentMethod === 'card' || r.paymentMethod === 'credit_card');
+    const transfer   = all.filter(r => r.paymentMethod === 'transfer' || r.paymentMethod === 'bank_transfer');
+    const online     = all.filter(r => r.channel === 'online');
+    const onsite     = all.filter(r => r.channel === 'onsite');
+    const discounted = all.filter(r => (r.specialDiscountType && r.specialDiscountType !== '') || r.groupDiscountRate > 0);
+    const military   = all.filter(r => r.specialDiscountType === 'military');
+    const senior     = all.filter(r => r.specialDiscountType === 'senior');
+    const local      = all.filter(r => r.specialDiscountType === 'local');
+    const group      = all.filter(r => r.groupDiscountRate > 0);
+    // 지역별
+    const byRegion = {};
+    all.forEach(r => {
+      const rn = RNAMES[r.regionId] || r.regionId || '미지정';
+      if (!byRegion[rn]) byRegion[rn] = {count:0, pax:0, amt:0};
+      byRegion[rn].count++; byRegion[rn].pax += r.pax||0; byRegion[rn].amt += r.totalPrice||0;
     });
-    if (!combined.length) {
-      Utils.toast(`${date} 정산 데이터가 없습니다.`, 'info');
-      return;
-    }
-    const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
-    const total = combined.reduce((s,r)=>s+(r.totalAmount||r.total||0),0);
-    const rows = combined.map(r=>`
-      <div class="flex justify-between text-sm py-1 border-b border-gray-100">
-        <span class="font-mono text-xs text-blue-600">${r.id||r.reservationId||'-'}</span>
-        <span>${r.name||'-'}</span>
-        <span class="text-gray-500">${REGION_NAMES[r.regionId]||r.regionId||'-'}</span>
-        <span class="font-medium">₩${(r.totalAmount||r.total||0).toLocaleString()}</span>
-        <span class="text-gray-400 text-xs">${r.payMethod||'온라인'}</span>
+
+    // ── 예약 목록 행 ──
+    const listRows = all.map((r,i) => `
+      <tr class="${i%2===0?'bg-white':'bg-gray-50'} text-xs">
+        <td class="px-2 py-1.5 font-mono text-blue-600 whitespace-nowrap">${r.reservationNo||r.id||'-'}</td>
+        <td class="px-2 py-1.5 text-gray-700">${r.name||'-'}</td>
+        <td class="px-2 py-1.5 text-center">${RNAMES[r.regionId]||r.regionId||'-'}</td>
+        <td class="px-2 py-1.5 text-center">${r.pax||0}명</td>
+        <td class="px-2 py-1.5 text-center">
+          <span class="px-1.5 py-0.5 rounded text-xs ${
+            r.paymentMethod==='cash' ? 'bg-green-100 text-green-700' :
+            r.paymentMethod==='transfer'||r.paymentMethod==='bank_transfer' ? 'bg-purple-100 text-purple-700' :
+            'bg-blue-100 text-blue-700'
+          }">${r.paymentMethod==='cash'?'현금':r.paymentMethod==='transfer'||r.paymentMethod==='bank_transfer'?'계좌이체':'카드'}</span>
+        </td>
+        <td class="px-2 py-1.5 text-center">
+          <span class="px-1.5 py-0.5 rounded text-xs ${r.channel==='onsite'?'bg-orange-100 text-orange-700':'bg-gray-100 text-gray-600'}">
+            ${r.channel==='onsite'?'현장':'온라인'}
+          </span>
+        </td>
+        <td class="px-2 py-1.5 text-center text-gray-500">${r.specialDiscountType==='military'?'🎖군인':r.specialDiscountType==='senior'?'🧓경로':r.specialDiscountType==='local'?'🏠지역민':r.groupDiscountRate>0?'👥단체':'-'}</td>
+        <td class="px-2 py-1.5 text-right font-medium text-gray-800">₩${(r.totalPrice||0).toLocaleString()}</td>
+      </tr>`).join('');
+
+    // ── 지역별 소계 ──
+    const regionRows = Object.entries(byRegion).map(([rn,v])=>`
+      <div class="flex justify-between text-sm py-1">
+        <span class="text-gray-600">📍 ${rn}</span>
+        <span class="text-gray-500">${v.count}건 / ${v.pax}명</span>
+        <span class="font-medium text-gray-800">₩${v.amt.toLocaleString()}</span>
       </div>`).join('');
-    Utils.confirm(
-      `<div class="text-left">
-        <div class="font-bold text-base mb-3">${date} 정산 상세 (${combined.length}건)</div>
-        <div class="max-h-60 overflow-y-auto space-y-0.5">${rows}</div>
-        <div class="mt-3 pt-3 border-t flex justify-between font-bold">
-          <span>합계</span><span>₩${total.toLocaleString()}</span>
+
+    const html = `
+      <div class="text-left" style="min-width:600px">
+        <!-- 헤더 -->
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-calculator text-blue-500"></i>
+          <span class="font-bold text-base text-gray-800">${date} 일일 정산 상세</span>
+          <span class="ml-auto text-sm text-gray-500">${all.length}건 · 총 ${totalPax}명</span>
         </div>
-      </div>`,
-      () => {},
-      { confirmText: '닫기', cancelText: null, title: '정산 상세' }
-    );
+
+        <!-- 요약 카드 4개 -->
+        <div class="grid grid-cols-4 gap-2 mb-4">
+          <div class="bg-blue-50 rounded-lg p-3 text-center">
+            <div class="text-xs text-blue-500 mb-1">총 매출</div>
+            <div class="font-bold text-blue-700 text-sm">₩${totalAmt.toLocaleString()}</div>
+          </div>
+          <div class="bg-green-50 rounded-lg p-3 text-center">
+            <div class="text-xs text-green-500 mb-1">현금</div>
+            <div class="font-bold text-green-700 text-sm">₩${cash.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}</div>
+            <div class="text-xs text-gray-400">${cash.length}건</div>
+          </div>
+          <div class="bg-indigo-50 rounded-lg p-3 text-center">
+            <div class="text-xs text-indigo-500 mb-1">카드</div>
+            <div class="font-bold text-indigo-700 text-sm">₩${card.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}</div>
+            <div class="text-xs text-gray-400">${card.length}건</div>
+          </div>
+          <div class="bg-purple-50 rounded-lg p-3 text-center">
+            <div class="text-xs text-purple-500 mb-1">계좌이체</div>
+            <div class="font-bold text-purple-700 text-sm">₩${transfer.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}</div>
+            <div class="text-xs text-gray-400">${transfer.length}건</div>
+          </div>
+        </div>
+
+        <!-- 채널 / 할인 요약 -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-gray-50 rounded-lg p-3">
+            <div class="text-xs font-semibold text-gray-600 mb-2">📊 채널별</div>
+            <div class="flex justify-between text-sm"><span class="text-gray-500">온라인</span><span class="font-medium">${online.length}건 / ${online.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>
+            <div class="flex justify-between text-sm mt-1"><span class="text-gray-500">현장</span><span class="font-medium">${onsite.length}건 / ${onsite.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <div class="text-xs font-semibold text-gray-600 mb-2">🎫 할인/특가</div>
+            ${military.length ? `<div class="flex justify-between text-sm"><span class="text-gray-500">🎖 군인</span><span class="font-medium">${military.length}건 / ${military.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
+            ${senior.length ? `<div class="flex justify-between text-sm mt-1"><span class="text-gray-500">🧓 경로</span><span class="font-medium">${senior.length}건 / ${senior.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
+            ${local.length ? `<div class="flex justify-between text-sm mt-1"><span class="text-gray-500">🏠 지역민</span><span class="font-medium">${local.length}건 / ${local.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
+            ${group.length ? `<div class="flex justify-between text-sm mt-1"><span class="text-gray-500">👥 단체</span><span class="font-medium">${group.length}건 / ${group.reduce((s,r)=>s+(r.pax||0),0)}명</span></div>` : ''}
+            ${!discounted.length ? '<div class="text-xs text-gray-400">할인 예약 없음</div>' : ''}
+          </div>
+        </div>
+
+        <!-- 지역별 소계 -->
+        ${Object.keys(byRegion).length > 1 ? `
+        <div class="bg-gray-50 rounded-lg p-3 mb-4">
+          <div class="text-xs font-semibold text-gray-600 mb-2">📍 지역별 소계</div>
+          ${regionRows}
+        </div>` : ''}
+
+        <!-- 예약 목록 -->
+        <div class="mb-2">
+          <div class="text-xs font-semibold text-gray-600 mb-1">📋 예약 목록</div>
+          <div class="overflow-y-auto" style="max-height:220px">
+            <table class="w-full text-xs">
+              <thead class="bg-gray-100 sticky top-0">
+                <tr>${['예약번호','예약자','지역','인원','결제','채널','할인','금액'].map(h=>`<th class="px-2 py-1.5 text-gray-600 text-center whitespace-nowrap font-medium">${h}</th>`).join('')}</tr>
+              </thead>
+              <tbody>${listRows}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 합계 -->
+        <div class="pt-3 border-t flex justify-between items-center font-bold text-gray-800">
+          <span>합계 ${all.length}건 / ${totalPax}명</span>
+          <span class="text-blue-700 text-base">₩${totalAmt.toLocaleString()}</span>
+        </div>
+      </div>`;
+
+    Utils.confirm(html, () => {}, { confirmText: '닫기', cancelText: null, title: '일일 정산 상세', size: 'max-w-3xl' });
   };
   const exportSettlement = () => {
     const user = _adminState.user || { role: 'super', regionId: null };
@@ -7057,18 +7163,171 @@ const backupPage = async () => {
   // ── 통계 빠른 링크 ─────────────────────────────────────────
   const statsAdminPage = async () => {
     _adminState.currentSection = 'stats-admin';
-    return renderAdminLayout('stats-admin', `
-      <div class="flex items-center justify-center min-h-64">
-        <div class="text-center">
-          <i class="fas fa-chart-bar text-blue-400 text-5xl mb-4"></i>
-          <p class="text-gray-600 font-medium">통계 모듈 로딩 중...</p>
-          <p class="text-sm text-gray-400 mt-1">Stats 모듈에서 관리됩니다.</p>
-          <button onclick="Router.go('/stats')" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
-            통계 페이지로 이동
-          </button>
+    const user = _adminState.user || {};
+    const today = new Date().toISOString().slice(0,10);
+    const thisMonth = today.slice(0,7);
+    const content = `
+      <div class="space-y-6">
+        <!-- 통계 페이지 바로가기 -->
+        <div class="bg-white rounded-xl shadow-sm p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-gray-800"><i class="fas fa-chart-bar mr-2 text-blue-500"></i>통계/보고서</h2>
+            <button onclick="Router.go('/stats')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
+              <i class="fas fa-chart-line"></i>통계 페이지로 이동
+            </button>
+          </div>
+          <p class="text-sm text-gray-500">상세 통계 차트는 통계 페이지에서 확인하실 수 있습니다.</p>
         </div>
-      </div>
-    `, '통계/보고서');
+
+        <!-- 보고서 자동발송 -->
+        <div class="bg-white rounded-xl shadow-sm p-5">
+          <h2 class="font-semibold text-gray-800 mb-4"><i class="fas fa-paper-plane mr-2 text-green-500"></i>보고서 자동발송</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <!-- 일일 보고서 -->
+            <div class="border border-gray-200 rounded-xl p-4">
+              <div class="flex items-center gap-2 mb-3">
+                <i class="fas fa-calendar-day text-orange-400"></i>
+                <span class="font-medium text-gray-700">일일 정산 보고서</span>
+              </div>
+              <div class="space-y-2 mb-3">
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">발송 날짜</label>
+                  <input type="date" id="report-daily-date" value="${today}" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">수신 이메일</label>
+                  <input type="email" id="report-daily-email" placeholder="example@email.com" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value="${user.email||''}">
+                </div>
+              </div>
+              <button onclick="AdminModule.sendDailyReport()" class="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                <i class="fas fa-paper-plane"></i>일일 보고서 발송
+              </button>
+            </div>
+            <!-- 월간 보고서 -->
+            <div class="border border-gray-200 rounded-xl p-4">
+              <div class="flex items-center gap-2 mb-3">
+                <i class="fas fa-calendar-alt text-blue-400"></i>
+                <span class="font-medium text-gray-700">월간 정산 보고서</span>
+              </div>
+              <div class="space-y-2 mb-3">
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">대상 월</label>
+                  <input type="month" id="report-monthly-month" value="${thisMonth}" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 block mb-1">수신 이메일</label>
+                  <input type="email" id="report-monthly-email" placeholder="example@email.com" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value="${user.email||''}">
+                </div>
+              </div>
+              <button onclick="AdminModule.sendMonthlyReport()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+                <i class="fas fa-paper-plane"></i>월간 보고서 발송
+              </button>
+            </div>
+          </div>
+          <!-- 자동발송 예약 -->
+          <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <div class="flex items-center gap-2 mb-3">
+              <i class="fas fa-clock text-purple-400"></i>
+              <span class="font-medium text-gray-700">자동발송 스케줄 설정</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              <div>
+                <label class="text-xs text-gray-500 block mb-1">발송 유형</label>
+                <select id="auto-report-type" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                  <option value="daily">매일 (일일 정산)</option>
+                  <option value="weekly">매주 월요일 (주간)</option>
+                  <option value="monthly">매월 1일 (월간)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-gray-500 block mb-1">발송 시간</label>
+                <select id="auto-report-time" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                  <option value="07:00">오전 7:00</option>
+                  <option value="08:00">오전 8:00</option>
+                  <option value="09:00" selected>오전 9:00</option>
+                  <option value="18:00">오후 6:00</option>
+                  <option value="22:00">오후 10:00</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-gray-500 block mb-1">수신 이메일</label>
+                <input type="email" id="auto-report-email" placeholder="example@email.com" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value="${user.email||''}">
+              </div>
+            </div>
+            <button onclick="AdminModule.saveAutoReport()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+              <i class="fas fa-save"></i>자동발송 저장
+            </button>
+            <div id="auto-report-status" class="mt-2 text-xs text-gray-400"></div>
+          </div>
+        </div>
+      </div>`;
+    return renderAdminLayout('stats-admin', content, '통계/보고서');
+  };
+
+  const sendDailyReport = async () => {
+    const date  = document.getElementById('report-daily-date')?.value;
+    const email = document.getElementById('report-daily-email')?.value;
+    if (!date || !email) { Utils.toast('날짜와 이메일을 입력하세요.', 'error'); return; }
+    const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
+    const user = _adminState.user || {};
+    let url = `/api/reservations?limit=500&date=${date}`;
+    if (user.role === 'regional' && user.regionId) url += `&regionId=${user.regionId}`;
+    const res = await API.get(url);
+    const data = (res.data||[]).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    const totalAmt = data.reduce((s,r)=>s+(r.totalPrice||0),0);
+    const totalPax = data.reduce((s,r)=>s+(r.pax||0),0);
+    const cash = data.filter(r=>r.paymentMethod==='cash');
+    const card = data.filter(r=>r.paymentMethod==='card'||r.paymentMethod==='credit_card');
+    const online = data.filter(r=>r.channel==='online');
+    const onsite = data.filter(r=>r.channel==='onsite');
+    const rows = data.map(r=>`<tr style="border-bottom:1px solid #eee"><td style="padding:4px 8px">${r.reservationNo}</td><td style="padding:4px 8px">${r.name}</td><td style="padding:4px 8px;text-align:center">${RNAMES[r.regionId]||r.regionId}</td><td style="padding:4px 8px;text-align:center">${r.pax}명</td><td style="padding:4px 8px;text-align:center">${r.paymentMethod==='cash'?'현금':'카드'}</td><td style="padding:4px 8px;text-align:right">₩${(r.totalPrice||0).toLocaleString()}</td></tr>`).join('');
+    const body = `아쿠아모빌리티코리아 일일 정산 보고서 (${date})\n\n` +
+      `■ 요약\n총 ${data.length}건 / ${totalPax}명 / ₩${totalAmt.toLocaleString()}\n` +
+      `현금 ${cash.length}건(₩${cash.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()}) / 카드 ${card.length}건(₩${card.reduce((s,r)=>s+(r.totalPrice||0),0).toLocaleString()})\n` +
+      `온라인 ${online.length}건 / 현장 ${onsite.length}건\n\n` +
+      `■ 예약 목록\n` + data.map(r=>`${r.reservationNo} | ${r.name} | ${RNAMES[r.regionId]||r.regionId} | ${r.pax}명 | ${r.paymentMethod==='cash'?'현금':'카드'} | ₩${(r.totalPrice||0).toLocaleString()}`).join('\n');
+    try {
+      await API.post('/api/mailing/send', { to: email, subject: `[AMK] 일일 정산 보고서 ${date}`, body, html: `<h2>아쿠아모빌리티코리아 일일 정산 보고서</h2><p><b>날짜:</b> ${date}</p><p><b>총 ${data.length}건 / ${totalPax}명 / ₩${totalAmt.toLocaleString()}</b></p><p>현금 ${cash.length}건 / 카드 ${card.length}건 / 온라인 ${online.length}건 / 현장 ${onsite.length}건</p><hr><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px">예약번호</th><th style="padding:6px 8px">예약자</th><th style="padding:6px 8px">지역</th><th style="padding:6px 8px">인원</th><th style="padding:6px 8px">결제</th><th style="padding:6px 8px">금액</th></tr></thead><tbody>${rows}</tbody></table>` });
+      Utils.toast(`${email}로 일일 보고서를 발송했습니다.`, 'success');
+    } catch(e) {
+      Utils.toast('발송 실패: ' + (e.message||'서버 오류'), 'error');
+    }
+  };
+
+  const sendMonthlyReport = async () => {
+    const month = document.getElementById('report-monthly-month')?.value;
+    const email = document.getElementById('report-monthly-email')?.value;
+    if (!month || !email) { Utils.toast('월과 이메일을 입력하세요.', 'error'); return; }
+    const user = _adminState.user || {};
+    const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
+    let url = `/api/reservations?limit=2000&month=${month}`;
+    if (user.role === 'regional' && user.regionId) url += `&regionId=${user.regionId}`;
+    const res = await API.get(url);
+    const data = (res.data||[]).filter(r => r.status !== 'cancelled' && r.status !== 'refunded');
+    const totalAmt = data.reduce((s,r)=>s+(r.totalPrice||0),0);
+    const totalPax = data.reduce((s,r)=>s+(r.pax||0),0);
+    const byRegion = {};
+    data.forEach(r=>{ const rn=RNAMES[r.regionId]||r.regionId||'미지정'; if(!byRegion[rn]) byRegion[rn]={count:0,pax:0,amt:0}; byRegion[rn].count++; byRegion[rn].pax+=r.pax||0; byRegion[rn].amt+=r.totalPrice||0; });
+    const regionSummary = Object.entries(byRegion).map(([rn,v])=>`<li>${rn}: ${v.count}건 / ${v.pax}명 / ₩${v.amt.toLocaleString()}</li>`).join('');
+    try {
+      await API.post('/api/mailing/send', { to: email, subject: `[AMK] 월간 정산 보고서 ${month}`, body: `아쿠아모빌리티코리아 ${month} 월간 정산 보고서\n총 ${data.length}건 / ${totalPax}명 / ₩${totalAmt.toLocaleString()}`, html: `<h2>아쿠아모빌리티코리아 월간 정산 보고서</h2><p><b>기간:</b> ${month}</p><p><b>총 ${data.length}건 / ${totalPax}명 / ₩${totalAmt.toLocaleString()}</b></p><ul>${regionSummary}</ul>` });
+      Utils.toast(`${email}로 월간 보고서를 발송했습니다.`, 'success');
+    } catch(e) {
+      Utils.toast('발송 실패: ' + (e.message||'서버 오류'), 'error');
+    }
+  };
+
+  const saveAutoReport = () => {
+    const type  = document.getElementById('auto-report-type')?.value;
+    const time  = document.getElementById('auto-report-time')?.value;
+    const email = document.getElementById('auto-report-email')?.value;
+    if (!email) { Utils.toast('수신 이메일을 입력하세요.', 'error'); return; }
+    const schedule = { type, time, email, savedAt: new Date().toISOString() };
+    localStorage.setItem('amk_auto_report', JSON.stringify(schedule));
+    const typeLabel = type==='daily'?'매일':type==='weekly'?'매주 월요일':'매월 1일';
+    const el = document.getElementById('auto-report-status');
+    if (el) el.innerHTML = `<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>저장됨 — ${typeLabel} ${time} → ${email}</span>`;
+    Utils.toast(`자동발송 설정이 저장되었습니다. (${typeLabel} ${time})`, 'success');
   };
 
   // ── navigate 라우터 (tourism 추가) ──────────────────────────
@@ -7986,6 +8245,7 @@ const backupPage = async () => {
     selectSeoRegion, saveSeoGlobal, saveSeoSettings, smsPage, showSmsDetail, showSmsRecipients, showSmsRecipientsByIdx, loadSmsPassengers, onSmsTypeChange, smsSelectAll, updateSmsSelectedCount, sendSms, setSmsTemplate, updateSmsCharCount, updateSmsPreview, previewSms,
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
+    sendDailyReport, sendMonthlyReport, saveAutoReport,
     addAdmin, resetPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,
     switchRegionDashboard,
