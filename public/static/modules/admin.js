@@ -254,6 +254,11 @@ const AdminModule = (() => {
     return `
       <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
         <div class="w-full max-w-md">
+          <div class="mb-4">
+            <a href="/" data-link class="inline-flex items-center gap-2 text-white/70 hover:text-white text-sm transition-colors">
+              <i class="fas fa-arrow-left"></i> 메인으로 돌아가기
+            </a>
+          </div>
           <div class="text-center mb-8">
             <div class="flex justify-center mb-3">
               <img src="/static/logo_emblem.png" alt="Aqua Mobility Korea" style="width:90px;height:auto;object-fit:contain;">
