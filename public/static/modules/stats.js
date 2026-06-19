@@ -136,10 +136,14 @@ const StatsModule = (() => {
             ${(window.REGIONS||[]).filter(r=>r.status==='active').map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
           </select>
           <select id="stats-period" onchange="StatsModule.refreshCurrent()" class="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="today">오늘</option>
+            <option value="yesterday">어제</option>
             <option value="7">최근 7일</option>
+            <option value="15">최근 15일</option>
             <option value="30" selected>최근 30일</option>
             <option value="90">최근 3개월</option>
-            <option value="365">올해</option>
+            <option value="thisMonth">이번 달</option>
+            <option value="lastMonth">지난 달</option>
           </select>
           <input type="date" id="stats-from" class="border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
           <span class="text-gray-400 text-sm">~</span>
@@ -161,9 +165,26 @@ const StatsModule = (() => {
     // ── DB /api/stats/overview 로 통합 데이터 로드 ──────────
     const user = (typeof Store !== 'undefined' ? Store.get('adminUser') : null) || {};
     const isRegional = user.role === 'regional';
+    // 기간/지역 필터 읽기
+    const periodSel = document.getElementById('stats-period');
+    const fromSel   = document.getElementById('stats-from');
+    const toSel     = document.getElementById('stats-to');
+    const regionSel = document.getElementById('stats-region');
+    const periodVal = periodSel ? periodSel.value : '30';
+    const fromVal   = fromSel ? fromSel.value : '';
+    const toVal     = toSel ? toSel.value : '';
+    const regionVal = isRegional ? (user.regionId || '') : (regionSel ? regionSel.value : '');
+    let overviewUrl = '/api/stats/overview?';
+    if (fromVal && toVal) {
+      overviewUrl += `startDate=${fromVal}&endDate=${toVal}`;
+    } else if (periodVal) {
+      const pMap = {'7':'7days','30':'30days','90':'90days','365':'thisMonth'};
+      overviewUrl += `period=${pMap[periodVal] || periodVal+'days'}`;
+    }
+    if (regionVal && regionVal !== 'all') overviewUrl += `&regionId=${regionVal}`;
     let overview = {};
     try {
-      const res = await API.get('/api/stats/overview');
+      const res = await API.get(overviewUrl);
       overview = res.data || {};
     } catch(e) { overview = {}; }
 
