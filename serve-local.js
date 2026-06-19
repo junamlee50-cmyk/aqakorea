@@ -11,10 +11,18 @@ const PORT = 3000;
 const DIST = path.join(__dirname, 'dist');
 
 // /api/* → 백엔드 Express (:3001)
+// 커스텀 인증 헤더(X-User-Id, X-User-Role, X-Region-Id)를 upstream으로 그대로 전달
 app.use('/api', createProxyMiddleware({
   target: 'http://127.0.0.1:3001',
   changeOrigin: true,
   on: {
+    proxyReq: (proxyReq, req) => {
+      // 클라이언트가 보낸 X-User-* 헤더를 upstream에 전달
+      ['x-user-id', 'x-user-role', 'x-region-id'].forEach(h => {
+        const val = req.headers[h];
+        if (val) proxyReq.setHeader(h, val);
+      });
+    },
     error: (err, req, res) => {
       console.error('[proxy error]', err.message);
       res.status(502).json({ error: 'API 서버 연결 실패' });
