@@ -304,10 +304,10 @@ const AdminModule = (() => {
           <!-- 테스트 계정 안내 (오픈 전까지 유지) -->
           <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 text-xs">
             <div class="font-semibold text-blue-700 mb-2"><i class="fas fa-info-circle mr-1"></i>테스트 계정</div>
-            <div class="space-y-1">
-              ${DEMO_ACCOUNTS.slice(0,4).map(a =>
-                `<div class="flex justify-between items-center cursor-pointer hover:bg-blue-100 px-2 py-1 rounded"
-                  onclick="fillLogin('${a.id}','${a.pw}')">
+            <div class="space-y-1" id="demo-account-list">
+              ${DEMO_ACCOUNTS.map(a =>
+                `<div class="flex justify-between items-center cursor-pointer hover:bg-blue-100 px-2 py-1 rounded demo-account-row"
+                  data-id="${a.id}" data-pw="${a.pw}">
                   <span class="text-blue-800 font-medium">${a.name}</span>
                   <span class="text-gray-500 font-mono">${a.id} / ${a.pw}</span>
                 </div>`

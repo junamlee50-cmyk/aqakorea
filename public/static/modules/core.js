@@ -473,6 +473,18 @@ const initPageComponents = () => {
       });
     });
   });
+  // 테스트 계정 클릭 → 로그인 필드 자동 입력
+  document.querySelectorAll('.demo-account-row').forEach(row => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => {
+      const id = row.dataset.id;
+      const pw = row.dataset.pw;
+      const idEl = document.getElementById('admin-id');
+      const pwEl = document.getElementById('admin-pw');
+      if (idEl) idEl.value = id;
+      if (pwEl) pwEl.value = pw;
+    });
+  });
   // 숫자 카운터 애니메이션
   document.querySelectorAll('[data-count]').forEach(el => {
     const target = parseInt(el.dataset.count);
