@@ -297,38 +297,6 @@ const AdminModule = (() => {
               </button>
             </div>
 
-            <!-- 테스트 계정 안내 -->
-            <div class="mt-6 rounded-xl border border-amber-200 overflow-hidden">
-              <div class="bg-amber-50 px-4 py-2 flex items-center gap-2 border-b border-amber-200">
-                <i class="fas fa-key text-amber-500 text-xs"></i>
-                <span class="text-xs font-bold text-amber-700">🔑 테스트 계정 안내 (운영 전 삭제 예정)</span>
-              </div>
-              <div class="bg-white divide-y divide-gray-100">
-                ${[
-                  ['본사 슈퍼관리자', 'admin', 'admin1234', 'fas fa-crown', 'text-purple-600'],
-                  ['통영 지역관리자', 'tongyeong', 'tong1234', 'fas fa-map-marker-alt', 'text-blue-600'],
-                  ['부여 지역관리자', 'buyeo', 'buye1234', 'fas fa-map-marker-alt', 'text-blue-600'],
-                  ['합천 지역관리자', 'hapcheon', 'hapc1234', 'fas fa-map-marker-alt', 'text-blue-600'],
-                  ['현장 매표소', 'field01', 'field1234', 'fas fa-ticket-alt', 'text-green-600'],
-                  ['회계 담당자', 'account', 'acct1234', 'fas fa-calculator', 'text-orange-600'],
-                ].map(([label, id, pw, icon, color]) => `
-                  <div class="flex items-center justify-between px-3 py-2 hover:bg-gray-50 cursor-pointer group"
-                       onclick="AdminModule.fillLogin('${id}','${pw}')">
-                    <div class="flex items-center gap-2">
-                      <i class="${icon} ${color} text-xs w-4 text-center"></i>
-                      <span class="text-xs text-gray-700 font-medium">${label}</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <code class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-mono">${id}</code>
-                      <code class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded font-mono">${pw}</code>
-                      <i class="fas fa-arrow-right text-xs text-gray-300 group-hover:text-blue-400 transition-colors"></i>
-                    </div>
-                  </div>`).join('')}
-              </div>
-              <div class="bg-amber-50 px-4 py-1.5">
-                <p class="text-xs text-amber-600">💡 계정을 클릭하면 자동으로 입력됩니다</p>
-              </div>
-            </div>
           </div>
           <p class="text-center text-gray-500 text-xs mt-4">
             <i class="fas fa-shield-alt mr-1"></i>보안 접속 · 무단 접근 시 법적 조치
@@ -388,6 +356,7 @@ const AdminModule = (() => {
       try {
         localStorage.setItem('amk_admin_user', JSON.stringify(_adminState.user));
         localStorage.setItem('amk_admin_login_time', String(Date.now()));
+        window._adminUser = _adminState.user; // API 헤더용
       } catch(e) {}
       _addAccessLog(u.username || u.id, '로그인 성공');
       Utils.toast(`${u.name}으로 로그인되었습니다.`, 'success');
@@ -1163,9 +1132,12 @@ const AdminModule = (() => {
       </div>
 
       <!-- 차량 추가/수정 모달 -->
-      <div id="vehicle-modal" class="modal-overlay hidden">
+      <div id="vehicle-modal" class="modal-overlay hidden" onclick="if(event.target===this)AdminModule.closeVehicleModal()">
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
-          <h3 class="font-semibold text-gray-800 text-lg mb-4" id="vehicle-modal-title">차량 추가</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-800 text-lg" id="vehicle-modal-title">차량 추가</h3>
+            <button onclick="AdminModule.closeVehicleModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+          </div>
           <div class="space-y-3" id="vehicle-form">
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -1301,6 +1273,26 @@ const AdminModule = (() => {
     const m = document.getElementById('vehicle-modal');
     if(m) m.classList.add('hidden');
   };
+
+  // ── ESC 키로 열린 모달 닫기 (vehicle / schedule / auto-schedule / recurring) ──
+  if (!window._amkEscHandlerAdded) {
+    window._amkEscHandlerAdded = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      // vehicle-modal
+      const vm = document.getElementById('vehicle-modal');
+      if (vm && !vm.classList.contains('hidden')) { vm.classList.add('hidden'); return; }
+      // schedule-modal
+      const sm = document.getElementById('schedule-modal');
+      if (sm && !sm.classList.contains('hidden')) { sm.classList.add('hidden'); return; }
+      // auto-schedule-modal
+      const am = document.getElementById('auto-schedule-modal');
+      if (am && !am.classList.contains('hidden')) { am.classList.add('hidden'); return; }
+      // recurring-modal
+      const rm = document.getElementById('recurring-modal');
+      if (rm && !rm.classList.contains('hidden')) { rm.classList.add('hidden'); return; }
+    });
+  }
 
   // 지역 필터 탭 클릭 → 페이지 재렌더링
   const filterVehicles = (regionId) => {

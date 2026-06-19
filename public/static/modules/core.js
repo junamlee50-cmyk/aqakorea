@@ -32,34 +32,41 @@ const Store = (() => {
 
 // ── API 클라이언트 ───────────────────────────────────────────
 const API = {
-  base: '',  // Caddy가 /api/* → 백엔드(3001)로 프록시
+  base: '',
+  // 로그인 사용자 헤더 자동 첨부 (백엔드 지역권한 검증용)
+  _authHeaders() {
+    const u = window._adminUser || JSON.parse(localStorage.getItem('amk_admin_user')||'null');
+    const h = { 'Content-Type': 'application/json' };
+    if (u) { h['X-User-Id'] = u.id||''; h['X-User-Role'] = u.role||''; h['X-Region-Id'] = u.regionId||''; }
+    return h;
+  },
   async get(path) {
     try {
-      const r = await fetch(this.base + path);
+      const r = await fetch(this.base + path, { headers: this._authHeaders() });
       return await r.json();
     } catch(e) { console.error('API GET error:', path, e); return { success: false, error: e.message }; }
   },
   async post(path, body) {
     try {
-      const r = await fetch(this.base + path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const r = await fetch(this.base + path, { method:'POST', headers: this._authHeaders(), body: JSON.stringify(body) });
       return await r.json();
     } catch(e) { console.error('API POST error:', path, e); return { success: false, error: e.message }; }
   },
   async put(path, body) {
     try {
-      const r = await fetch(this.base + path, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const r = await fetch(this.base + path, { method:'PUT', headers: this._authHeaders(), body: JSON.stringify(body) });
       return await r.json();
     } catch(e) { return { success: false, error: e.message }; }
   },
   async delete(path) {
     try {
-      const r = await fetch(this.base + path, { method:'DELETE', headers:{'Content-Type':'application/json'} });
+      const r = await fetch(this.base + path, { method:'DELETE', headers: this._authHeaders() });
       return await r.json();
     } catch(e) { return { success: false, error: e.message }; }
   },
   async patch(path, body) {
     try {
-      const r = await fetch(this.base + path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const r = await fetch(this.base + path, { method:'PATCH', headers: this._authHeaders(), body: JSON.stringify(body) });
       return await r.json();
     } catch(e) { return { success: false, error: e.message }; }
   },
