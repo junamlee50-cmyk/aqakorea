@@ -20,13 +20,13 @@ const AdminModule = (() => {
   // ── 데모 계정 목록 ──────────────────────────────────────────
   const DEMO_ACCOUNTS = [
     { id:'admin',      pw:'admin1234',      name:'본사 슈퍼관리자', role:'super',      regionId:null },
-    { id:'tongyeong',  pw:'tongyeong1234',  name:'통영지역관리자',  role:'regional',   regionId:'tongyeong', regionName:'통영해양관광' },
-    { id:'buyeo',      pw:'buyeo1234',      name:'부여지역관리자',  role:'regional',   regionId:'buyeo',      regionName:'부여수륙양용투어' },
-    { id:'hapcheon',   pw:'hapcheon1234',   name:'합천지역관리자',  role:'regional',   regionId:'hapcheon' },
-    { id:'field01',    pw:'field1234',      name:'현장매표소',      role:'staff',      regionId:'tongyeong' },
-    { id:'account',    pw:'account1234',    name:'회계담당자',      role:'accountant', regionId:null },
-    { id:'content',    pw:'cont1234',       name:'콘텐츠담당자',    role:'content',    regionId:null },
-    { id:'partner',    pw:'part1234',       name:'여행사파트너',    role:'partner',    regionId:null },
+    { id:'tongyeong',  pw:'admin1234',  name:'통영지역관리자',  role:'regional',   regionId:'tongyeong', regionName:'통영해양관광' },
+    { id:'buyeo',      pw:'admin1234',      name:'부여지역관리자',  role:'regional',   regionId:'buyeo',      regionName:'부여수륙양용투어' },
+    { id:'hapcheon',   pw:'admin1234',   name:'합천지역관리자',  role:'regional',   regionId:'hapcheon' },
+    { id:'field01',    pw:'admin1234',      name:'현장매표소',      role:'staff',      regionId:'tongyeong' },
+    { id:'account',    pw:'admin1234',    name:'회계담당자',      role:'accountant', regionId:null },
+    { id:'content',    pw:'admin1234',       name:'콘텐츠담당자',    role:'content',    regionId:null },
+    { id:'partner',    pw:'admin1234',       name:'여행사파트너',    role:'partner',    regionId:null },
   ];
 
   // ── 접속 로그 ──────────────────────────────────────────────
