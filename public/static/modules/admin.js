@@ -250,7 +250,10 @@ const AdminModule = (() => {
   // ── 로그인 페이지 ──────────────────────────────────────────
   const loginPage = async () => {
     const failCount = parseInt(sessionStorage.getItem('amk_fail_count') || '0');
-    const isLocked = failCount >= 5;
+    const lockTime = parseInt(sessionStorage.getItem('amk_lock_time') || '0');
+    const lockExpired = lockTime && (Date.now() - lockTime) > 60 * 1000;
+    if (lockExpired) { sessionStorage.removeItem('amk_fail_count'); sessionStorage.removeItem('amk_lock_time'); }
+    const isLocked = !lockExpired && failCount >= 10;
     return `
       <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
         <div class="w-full max-w-md">
@@ -274,11 +277,11 @@ const AdminModule = (() => {
             ${isLocked ? `
             <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
               <i class="fas fa-ban"></i>
-              <span>로그인 시도 횟수가 초과되었습니다. 브라우저를 새로고침 후 다시 시도하세요.</span>
+              <span>로그인 시도 횟수가 초과되었습니다. 1분 후 자동 해제됩니다.</span>
             </div>` : failCount > 0 ? `
             <div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
               <i class="fas fa-exclamation-triangle"></i>
-              <span>로그인 실패 ${failCount}회. ${5 - failCount}회 더 실패 시 잠금됩니다.</span>
+              <span>로그인 실패 ${failCount}회. ${10 - failCount}회 더 실패 시 잠금(1분)됩니다.</span>
             </div>` : ''}
             <div class="space-y-4">
               <div>
@@ -339,8 +342,11 @@ const AdminModule = (() => {
   const doLogin = async () => {
     // 실패 횟수 제한
     const failCount = parseInt(sessionStorage.getItem('amk_fail_count') || '0');
-    if (failCount >= 5) {
-      Utils.toast('로그인 시도 횟수가 초과되었습니다. 잠시 후 다시 시도하세요.', 'error');
+    const lockTime = parseInt(sessionStorage.getItem('amk_lock_time') || '0');
+    const lockExpired = lockTime && (Date.now() - lockTime) > 60 * 1000;
+    if (lockExpired) { sessionStorage.removeItem('amk_fail_count'); sessionStorage.removeItem('amk_lock_time'); }
+    if (!lockExpired && failCount >= 10) {
+      Utils.toast('로그인 시도 횟수가 초과되었습니다. 1분 후 자동 해제됩니다.', 'error');
       return;
     }
 
@@ -355,8 +361,10 @@ const AdminModule = (() => {
       Utils.loading(false);
 
       if (!res.success) {
-        sessionStorage.setItem('amk_fail_count', String(failCount + 1));
-        const remain = 5 - (failCount + 1);
+        const newFail = failCount + 1;
+        sessionStorage.setItem('amk_fail_count', String(newFail));
+        if (newFail >= 10) sessionStorage.setItem('amk_lock_time', String(Date.now()));
+        const remain = 10 - newFail;
         Utils.toast(`아이디 또는 비밀번호가 올바르지 않습니다. (${failCount+1}/5회, 남은 시도: ${remain}회)`, 'error');
         return;
       }
