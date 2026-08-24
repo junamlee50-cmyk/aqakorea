@@ -257,15 +257,14 @@ app.all('/api/*', async (c) => {
   const url = new URL(c.req.url)
   const target = BACKEND_URL + url.pathname + url.search
   try {
-    // X-User-* 헤더를 upstream(백엔드)에 전달 — 지역 권한 검증용
+    // Authorization Bearer JWT만 전달 (X-User-* 헤더 조작 차단)
     const forwardHeaders: Record<string, string> = {
       'content-type': c.req.header('content-type') || 'application/json',
     }
-    const authHeaders = ['x-user-id', 'x-user-role', 'x-region-id']
-    authHeaders.forEach(h => {
-      const v = c.req.header(h)
-      if (v) forwardHeaders[h] = v
-    })
+    const authHeader = c.req.header('authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      forwardHeaders['authorization'] = authHeader
+    }
     const init: RequestInit = {
       method: c.req.method,
       headers: forwardHeaders,
@@ -391,15 +390,15 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app"></div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=6dcf3419"></script>
-<script src="/static/modules/customer.js?v=6dcf3419"></script>
-<script src="/static/modules/payment.js?v=6dcf3419"></script>
-<script src="/static/modules/field.js?v=6dcf3419"></script>
-<script src="/static/modules/admin.js?v=6dcf3419"></script>
-<script src="/static/modules/stats.js?v=6dcf3419"></script>
-<script src="/static/modules/seo.js?v=6dcf3419"></script>
-<script src="/static/modules/ticket.js?v=6dcf3419"></script>
-<script src="/static/app.js?v=6dcf3419"></script>
+<script src="/static/modules/core.js?v=5751b348"></script>
+<script src="/static/modules/customer.js?v=5751b348"></script>
+<script src="/static/modules/payment.js?v=5751b348"></script>
+<script src="/static/modules/field.js?v=5751b348"></script>
+<script src="/static/modules/admin.js?v=5751b348"></script>
+<script src="/static/modules/stats.js?v=5751b348"></script>
+<script src="/static/modules/seo.js?v=5751b348"></script>
+<script src="/static/modules/ticket.js?v=5751b348"></script>
+<script src="/static/app.js?v=5751b348"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {
