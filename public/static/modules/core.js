@@ -33,11 +33,11 @@ const Store = (() => {
 // ── API 클라이언트 ───────────────────────────────────────────
 const API = {
   base: '',
-  // 로그인 사용자 헤더 자동 첨부 (백엔드 지역권한 검증용)
+  // JWT Bearer 토큰 헤더 첨부 (X-User-* 헤더 조작 방지)
   _authHeaders() {
-    const u = window._adminUser || JSON.parse(localStorage.getItem('amk_admin_user')||'null');
     const h = { 'Content-Type': 'application/json' };
-    if (u) { h['X-User-Id'] = u.id||''; h['X-User-Role'] = u.role||''; h['X-Region-Id'] = u.regionId||''; }
+    const token = window._adminToken || localStorage.getItem('amk_admin_token');
+    if (token) h['Authorization'] = 'Bearer ' + token;
     return h;
   },
   async get(path) {

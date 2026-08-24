@@ -335,15 +335,7 @@ app.post('/api/inquiries', async (c) => {
   const body = await c.req.json()
   return c.json({ success: true, data: { id: `INQ-${Date.now()}`, ...body, status: 'pending', date: new Date().toISOString().split('T')[0] } })
 })
-app.get('/api/admin/users', (c) => c.json({ success: true, data: ADMIN_USERS }))
-app.post('/api/admin/login', async (c) => {
-  const body = await c.req.json()
-  const user = ADMIN_USERS.find(u => u.email === body.email)
-  if (user && body.password === 'admin1234') {
-    return c.json({ success: true, data: { token: 'mock-token-' + user.id, user } })
-  }
-  return c.json({ success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다' }, 401)
-})
+// /api/admin/* 는 모두 실제 백엔드로 통과 (mock 제거)
 app.get('/api/seo/:regionId', (c) => {
   const regionId = c.req.param('regionId')
   const seo = REGION_SEO[regionId]

@@ -379,6 +379,11 @@ const AdminModule = (() => {
         localStorage.setItem('amk_admin_user', JSON.stringify(_adminState.user));
         localStorage.setItem('amk_admin_login_time', String(Date.now()));
         window._adminUser = _adminState.user; // API 헤더용
+        // JWT 토큰 저장
+        if (res.token) {
+          localStorage.setItem('amk_admin_token', res.token);
+          window._adminToken = res.token;
+        }
       } catch(e) {}
       _addAccessLog(u.username || u.id, '로그인 성공');
       Utils.toast(`${u.name}으로 로그인되었습니다.`, 'success');
@@ -404,7 +409,12 @@ const AdminModule = (() => {
     _adminState.user = null;
     _adminState.mobileOpen = false;
     Store.set('adminUser', null);
-    try { localStorage.removeItem('amk_admin_user'); } catch(e) {}
+    try {
+      localStorage.removeItem('amk_admin_user');
+      localStorage.removeItem('amk_admin_token');
+      localStorage.removeItem('amk_admin_login_time');
+      window._adminToken = null;
+    } catch(e) {}
     Store.set('adminLoginTime', null);
     Utils.toast(`${userName} 로그아웃되었습니다.`, 'info');
     Router.go('/admin/login');
