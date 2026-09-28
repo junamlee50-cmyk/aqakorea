@@ -231,6 +231,7 @@ const FieldModule = {
   },
 
   showCheckinResult: (reservation) => {
+    window._lastCheckinReservation = reservation; // 발급 모달에서 참조
     const canIssue = reservation.payStatus === 'paid' && reservation.wristband !== 'issued';
     const statusLabel = { confirmed:'✅ 예약확정', checkedin:'🎫 발권완료', boarded:'🚌 탑승완료', cancelled:'❌ 취소', refunded:'💰 환불' };
     const statusCls   = { confirmed:'bg-green-100 text-green-700', checkedin:'bg-blue-100 text-blue-700', boarded:'bg-indigo-100 text-indigo-700', cancelled:'bg-red-100 text-red-600', refunded:'bg-gray-100 text-gray-500' };
@@ -273,7 +274,7 @@ const FieldModule = {
           ${passHtml}
         </div>
         ${canIssue ? `
-        <button onclick="Utils.closeModal();FieldModule.showWristbandIssue('${reservation.reservation_no||reservation.id}','${reservation.time||''}','${reservation.pax||1}')" class="btn-green btn-xl bg-green-500 hover:bg-green-600 text-white mb-2">
+        <button onclick="Utils.closeModal();FieldModule.showWristbandIssue(window._lastCheckinReservation)" class="btn-green btn-xl bg-green-500 hover:bg-green-600 text-white mb-2">
           <i class="fas fa-band-aid mr-2"></i>손목밴드 발급하기
         </button>` : reservation.wristband==='issued' ? `
         <div class="bg-blue-50 rounded-xl p-3 text-center text-blue-700 font-bold mb-2">✅ 손목밴드 이미 발급됨</div>` : `
@@ -283,97 +284,106 @@ const FieldModule = {
   },
 
   // ── 손목밴드 발급 ────────────────────────────────────────────
-  showWristbandIssue: (reservationId) => {
-    const wb = Settings.get('wristbandText');
-    const today = Utils.today();
+  // rsv: 예약 전체 객체 { reservation_no, name, regionName, date, time, pax, paxDetail }
+  showWristbandIssue: (rsv) => {
+    // 문자열(예약번호만)로 호출되는 레거시 케이스 대응
+    if (typeof rsv === 'string') rsv = { reservation_no: rsv, name: '', regionName: '', date: '', time: '', pax: 1, paxDetail: [] };
+    const reservationId = rsv.reservation_no || rsv.id || '';
+    const today = rsv.date || Utils.today();
+    const defaultTime = rsv.time || '';
+    const defaultCount = rsv.pax || 1;
+    const regionName = rsv.regionName || '';
+    const guestName = rsv.name || '';
+    // 인원 상세 (성인N·소아N)
+    const paxDetail = rsv.paxDetail || [];
+    const paxSummary = paxDetail.length
+      ? paxDetail.map(p=>`${p.type==='adult'?'성인':p.type==='child'?'소아':p.type||'성인'} ${p.count}명`).join(' · ')
+      : `${defaultCount}명`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(reservationId||'RES-TEMP')}`;
     Utils.modal(`
       <div class="modal-header bg-navy-800 rounded-t-2xl">
         <div class="text-white font-bold flex items-center gap-2"><i class="fas fa-band-aid text-cyan-400"></i> 손목밴드 발급</div>
         <button onclick="Utils.closeModal()" class="text-white/60 text-xl">&times;</button>
       </div>
       <div class="modal-body">
-        ${reservationId ? `<div class="bg-gray-100 rounded-xl p-2 text-center font-mono text-xs text-gray-600 mb-3">${reservationId}</div>` : ''}
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-sm">
+          <div class="grid grid-cols-2 gap-1">
+            <div><span class="text-gray-400 text-xs">예약번호</span><div class="font-mono font-bold text-xs text-blue-700">${reservationId}</div></div>
+            <div><span class="text-gray-400 text-xs">예약자</span><div class="font-bold">${guestName}</div></div>
+            <div><span class="text-gray-400 text-xs">지역</span><div class="font-bold">${regionName}</div></div>
+            <div><span class="text-gray-400 text-xs">탑승일시</span><div class="font-bold">${today} ${defaultTime}</div></div>
+            <div class="col-span-2"><span class="text-gray-400 text-xs">인원</span><div class="font-bold">${paxSummary}</div></div>
+          </div>
+        </div>
         <div class="grid grid-cols-2 gap-3 mb-4">
-          <div class="form-group">
-            <label class="form-label">회차</label>
-            <select class="form-select" id="wb-round">
-              <option>09:30 (1회차)</option><option>11:30 (2회차)</option>
-              <option>13:30 (3회차)</option><option>15:30 (4회차)</option>
-            </select>
+          <div class="form-group col-span-2">
+            <label class="form-label">발급 수량 <span class="text-xs text-gray-400">(예약인원: ${defaultCount}명)</span></label>
+            <input type="number" class="form-input" id="wb-count" value="${defaultCount}" min="1" max="50">
           </div>
           <div class="form-group">
             <label class="form-label">권종</label>
             <select class="form-select" id="wb-type">
-              <option>성인</option><option>청소년</option><option>어린이</option>
-              <option>경로</option><option>장애인</option><option>국가유공자</option>
-              <option>지역민</option><option>단체</option><option>무료/초대권</option>
+              <option value="adult">성인</option>
+              <option value="child">소아</option>
+              <option value="elder">경로</option>
+              <option value="disabled">장애인</option>
+              <option value="veteran">국가유공자</option>
+              <option value="local">지역민</option>
+              <option value="group">단체</option>
+              <option value="free">무료/초대권</option>
             </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">발급 수량</label>
-            <input type="number" class="form-input" id="wb-count" value="1" min="1" max="20">
           </div>
           <div class="form-group">
             <label class="form-label">출력 방식</label>
             <select class="form-select" id="wb-print-method">
-              <option value="thermal">감열라벨프린터</option>
+              <option value="thermal">감열/영수증프린터</option>
               <option value="wristband">손목밴드프린터</option>
-              <option value="sticker">스티커형</option>
               <option value="paper">일반인쇄</option>
             </select>
           </div>
         </div>
         <!-- 미리보기 -->
-        <div class="bg-gray-50 rounded-xl p-3 mb-4">
-          <div class="text-xs text-gray-500 mb-2 font-medium">손목밴드 미리보기</div>
-          <div class="wristband-preview" style="max-width:100%">
-            <div class="wristband-left">
-              <div class="wristband-brand">${wb.brand || 'Aqua Mobility Korea'}</div>
-              <div class="wristband-region">지역명</div>
-              <div class="wristband-time" id="wb-preview-time">09:30</div>
-              <div class="wristband-info" id="wb-preview-info">${today} | 1회차 | 성인</div>
-              <div class="wristband-info font-mono text-xs">${reservationId || 'RES-XXXXXXX'}</div>
-
+        <div class="bg-gray-50 rounded-xl p-3 mb-3">
+          <div class="text-xs text-gray-500 mb-2 font-medium">📄 인쇄 미리보기 (1장 기준)</div>
+          <div style="display:flex;align-items:center;border:2px dashed #0ea5e9;border-radius:10px;padding:8px 10px;gap:10px;background:#fff">
+            <div style="flex:1">
+              <div style="font-size:8px;color:#64748b;font-weight:700;letter-spacing:1px">AQUA MOBILITY KOREA</div>
+              <div style="font-size:13px;font-weight:900;color:#0c1461;margin:1px 0">${regionName || '지역명'}</div>
+              <div style="font-size:18px;font-weight:900;color:#0ea5e9">${defaultTime || '--:--'}</div>
+              <div style="font-size:10px;color:#475569">${today} · 성인</div>
+              <div style="font-size:8px;font-family:monospace;color:#94a3b8">${reservationId}</div>
             </div>
-            <div class="wristband-qr bg-white rounded-lg flex items-center justify-center p-1" id="wb-qr-preview"><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(reservationId||'RES-TEMP')}" alt="QR" style="width:80px;height:80px;border-radius:4px" onerror="this.parentElement.innerHTML='<span class=text-gray-400 style=font-size:10px>QR</span>'"/></div>
+            <img src="${qrUrl}" style="width:70px;height:70px;border-radius:6px;border:1px solid #e2e8f0" />
           </div>
         </div>
         <div class="bg-amber-50 rounded-xl p-2 text-xs text-amber-700 mb-3">
-          ⚠️ 손목밴드에 고객명·전화번호·생년월일·정확한 나이는 표시되지 않습니다
+          ℹ️ 핸드폰이 없는 고객도 현장 발급 가능 · 고객명은 인쇄되지 않습니다
         </div>
         <div class="flex gap-2">
-          <button onclick="FieldModule.issueWristband('${reservationId||''}')" class="btn-ocean flex-1 py-3">
+          <button onclick="FieldModule.issueWristband(window._lastCheckinReservation)" class="btn-ocean flex-1 py-3">
             <i class="fas fa-print mr-2"></i>발급 및 인쇄
-          </button>
-          <button onclick="FieldModule.printPreview('${reservationId||''}')" class="btn-outline px-4 py-3 text-sm">
-            <i class="fas fa-eye mr-1"></i>미리보기
           </button>
           <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3 text-sm">취소</button>
         </div>
       </div>`, { size: 'max-w-sm' });
   },
 
-  issueWristband: async (reservationId) => {
-    const round = document.getElementById('wb-round')?.value;
-    const type = document.getElementById('wb-type')?.value;
+  issueWristband: async (rsv) => {
+    if (typeof rsv === 'string') rsv = { reservation_no: rsv };
+    const reservationId = rsv?.reservation_no || rsv?.id || 'FIELD-' + Date.now();
+    const type  = document.getElementById('wb-type')?.value || 'adult';
     const count = parseInt(document.getElementById('wb-count')?.value || '1');
-    const printMethod = document.getElementById('wb-print-method')?.value || 'paper';
     Utils.closeModal();
     Utils.loading(true);
     const res = await API.post('/api/wristbands/issue', {
-      reservationId: reservationId || 'FIELD-' + Utils.uid(),
-      round, type, count,
-      issuedBy: Store.get('user')?.name || '매표소1'
+      reservationId,
+      round: rsv?.time || '',
+      type, count,
+      issuedBy: Store.get('user')?.name || '매표소'
     });
     Utils.loading(false);
-    if (res.success) {
-      Utils.toast(`손목밴드 ${count}장 발급 완료!`, 'success', 3000);
-      // 인쇄 처리
-      FieldModule._doPrint(reservationId, round, type, count);
-    } else {
-      // API 실패해도 인쇄는 진행 (오프라인 발권)
-      FieldModule._doPrint(reservationId, round, type, count);
-    }
+    Utils.toast(`손목밴드 ${count}장 발급 완료! 인쇄 중...`, 'success', 3000);
+    FieldModule._doPrint(rsv, type, count);
   },
 
   printPreview: (reservationId) => {
@@ -383,35 +393,56 @@ const FieldModule = {
       parseInt(document.getElementById('wb-count')?.value || '1'));
   },
 
-  _doPrint: (reservationId, round, type, count) => {
-    const today = new Date().toLocaleDateString('ko-KR');
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(reservationId||'RES-TEMP')}`;
-    const printWin = window.open('', '_blank', 'width=400,height=300');
+  _doPrint: (rsv, type, count) => {
+    // rsv: 예약 객체 또는 문자열(예약번호)
+    if (typeof rsv === 'string') rsv = { reservation_no: rsv };
+    const reservationId = rsv?.reservation_no || rsv?.id || 'FIELD-' + Date.now();
+    const regionName = rsv?.regionName || '';
+    const date = rsv?.date || new Date().toLocaleDateString('ko-KR');
+    const time = rsv?.time || '';
+    const typeLabel = {adult:'성인', child:'소아', elder:'경로', disabled:'장애인', veteran:'국가유공자', local:'지역민', group:'단체', free:'무료/초대권'}[type] || type || '성인';
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(reservationId)}&color=0c1461`;
+    const printWin = window.open('', '_blank', 'width=420,height=600');
     if (!printWin) { Utils.toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error', 4000); return; }
     printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>손목밴드 발급</title><style>
-      body{margin:0;padding:8px;font-family:sans-serif;background:#fff}
-      .band{display:flex;align-items:center;border:2px dashed #0ea5e9;border-radius:12px;padding:8px 12px;gap:12px;margin-bottom:8px;width:340px}
-      .info{flex:1}.brand{font-size:9px;color:#64748b;font-weight:600;letter-spacing:1px}
-      .region{font-size:14px;font-weight:900;color:#0c1461;margin:2px 0}
-      .time{font-size:20px;font-weight:900;color:#0ea5e9}
-      .meta{font-size:10px;color:#475569;margin-top:2px}
-      .code{font-size:9px;font-family:monospace;color:#94a3b8}
-      img{width:80px;height:80px;border:1px solid #e2e8f0;border-radius:6px}
-      @media print{body{margin:0}button{display:none}}
+      *{box-sizing:border-box}
+      body{margin:0;padding:10px;font-family:'Malgun Gothic',sans-serif;background:#fff}
+      .band{display:flex;align-items:center;border:2.5px dashed #0ea5e9;border-radius:14px;padding:10px 14px;gap:14px;margin-bottom:10px;width:380px;background:#f8fafc;page-break-inside:avoid}
+      .info{flex:1;min-width:0}
+      .brand{font-size:8px;color:#64748b;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
+      .region{font-size:15px;font-weight:900;color:#0c1461;margin:3px 0 2px}
+      .time{font-size:22px;font-weight:900;color:#0ea5e9;line-height:1}
+      .type-badge{display:inline-block;background:#0ea5e9;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin:4px 0}
+      .meta{font-size:10px;color:#475569;margin-top:3px}
+      .code{font-size:8px;font-family:monospace;color:#94a3b8;margin-top:2px;word-break:break-all}
+      .qr-wrap{flex-shrink:0;text-align:center}
+      .qr-wrap img{width:100px;height:100px;border:1.5px solid #cbd5e1;border-radius:8px;display:block}
+      .qr-wrap .qr-label{font-size:7px;color:#94a3b8;margin-top:3px}
+      .no-print{margin-top:12px;text-align:center}
+      button{padding:10px 28px;background:#0ea5e9;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:15px;font-weight:700;margin:4px}
+      .btn-cancel{background:#e2e8f0;color:#374151}
+      @media print{.no-print{display:none}body{padding:4px}}
     </style></head><body>
     ${Array.from({length:count},(_,i)=>`
       <div class="band">
         <div class="info">
           <div class="brand">AQUA MOBILITY KOREA</div>
-          <div class="region">${round||'-'}회차</div>
-          <div class="time">${type==='adult'?'성인':type==='child'?'소아':type==='infant'?'유아':type||'성인'}</div>
-          <div class="meta">${today}</div>
-          <div class="code">${reservationId||'RES-TEMP'}</div>
+          <div class="region">${regionName}</div>
+          <div class="time">${time}</div>
+          <div class="type-badge">${typeLabel}</div>
+          <div class="meta">${date}</div>
+          <div class="code">${reservationId} <span style="color:#cbd5e1">#${i+1}/${count}</span></div>
         </div>
-        <img src="${qrUrl}" alt="QR"/>
+        <div class="qr-wrap">
+          <img src="${qrUrl}" alt="QR" />
+          <div class="qr-label">현장 탑승 확인용 QR</div>
+        </div>
       </div>`).join('')}
-    <button onclick="window.print()" style="margin-top:8px;padding:8px 20px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">🖨 인쇄</button>
-    <script>window.onload=()=>window.print();<\/script>
+    <div class="no-print">
+      <button onclick="window.print()">🖨️ 인쇄 (${count}장)</button>
+      <button class="btn-cancel" onclick="window.close()">닫기</button>
+    </div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
     </body></html>`);
     printWin.document.close();
   },
