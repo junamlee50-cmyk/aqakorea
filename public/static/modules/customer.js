@@ -2917,6 +2917,21 @@ ${Footer.render()}`;
       </div>`;
     document.body.appendChild(modal);
 
+    // 브라우저 뒤로가기로 모달 닫기 — history 엔트리 추가
+    history.pushState({ ticketModal: true }, '');
+    const _onPopState = (e) => {
+      const m = document.getElementById('ticket-modal');
+      if (m) m.remove();
+      window.removeEventListener('popstate', _onPopState);
+    };
+    window.addEventListener('popstate', _onPopState);
+    // 닫기 버튼도 history.back() 으로 통일 (모달 직접 remove 대신)
+    modal.querySelectorAll('button[onclick*="ticket-modal"]').forEach(btn => {
+      btn.onclick = null;
+      btn.addEventListener('click', () => history.back());
+    });
+    modal.onclick = (e) => { if (e.target === modal) history.back(); };
+
     // QR 생성 (Utils.generateQR 있으면 사용, 없으면 간단한 텍스트 표시)
     setTimeout(async () => {
       const canvas = document.getElementById('ticket-qr-canvas');
