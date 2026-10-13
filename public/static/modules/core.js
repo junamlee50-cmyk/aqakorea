@@ -560,7 +560,7 @@ const Navbar = {
 // ── 푸터 ─────────────────────────────────────────────────────
 const Footer = {
   render: () => `
-  <footer class="bg-navy-900 text-white mt-20">
+  <footer class="site-footer mt-20">
     <div class="max-w-7xl mx-auto px-4 py-12">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div class="md:col-span-2">
@@ -568,44 +568,44 @@ const Footer = {
             <img src="/static/logo_emblem.png" alt="Aqua Mobility Korea" style="width:44px;height:auto;object-fit:contain;">
             <span style="font-size:15px;font-weight:700;color:#fff;letter-spacing:0.5px">AQUA MOBILITY KOREA</span>
           </div>
-          <p class="text-white/60 text-sm leading-relaxed mb-4">전국 수륙양용투어 통합 예약·결제·운영 플랫폼<br>통영 · 부여 · 합천 수륙양용버스 투어</p>
+          <p class="footer-sub text-sm leading-relaxed mb-4">전국 수륙양용투어 통합 예약·결제·운영 플랫폼<br>통영 · 부여 · 합천 수륙양용버스 투어</p>
           <div class="flex gap-3">
-            <a href="#" class="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center hover:bg-white/20 transition-all"><i class="fab fa-instagram text-sm"></i></a>
-            <a href="#" class="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center hover:bg-white/20 transition-all"><i class="fab fa-youtube text-sm"></i></a>
-            <a href="#" class="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center hover:bg-white/20 transition-all text-xs font-bold">N</a>
+            <a href="#" class="footer-sns-btn"><i class="fab fa-instagram text-sm"></i></a>
+            <a href="#" class="footer-sns-btn"><i class="fab fa-youtube text-sm"></i></a>
+            <a href="#" class="footer-sns-btn text-xs font-bold">N</a>
           </div>
         </div>
         <div>
-          <h4 class="font-bold mb-3 text-sm text-cyan-400">수륙양용투어</h4>
-          <ul class="space-y-2 text-sm text-white/60">
-            <li><a href="/reservation/tongyeong" data-link class="hover:text-white transition-colors">통영해양관광</a></li>
-            <li><a href="/reservation/buyeo" data-link class="hover:text-white transition-colors">부여수륙양용투어</a></li>
-            <li><a href="/reservation/hapcheon" data-link class="hover:text-white transition-colors">합천수륙양용투어</a></li>
-            <li><a href="/reservation" data-link class="hover:text-white transition-colors">전체 지역 보기</a></li>
+          <h4 class="footer-label mb-3">수륙양용투어</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="/reservation/tongyeong" data-link class="footer-link hover:text-white transition-colors">통영해양관광</a></li>
+            <li><a href="/reservation/buyeo" data-link class="footer-link hover:text-white transition-colors">부여수륙양용투어</a></li>
+            <li><a href="/reservation/hapcheon" data-link class="footer-link hover:text-white transition-colors">합천수륙양용투어</a></li>
+            <li><a href="/reservation" data-link class="footer-link hover:text-white transition-colors">전체 지역 보기</a></li>
           </ul>
         </div>
         <div>
-          <h4 class="font-bold mb-3 text-sm text-cyan-400">고객지원</h4>
-          <ul class="space-y-2 text-sm text-white/60">
-            <li><a href="/faq" data-link class="hover:text-white transition-colors">자주 묻는 질문</a></li>
-            <li><a href="/inquiry" data-link class="hover:text-white transition-colors">고객문의</a></li>
-            <li><a href="/reservation/check" data-link class="hover:text-white transition-colors">예약확인/취소</a></li>
-            <li><a href="/notice" data-link class="hover:text-white transition-colors">공지사항</a></li>
+          <h4 class="footer-label mb-3">고객지원</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="/faq" data-link class="footer-link hover:text-white transition-colors">자주 묻는 질문</a></li>
+            <li><a href="/inquiry" data-link class="footer-link hover:text-white transition-colors">고객문의</a></li>
+            <li><a href="/reservation/check" data-link class="footer-link hover:text-white transition-colors">예약확인/취소</a></li>
+            <li><a href="/notice" data-link class="footer-link hover:text-white transition-colors">공지사항</a></li>
           </ul>
-          <div class="mt-4 text-sm">
-            <div class="text-white font-bold">본사 대표번호</div>
-            <div class="text-cyan-400 font-bold text-lg">1588-0000</div>
-            <div class="text-white/60 text-xs">평일 09:00~18:00</div>
+          <div class="mt-4">
+            <div style="color:#fff;font-weight:700;font-size:0.875rem">본사 대표번호</div>
+            <div class="footer-phone">1588-0000</div>
+            <div class="footer-hours">평일 09:00~18:00</div>
           </div>
         </div>
       </div>
-      <div class="border-t border-white/10 mt-8 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/60">
-        <div>© 2025 Aqua Mobility Korea. All rights reserved.</div>
+      <div class="footer-divider border-t mt-8 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="footer-copy">© 2025 Aqua Mobility Korea. All rights reserved.</div>
         <div class="flex gap-4">
-          <a href="#" class="hover:text-white/70">이용약관</a>
-          <a href="#" class="hover:text-white/70">개인정보처리방침</a>
-          <a href="#" class="hover:text-white/70">환불규정</a>
-          <a href="/admin" data-link class="hover:text-white/70">관리자</a>
+          <a href="#" class="footer-copy hover:text-white transition-colors">이용약관</a>
+          <a href="#" class="footer-copy hover:text-white transition-colors">개인정보처리방침</a>
+          <a href="#" class="footer-copy hover:text-white transition-colors">환불규정</a>
+          <a href="/admin" data-link class="footer-copy hover:text-white transition-colors">관리자</a>
         </div>
       </div>
     </div>
