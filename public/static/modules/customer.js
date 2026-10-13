@@ -138,7 +138,7 @@ ${Navbar.render('home')}
     <div class="flex flex-col md:flex-row items-center gap-10 mb-20 bg-gradient-to-br from-slate-50 to-blue-50 rounded-3xl p-8 md:p-12">
       <div class="flex-shrink-0 text-center">
         <img src="/static/logo_symbol.png" alt="Aqua Drive Shield 로고" class="w-56 md:w-72 mx-auto drop-shadow-xl">
-        <div class="mt-3 text-xs text-gray-400 font-medium tracking-wider">Innovative Logo Concept<br><span class="text-navy-700 font-bold text-sm">Aqua Drive Shield</span></div>
+        <div class="mt-3 text-xs text-gray-500 font-medium tracking-wider">Innovative Logo Concept<br><span class="text-navy-700 font-bold text-sm">Aqua Drive Shield</span></div>
       </div>
       <div class="flex-1">
         <div class="inline-block bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full mb-4">CI가 전달하는 메시지</div>
@@ -198,7 +198,7 @@ ${Navbar.render('home')}
     <!-- 로고 심볼 의미 (상세) -->
     <div class="mb-16">
       <h3 class="text-2xl font-black text-navy-900 text-center mb-2">심볼 로고가 담은 4가지 의미</h3>
-      <p class="text-gray-400 text-center text-sm mb-10">각 요소가 전달하는 브랜드 가치</p>
+      <p class="text-gray-600 text-center text-sm mb-10">각 요소가 전달하는 브랜드 가치</p>
       <div class="grid md:grid-cols-2 gap-6">
         <!-- 방패 -->
         <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
@@ -267,25 +267,25 @@ ${Navbar.render('home')}
       <div class="flex items-start gap-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div class="w-12 h-12 rounded-xl flex-shrink-0" style="background:#0f2a5e"></div>
         <div>
-          <div class="text-xs text-gray-400 mb-0.5">딥 네이비</div>
+          <div class="text-xs text-gray-600 font-medium mb-0.5">딥 네이비</div>
           <div class="font-bold text-navy-800 text-sm mb-1">신뢰 · 전문성 · 안정성</div>
-          <p class="text-gray-500 text-xs leading-relaxed">공공사업·관광사업·모빌리티 사업에 적합한 기업 이미지를 전달합니다.</p>
+          <p class="text-gray-700 text-xs leading-relaxed">공공사업·관광사업·모빌리티 사업에 적합한 기업 이미지를 전달합니다.</p>
         </div>
       </div>
       <div class="flex items-start gap-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div class="w-12 h-12 rounded-xl flex-shrink-0" style="background:#06b6d4"></div>
         <div>
-          <div class="text-xs text-gray-400 mb-0.5">블루/시안</div>
+          <div class="text-xs text-gray-600 font-medium mb-0.5">블루/시안</div>
           <div class="font-bold text-navy-800 text-sm mb-1">물 · 첨단기술 · 미래성</div>
-          <p class="text-gray-500 text-xs leading-relaxed">수상 관광과 스마트 모빌리티의 청량하고 미래적인 느낌을 표현합니다.</p>
+          <p class="text-gray-700 text-xs leading-relaxed">수상 관광과 스마트 모빌리티의 청량하고 미래적인 느낌을 표현합니다.</p>
         </div>
       </div>
       <div class="flex items-start gap-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div class="w-12 h-12 rounded-xl flex-shrink-0" style="background:#22c55e"></div>
         <div>
-          <div class="text-xs text-gray-400 mb-0.5">그린</div>
+          <div class="text-xs text-gray-600 font-medium mb-0.5">그린</div>
           <div class="font-bold text-navy-800 text-sm mb-1">친환경 · 지속가능성</div>
-          <p class="text-gray-500 text-xs leading-relaxed">관광과 자연환경을 연결하는 브랜드 철학을 담고 있습니다.</p>
+          <p class="text-gray-700 text-xs leading-relaxed">관광과 자연환경을 연결하는 브랜드 철학을 담고 있습니다.</p>
         </div>
       </div>
     </div>

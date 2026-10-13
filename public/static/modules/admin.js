@@ -7965,11 +7965,12 @@ const backupPage = async () => {
 
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center';
+    modal.id = 'customer-detail-modal';
     modal.innerHTML = `
       <div style="background:white;border-radius:12px;padding:24px;width:520px;max-width:95vw;max-height:80vh;overflow-y:auto">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
           <h3 style="font-size:16px;font-weight:700">${c.name} 고객 정보</h3>
-          <button onclick="this.closest('[style]').remove()" style="background:none;border:none;font-size:20px;color:#9ca3af;cursor:pointer">×</button>
+          <button onclick="document.getElementById('customer-detail-modal').remove()" style="background:none;border:none;font-size:24px;color:#6b7280;cursor:pointer;line-height:1;padding:0 4px">×</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#f9fafb;border-radius:8px;padding:16px;margin-bottom:16px">
           <div><div style="font-size:11px;color:#6b7280">연락처</div><div style="font-weight:600">${c.phone}</div></div>
