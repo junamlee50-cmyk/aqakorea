@@ -511,3 +511,42 @@ body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; backgroun
     animation: stickyBounce 2s ease-in-out infinite;
   }
 }
+
+/* 모바일 nav 드롭다운 메뉴 배경 */
+#mobile-menu {
+  background-color: rgba(7,31,78,0.97);
+  backdrop-filter: blur(12px);
+}
+
+/* navy/ocean Tailwind 커스텀 클래스 — 정적 CSS에 없어 배경 누락됨 → 직접 정의 */
+/* background */
+.bg-navy-900   { background-color: #071f4e !important; }
+.bg-navy-800   { background-color: #0a2d6b !important; }
+.bg-navy-700   { background-color: #1e40af !important; }
+.bg-ocean-700  { background-color: #0e7490 !important; }
+.bg-ocean-600  { background-color: #0891b2 !important; }
+.bg-ocean-500  { background-color: #06b6d4 !important; }
+.bg-ocean-400  { background-color: #22d3ee !important; }
+
+/* text */
+.text-navy-900 { color: #071f4e !important; }
+.text-navy-800 { color: #0a2d6b !important; }
+.text-navy-700 { color: #1e40af !important; }
+.text-ocean-700{ color: #0e7490 !important; }
+.text-ocean-600{ color: #0891b2 !important; }
+.text-ocean-500{ color: #06b6d4 !important; }
+
+/* gradient — from/to/via */
+.from-navy-900 { --tw-gradient-from: #071f4e; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(7,31,78,0)); }
+.from-navy-800 { --tw-gradient-from: #0a2d6b; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(10,45,107,0)); }
+.to-ocean-700  { --tw-gradient-to: #0e7490; }
+.to-ocean-600  { --tw-gradient-to: #0891b2; }
+.to-navy-800   { --tw-gradient-to: #0a2d6b; }
+.via-ocean-700 { --tw-gradient-stops: var(--tw-gradient-from), #0e7490, var(--tw-gradient-to, rgba(14,116,144,0)); }
+.to-blue-800   { --tw-gradient-to: #1e40af; }
+.to-blue-700   { --tw-gradient-to: #1d4ed8; }
+
+/* bg-navy-900/95, from-navy-900/80, to-ocean-700/60 등 투명도 변형 */
+.bg-navy-900\/95 { background-color: rgba(7,31,78,0.95) !important; }
+.from-navy-900\/80 { --tw-gradient-from: rgba(7,31,78,0.80); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(7,31,78,0)); }
+.to-ocean-700\/60 { --tw-gradient-to: rgba(14,116,144,0.60); }
