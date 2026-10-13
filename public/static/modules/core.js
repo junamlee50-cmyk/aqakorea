@@ -595,11 +595,11 @@ const Footer = {
           <div class="mt-4 text-sm">
             <div class="text-white font-bold">본사 대표번호</div>
             <div class="text-cyan-400 font-bold text-lg">1588-0000</div>
-            <div class="text-white/40 text-xs">평일 09:00~18:00</div>
+            <div class="text-white/60 text-xs">평일 09:00~18:00</div>
           </div>
         </div>
       </div>
-      <div class="border-t border-white/10 mt-8 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/40">
+      <div class="border-t border-white/10 mt-8 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/60">
         <div>© 2025 Aqua Mobility Korea. All rights reserved.</div>
         <div class="flex gap-4">
           <a href="#" class="hover:text-white/70">이용약관</a>

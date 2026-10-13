@@ -348,6 +348,10 @@ body { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif; backgroun
   /* sticky-book-btn 높이(약 80px) + safe-area + 여유 = 120px */
   #app > div[style*="padding-top"] { padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
 
+  @media (max-width: 767px) {
+    body { padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+  }
+
   /* ★ 모바일: 회차 목록 overflow 제거 — 전체 회차 세로 스크롤 표시 */
   #schedule-section { overflow: visible !important; max-height: none !important; }
   #schedule-list {

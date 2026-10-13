@@ -302,11 +302,11 @@ ${Navbar.render('home')}
 </section>
 
 <!-- 서비스 특징 -->
-<section class="bg-gradient-to-br from-navy-900 to-ocean-800 py-16">
+<section class="bg-gradient-to-br from-navy-900 to-ocean-700 py-16">
   <div class="max-w-6xl mx-auto px-4">
     <div class="text-center mb-10">
       <h2 class="text-3xl font-black text-white mb-3">왜 아쿠아모빌리티코리아인가요?</h2>
-      <p class="text-white/60">전국 수륙양용 관광의 표준, 안전하고 편리한 예약 시스템</p>
+      <p class="text-white/80">전국 수륙양용 관광의 표준, 안전하고 편리한 예약 시스템</p>
     </div>
     <div class="grid md:grid-cols-4 gap-6">
       ${[
@@ -318,7 +318,7 @@ ${Navbar.render('home')}
       <div class="text-center p-6">
         <div class="text-5xl mb-4">${f.icon}</div>
         <h3 class="text-white font-bold mb-2">${f.t}</h3>
-        <p class="text-white/50 text-sm">${f.d}</p>
+        <p class="text-white/80 text-sm">${f.d}</p>
       </div>`).join('')}
     </div>
   </div>
