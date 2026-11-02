@@ -293,6 +293,13 @@ const FieldModule = {
   showWristbandIssue: (rsv) => {
     if (typeof rsv === 'string') rsv = { reservation_no: rsv, name: '', regionName: '', date: '', time: '', pax: 1, paxDetail: [], passengers: [] };
     if (!rsv) rsv = {};
+
+    // 예약 정보 없이 직접 입력 필요한 경우 입력 폼먼저 표시
+    if (!rsv.regionName && !rsv.time && !rsv.reservation_no) {
+      FieldModule._showWristbandManualForm();
+      return;
+    }
+
     window._lastCheckinReservation = rsv;
     const reservationId = rsv.reservation_no || rsv.id || '';
     const today = rsv.date || Utils.today();
@@ -357,6 +364,75 @@ const FieldModule = {
           <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3 text-sm">닫기</button>
         </div>
       </div>`, { size: 'max-w-sm' });
+  },
+
+  _showWristbandManualForm: () => {
+    // 스케줘 목록 가져오기
+    const user = Store.get('user');
+    const regionId = user?.region || 'buyeo';
+    API.get(`/api/schedules/${regionId}`).then(res => {
+      const schedules = (res.data || []).map((s,i) => `<option value="${s.time||s.departureTime}">${i+1}회차 (${s.time||s.departureTime})</option>`).join('');
+      API.get(`/api/regions/${regionId}`).then(rr => {
+        const regionName = rr.data?.name || regionId;
+        Utils.modal(`
+          <div class="modal-header bg-navy-800 rounded-t-2xl">
+            <div class="text-white font-bold flex items-center gap-2"><i class="fas fa-id-badge text-cyan-400"></i> 팔찌 직접 발급</div>
+            <button onclick="Utils.closeModal()" class="text-white/60 text-xl">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+              <div class="form-group">
+                <label class="form-label">탑승 회차</label>
+                <select class="form-select" id="mf-time">
+                  ${schedules || '<option value="">회차 없음</option>'}
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">발급 수량</label>
+                <input type="number" class="form-input" id="mf-count" value="1" min="1" max="50">
+              </div>
+            </div>
+            <div class="form-group mb-3">
+              <label class="form-label">권종</label>
+              <div class="flex gap-2">
+                <label class="flex-1 flex items-center gap-2 bg-blue-50 border-2 border-blue-300 rounded-xl p-3 cursor-pointer">
+                  <input type="radio" name="mf-type" value="adult" checked class="accent-blue-500">
+                  <span class="font-bold text-blue-700">성인</span>
+                </label>
+                <label class="flex-1 flex items-center gap-2 bg-green-50 border-2 border-green-300 rounded-xl p-3 cursor-pointer">
+                  <input type="radio" name="mf-type" value="teen" class="accent-green-500">
+                  <span class="font-bold text-green-700">청소년</span>
+                </label>
+                <label class="flex-1 flex items-center gap-2 bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3 cursor-pointer">
+                  <input type="radio" name="mf-type" value="child" class="accent-yellow-500">
+                  <span class="font-bold text-yellow-700">소아</span>
+                </label>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="FieldModule._printManual('${regionName}')" class="btn-ocean flex-1 py-3">
+                <i class="fas fa-print mr-2"></i>팔찌 인쇄
+              </button>
+              <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3">취소</button>
+            </div>
+          </div>`, { size: 'max-w-sm' });
+      });
+    });
+  },
+
+  _printManual: (regionName) => {
+    const time = document.getElementById('mf-time')?.value || '';
+    const count = parseInt(document.getElementById('mf-count')?.value || '1');
+    const type = document.querySelector('input[name="mf-type"]:checked')?.value || 'adult';
+    const rsv = {
+      reservation_no: 'FIELD-' + Date.now(),
+      regionName,
+      date: Utils.today(),
+      time,
+    };
+    const persons = Array.from({length: count}, () => ({ name: '', type }));
+    Utils.closeModal();
+    FieldModule._doPrint(rsv, persons);
   },
 
   _getPersonAt: (i) => {
