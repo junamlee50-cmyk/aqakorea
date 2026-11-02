@@ -387,8 +387,8 @@ const FieldModule = {
     const date = rsv?.date || new Date().toLocaleDateString('ko-KR');
     const time = rsv?.time || '';
     const typeMap = {adult:'성인',teen:'청소년',child:'소아'};
-    const colorMap = {adult:'#0ea5e9',teen:'#10b981',child:'#f97316'};
-    const gradMap = {adult:'#0284c7,#38bdf8',teen:'#059669,#34d399',child:'#ea580c,#fb923c'};
+    const colorMap = {adult:'#0ea5e9',teen:'#10b981',child:'#eab308'};
+    const gradMap = {adult:'#0284c7,#38bdf8',teen:'#059669,#34d399',child:'#ca8a04,#fde047'};
     const printWin = window.open('', '_blank', 'width=500,height=800');
     if (!printWin) { Utils.toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error', 4000); return; }
 
