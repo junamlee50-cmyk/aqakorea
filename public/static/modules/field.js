@@ -96,15 +96,15 @@ const FieldModule = {
 
     <!-- 메인 액션 버튼 (크게!) -->
     <div class="grid grid-cols-2 gap-3 mb-4">
-      <button class="field-btn field-btn-ocean" style="min-height:90px" onclick="FieldModule.showQRScanner()">
-        <i class="fas fa-qrcode text-3xl"></i>
-        <span>모바일 QR 스캔</span>
-        <span class="text-xs text-white/70">예약확인 + 체크인</span>
+      <button class="field-btn field-btn-ocean" style="min-height:90px" onclick="FieldModule.showReservationSearch()">
+        <i class="fas fa-search text-3xl"></i>
+        <span>예약 조회</span>
+        <span class="text-xs text-white/70">예약번호·이름 검색</span>
       </button>
       <button class="field-btn field-btn-green" style="min-height:90px" onclick="FieldModule.showWristbandIssue()">
-        <i class="fas fa-band-aid text-3xl"></i>
-        <span>손목밴드 발급</span>
-        <span class="text-xs text-white/70">QR 스캔 후 발급</span>
+        <i class="fas fa-id-badge text-3xl"></i>
+        <span>팔찌 인쇄</span>
+        <span class="text-xs text-white/70">개인별 팔찌 출력</span>
       </button>
       <button class="field-btn field-btn-blue" style="min-height:90px" onclick="FieldModule.showFieldSale()">
         <i class="fas fa-cash-register text-3xl"></i>
@@ -167,48 +167,35 @@ const FieldModule = {
 </div>`;
   },
 
-  // ── QR 스캐너 (모달) ────────────────────────────────────────
-  showQRScanner: () => {
+  // ── 예약 조회 (검색) ────────────────────────────────────────
+  showReservationSearch: () => {
     Utils.modal(`
       <div class="modal-header bg-navy-800 rounded-t-2xl">
-        <div class="text-white font-bold flex items-center gap-2"><i class="fas fa-qrcode text-cyan-400"></i> 모바일 QR 스캔</div>
+        <div class="text-white font-bold flex items-center gap-2"><i class="fas fa-search text-cyan-400"></i> 예약 조회</div>
         <button onclick="Utils.closeModal()" class="text-white/60 hover:text-white text-xl">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="bg-gray-900 rounded-xl aspect-square flex items-center justify-center mb-4 relative overflow-hidden" style="max-height:280px">
-          <div class="text-white text-center">
-            <i class="fas fa-camera text-5xl text-gray-500 mb-3 block"></i>
-            <div class="text-gray-400 text-sm">카메라 접근 권한 필요</div>
-            <div class="text-gray-500 text-xs mt-1">실제 구현 시 QR 스캐너 라이브러리 연동</div>
-          </div>
-          <div class="absolute inset-8 border-4 border-cyan-400/50 rounded-xl"></div>
-          <div class="absolute inset-0 flex items-center justify-center">
-            <div class="w-full h-0.5 bg-cyan-400/50" style="animation:wave 2s ease-in-out infinite"></div>
+        <div class="mb-4">
+          <label class="form-label text-sm text-gray-600 mb-1 block">예약번호 또는 예약자명</label>
+          <div class="flex gap-2">
+            <input type="text" class="form-input flex-1" id="res-search-input" placeholder="예: RES-2025-001234 또는 홍길동"
+              onkeydown="if(event.key==='Enter') FieldModule.processReservationSearch()">
+            <button onclick="FieldModule.processReservationSearch()" class="btn-ocean px-4">조회</button>
           </div>
         </div>
-        <div class="text-center text-sm text-gray-500 mb-4">또는 예약번호 직접 입력</div>
-        <div class="flex gap-2">
-          <input type="text" class="form-input flex-1" id="qr-manual-input" placeholder="예약번호 입력 (RES-2025-XXXXXX)">
-          <button onclick="FieldModule.processQRInput()" class="btn-ocean px-4">확인</button>
-        </div>
-        <div class="grid grid-cols-2 gap-2 mt-4">
-          <button onclick="FieldModule.processQRInput('RES-2025-001234')" class="bg-gray-100 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-200">샘플 스캔 (부여)</button>
-          <button onclick="FieldModule.processQRInput('RES-2025-001235')" class="bg-gray-100 rounded-xl py-2.5 text-sm font-medium hover:bg-gray-200">샘플 스캔 (통영)</button>
-        </div>
+        <div id="res-search-result"></div>
       </div>`, { size: 'max-w-sm' });
+    setTimeout(() => document.getElementById('res-search-input')?.focus(), 100);
   },
 
-  processQRInput: async (manualId) => {
-    const input = manualId || document.getElementById('qr-manual-input')?.value?.trim();
-    if (!input) { Utils.toast('예약번호를 입력하세요', 'warning'); return; }
-    Utils.closeModal();
-    Utils.loading(true);
-    // 탑승권 공개 API로 정확한 데이터 조회
-    const res = await API.get(`/api/reservations/ticket/${input}`);
-    Utils.loading(false);
+  processReservationSearch: async () => {
+    const input = document.getElementById('res-search-input')?.value?.trim();
+    if (!input) { Utils.toast('예약번호 또는 이름을 입력하세요', 'warning'); return; }
+    const resultEl = document.getElementById('res-search-result');
+    if (resultEl) resultEl.innerHTML = '<div class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>조회 중...</div>';
+    const res = await API.get(`/api/reservations/ticket/${encodeURIComponent(input)}`);
     if (res.success && res.data) {
       const d = res.data;
-      // showCheckinResult 형식으로 정규화
       const found = {
         id: d.reservationNo || input,
         reservation_no: d.reservationNo || input,
@@ -224,9 +211,10 @@ const FieldModule = {
         payStatus: d.payStatus || 'paid',
         wristband: d.status === 'checkedin' || d.status === 'boarded' ? 'issued' : 'pending',
       };
+      Utils.closeModal();
       FieldModule.showCheckinResult(found);
     } else {
-      Utils.toast('예약을 찾을 수 없습니다: ' + input, 'error', 3000);
+      if (resultEl) resultEl.innerHTML = '<div class="bg-red-50 rounded-xl p-3 text-center text-red-600 text-sm">예약을 찾을 수 없습니다.</div>';
     }
   },
 
@@ -273,36 +261,85 @@ const FieldModule = {
           </div>
           ${passHtml}
         </div>
-        ${canIssue ? `
-        <button onclick="Utils.closeModal();FieldModule.showWristbandIssue(window._lastCheckinReservation)" class="btn-green btn-xl bg-green-500 hover:bg-green-600 text-white mb-2">
-          <i class="fas fa-band-aid mr-2"></i>손목밴드 발급하기
-        </button>` : reservation.wristband==='issued' ? `
-        <div class="bg-blue-50 rounded-xl p-3 text-center text-blue-700 font-bold mb-2">✅ 손목밴드 이미 발급됨</div>` : `
-        <div class="bg-red-50 rounded-xl p-3 text-center text-red-600 font-bold mb-2">⚠️ 결제 미완료 - 현장 결제 필요</div>`}
+            <div class="flex gap-2 mb-2">
+          <button onclick="Utils.closeModal();FieldModule.doCheckin(window._lastCheckinReservation)" class="btn-green flex-1 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold">
+            <i class="fas fa-check-circle mr-2"></i>확인 완료
+          </button>
+          <button onclick="Utils.closeModal();FieldModule.showWristbandIssue(window._lastCheckinReservation)" class="btn-ocean flex-1 py-3 rounded-xl font-bold">
+            <i class="fas fa-print mr-2"></i>팔찌 인쇄
+          </button>
+        </div>
         <button onclick="Utils.closeModal()" class="btn-outline w-full py-2.5 text-sm">닫기</button>
       </div>`, { size: 'max-w-sm' });
   },
 
-  // ── 손목밴드 발급 ────────────────────────────────────────────
-  // rsv: 예약 전체 객체 { reservation_no, name, regionName, date, time, pax, paxDetail }
+  // ── 확인 체크인 (팔찌 없이 상태만 변경) ───────────────────────
+  doCheckin: async (rsv) => {
+    if (!rsv) return;
+    const reservationId = rsv.reservation_no || rsv.id;
+    Utils.loading(true);
+    const res = await API.post('/api/wristbands/issue', {
+      reservationId,
+      round: rsv.time || '',
+      type: 'adult',
+      count: rsv.pax || 1,
+      issuedBy: Store.get('user')?.name || '매표소'
+    });
+    Utils.loading(false);
+    Utils.toast(`✅ 확인 완료: ${rsv.name} (${rsv.pax || 1}명)`, 'success', 3000);
+  },
+
+  // ── 팔찌 인쇄 (개인별) ─────────────────────────────────────────
   showWristbandIssue: (rsv) => {
-    // 문자열(예약번호만)로 호출되는 레거시 케이스 대응
-    if (typeof rsv === 'string') rsv = { reservation_no: rsv, name: '', regionName: '', date: '', time: '', pax: 1, paxDetail: [] };
+    if (typeof rsv === 'string') rsv = { reservation_no: rsv, name: '', regionName: '', date: '', time: '', pax: 1, paxDetail: [], passengers: [] };
+    if (!rsv) rsv = {};
+    window._lastCheckinReservation = rsv;
     const reservationId = rsv.reservation_no || rsv.id || '';
     const today = rsv.date || Utils.today();
     const defaultTime = rsv.time || '';
-    const defaultCount = rsv.pax || 1;
     const regionName = rsv.regionName || '';
     const guestName = rsv.name || '';
-    // 인원 상세 (성인N·소아N)
+    const passengers = rsv.passengers || [];
     const paxDetail = rsv.paxDetail || [];
-    const paxSummary = paxDetail.length
-      ? paxDetail.map(p=>`${p.type==='adult'?'성인':p.type==='child'?'소아':p.type||'성인'} ${p.count}명`).join(' · ')
-      : `${defaultCount}명`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(reservationId||'RES-TEMP')}`;
+    const total = passengers.length || rsv.pax || paxDetail.reduce((s,p)=>s+(p.count||0),0) || 1;
+
+    const personRows = passengers.length > 0
+      ? passengers.map((p, i) => {
+          const tv = p.type || 'adult';
+          return `<div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 mb-1">
+            <span class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-700">${i+1}</span>
+            <span class="flex-1 font-medium text-sm">${p.name || '성명미입력'}</span>
+            <select class="border rounded px-1 py-0.5 text-xs" style="width:80px" id="wb-type-${i}">
+              <option value="adult" ${tv==='adult'?'selected':''}>성인</option>
+              <option value="child" ${tv==='child'?'selected':''}>소아</option>
+              <option value="elder" ${tv==='elder'?'selected':''}>경로</option>
+              <option value="disabled" ${tv==='disabled'?'selected':''}>장애인</option>
+              <option value="veteran" ${tv==='veteran'?'selected':''}>국가유공자</option>
+              <option value="local" ${tv==='local'?'selected':''}>지역민</option>
+              <option value="free" ${tv==='free'?'selected':''}>무료</option>
+            </select>
+            <button onclick="FieldModule._printOne(${i})" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-lg">팔찌</button>
+          </div>`;
+        }).join('')
+      : Array.from({length: total}, (_, i) => `
+          <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 mb-1">
+            <span class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-700">${i+1}</span>
+            <input type="text" class="border rounded px-2 py-0.5 flex-1 text-sm" id="wb-name-${i}" placeholder="성명 (선택)">
+            <select class="border rounded px-1 py-0.5 text-xs" style="width:80px" id="wb-type-${i}">
+              <option value="adult">성인</option>
+              <option value="child">소아</option>
+              <option value="elder">경로</option>
+              <option value="disabled">장애인</option>
+              <option value="veteran">국가유공자</option>
+              <option value="local">지역민</option>
+              <option value="free">무료</option>
+            </select>
+            <button onclick="FieldModule._printOne(${i})" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-lg">팔찌</button>
+          </div>`).join('');
+
     Utils.modal(`
       <div class="modal-header bg-navy-800 rounded-t-2xl">
-        <div class="text-white font-bold flex items-center gap-2"><i class="fas fa-band-aid text-cyan-400"></i> 손목밴드 발급</div>
+        <div class="text-white font-bold flex items-center gap-2"><i class="fas fa-id-badge text-cyan-400"></i> 팔찌 인쇄</div>
         <button onclick="Utils.closeModal()" class="text-white/60 text-xl">&times;</button>
       </div>
       <div class="modal-body">
@@ -312,134 +349,82 @@ const FieldModule = {
             <div><span class="text-gray-400 text-xs">예약자</span><div class="font-bold">${guestName}</div></div>
             <div><span class="text-gray-400 text-xs">지역</span><div class="font-bold">${regionName}</div></div>
             <div><span class="text-gray-400 text-xs">탑승일시</span><div class="font-bold">${today} ${defaultTime}</div></div>
-            <div class="col-span-2"><span class="text-gray-400 text-xs">인원</span><div class="font-bold">${paxSummary}</div></div>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3 mb-4">
-          <div class="form-group col-span-2">
-            <label class="form-label">발급 수량 <span class="text-xs text-gray-400">(예약인원: ${defaultCount}명)</span></label>
-            <input type="number" class="form-input" id="wb-count" value="${defaultCount}" min="1" max="50">
-          </div>
-          <div class="form-group">
-            <label class="form-label">권종</label>
-            <select class="form-select" id="wb-type">
-              <option value="adult">성인</option>
-              <option value="child">소아</option>
-              <option value="elder">경로</option>
-              <option value="disabled">장애인</option>
-              <option value="veteran">국가유공자</option>
-              <option value="local">지역민</option>
-              <option value="group">단체</option>
-              <option value="free">무료/초대권</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">출력 방식</label>
-            <select class="form-select" id="wb-print-method">
-              <option value="thermal">감열/영수증프린터</option>
-              <option value="wristband">손목밴드프린터</option>
-              <option value="paper">일반인쇄</option>
-            </select>
-          </div>
-        </div>
-        <!-- 미리보기 -->
-        <div class="bg-gray-50 rounded-xl p-3 mb-3">
-          <div class="text-xs text-gray-500 mb-2 font-medium">📄 인쇄 미리보기 (1장 기준)</div>
-          <div style="display:flex;align-items:center;border:2px dashed #0ea5e9;border-radius:10px;padding:8px 10px;gap:10px;background:#fff">
-            <div style="flex:1">
-              <div style="font-size:8px;color:#64748b;font-weight:700;letter-spacing:1px">AQUA MOBILITY KOREA</div>
-              <div style="font-size:13px;font-weight:900;color:#0c1461;margin:1px 0">${regionName || '지역명'}</div>
-              <div style="font-size:18px;font-weight:900;color:#0ea5e9">${defaultTime || '--:--'}</div>
-              <div style="font-size:10px;color:#475569">${today} · 성인</div>
-              <div style="font-size:8px;font-family:monospace;color:#94a3b8">${reservationId}</div>
-            </div>
-            <img src="${qrUrl}" style="width:70px;height:70px;border-radius:6px;border:1px solid #e2e8f0" />
-          </div>
-        </div>
-        <div class="bg-amber-50 rounded-xl p-2 text-xs text-amber-700 mb-3">
-          ℹ️ 핸드폰이 없는 고객도 현장 발급 가능 · 고객명은 인쇄되지 않습니다
-        </div>
-        <div class="flex gap-2">
-          <button onclick="FieldModule.issueWristband(window._lastCheckinReservation)" class="btn-ocean flex-1 py-3">
-            <i class="fas fa-print mr-2"></i>발급 및 인쇄
+        <div class="text-xs font-bold text-gray-500 mb-2">탑승자별 팔찌 <span class="text-gray-400 font-normal">(팔찌 버튼으로 개인 출력 / 전체인쇄로 일괄 출력)</span></div>
+        <div id="wb-person-list">${personRows}</div>
+        <div class="flex gap-2 mt-3">
+          <button onclick="FieldModule._printAll()" class="btn-ocean flex-1 py-3">
+            <i class="fas fa-print mr-2"></i>전체 인쇄 (${total}장)
           </button>
-          <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3 text-sm">취소</button>
+          <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3 text-sm">닫기</button>
         </div>
       </div>`, { size: 'max-w-sm' });
   },
 
-  issueWristband: async (rsv) => {
-    if (typeof rsv === 'string') rsv = { reservation_no: rsv };
-    const reservationId = rsv?.reservation_no || rsv?.id || 'FIELD-' + Date.now();
-    const type  = document.getElementById('wb-type')?.value || 'adult';
-    const count = parseInt(document.getElementById('wb-count')?.value || '1');
-    Utils.closeModal();
-    Utils.loading(true);
-    const res = await API.post('/api/wristbands/issue', {
-      reservationId,
-      round: rsv?.time || '',
-      type, count,
-      issuedBy: Store.get('user')?.name || '매표소'
-    });
-    Utils.loading(false);
-    Utils.toast(`손목밴드 ${count}장 발급 완료! 인쇄 중...`, 'success', 3000);
-    FieldModule._doPrint(rsv, type, count);
+  _getPersonAt: (i) => {
+    const rsv = window._lastCheckinReservation || {};
+    const passengers = rsv.passengers || [];
+    const name = passengers[i]?.name || document.getElementById(`wb-name-${i}`)?.value || '';
+    const type = document.getElementById(`wb-type-${i}`)?.value || 'adult';
+    return { name, type };
   },
 
-  printPreview: (reservationId) => {
-    FieldModule._doPrint(reservationId,
-      document.getElementById('wb-round')?.value,
-      document.getElementById('wb-type')?.value,
-      parseInt(document.getElementById('wb-count')?.value || '1'));
+  _printOne: (idx) => {
+    const rsv = window._lastCheckinReservation || {};
+    FieldModule._doPrint(rsv, [FieldModule._getPersonAt(idx)]);
   },
 
-  _doPrint: (rsv, type, count) => {
-    // rsv: 예약 객체 또는 문자열(예약번호)
+  _printAll: () => {
+    const rsv = window._lastCheckinReservation || {};
+    const passengers = rsv.passengers || [];
+    const total = passengers.length || rsv.pax || 1;
+    const persons = Array.from({length: passengers.length || total}, (_, i) => FieldModule._getPersonAt(i));
+    FieldModule._doPrint(rsv, persons);
+  },
+
+  _doPrint: (rsv, persons) => {
     if (typeof rsv === 'string') rsv = { reservation_no: rsv };
     const reservationId = rsv?.reservation_no || rsv?.id || 'FIELD-' + Date.now();
     const regionName = rsv?.regionName || '';
     const date = rsv?.date || new Date().toLocaleDateString('ko-KR');
     const time = rsv?.time || '';
-    const typeLabel = {adult:'성인', child:'소아', elder:'경로', disabled:'장애인', veteran:'국가유공자', local:'지역민', group:'단체', free:'무료/초대권'}[type] || type || '성인';
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(reservationId)}&color=0c1461`;
-    const printWin = window.open('', '_blank', 'width=420,height=600');
+    const typeMap = {adult:'성인',child:'소아',elder:'경로',disabled:'장애인',veteran:'국가유공자',local:'지역민',group:'단체',free:'무료/초대권'};
+    const colorMap = {adult:'#0ea5e9',child:'#f97316',elder:'#8b5cf6',disabled:'#10b981',veteran:'#ef4444',local:'#06b6d4',group:'#64748b',free:'#94a3b8'};
+    const printWin = window.open('', '_blank', 'width=440,height=700');
     if (!printWin) { Utils.toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error', 4000); return; }
-    printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>손목밴드 발급</title><style>
+    const bands = persons.map((p, i) => {
+      const label = typeMap[p.type] || '성인';
+      const color = colorMap[p.type] || '#0ea5e9';
+      return `<div class="band">
+        <div class="brand">AQUA MOBILITY KOREA</div>
+        <div class="region">${regionName}</div>
+        <div class="time">${time}</div>
+        ${p.name ? `<div class="pname">${p.name}</div>` : ''}
+        <div class="type-badge" style="background:${color}">${label}</div>
+        <div class="meta">${date}</div>
+        <div class="code">${reservationId} <span style="color:#cbd5e1">#${i+1}/${persons.length}</span></div>
+      </div>`;
+    }).join('');
+    printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>팔찌 인쇄</title><style>
       *{box-sizing:border-box}
       body{margin:0;padding:10px;font-family:'Malgun Gothic',sans-serif;background:#fff}
-      .band{display:flex;align-items:center;border:2.5px dashed #0ea5e9;border-radius:14px;padding:10px 14px;gap:14px;margin-bottom:10px;width:380px;background:#f8fafc;page-break-inside:avoid}
-      .info{flex:1;min-width:0}
-      .brand{font-size:8px;color:#64748b;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
-      .region{font-size:15px;font-weight:900;color:#0c1461;margin:3px 0 2px}
-      .time{font-size:22px;font-weight:900;color:#0ea5e9;line-height:1}
-      .type-badge{display:inline-block;background:#0ea5e9;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin:4px 0}
+      .band{border:2.5px dashed #0ea5e9;border-radius:14px;padding:12px 16px;margin-bottom:10px;width:360px;background:#f8fafc;page-break-inside:avoid}
+      .brand{font-size:8px;color:#64748b;font-weight:700;letter-spacing:1.5px;margin-bottom:2px}
+      .region{font-size:16px;font-weight:900;color:#0c1461;margin:3px 0 2px}
+      .time{font-size:26px;font-weight:900;color:#0ea5e9;line-height:1.1}
+      .pname{font-size:17px;font-weight:900;color:#1e293b;margin:5px 0 2px}
+      .type-badge{display:inline-block;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;margin:4px 0}
       .meta{font-size:10px;color:#475569;margin-top:3px}
-      .code{font-size:8px;font-family:monospace;color:#94a3b8;margin-top:2px;word-break:break-all}
-      .qr-wrap{flex-shrink:0;text-align:center}
-      .qr-wrap img{width:100px;height:100px;border:1.5px solid #cbd5e1;border-radius:8px;display:block}
-      .qr-wrap .qr-label{font-size:7px;color:#94a3b8;margin-top:3px}
+      .code{font-size:8px;font-family:monospace;color:#94a3b8;margin-top:2px}
       .no-print{margin-top:12px;text-align:center}
       button{padding:10px 28px;background:#0ea5e9;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:15px;font-weight:700;margin:4px}
       .btn-cancel{background:#e2e8f0;color:#374151}
       @media print{.no-print{display:none}body{padding:4px}}
     </style></head><body>
-    ${Array.from({length:count},(_,i)=>`
-      <div class="band">
-        <div class="info">
-          <div class="brand">AQUA MOBILITY KOREA</div>
-          <div class="region">${regionName}</div>
-          <div class="time">${time}</div>
-          <div class="type-badge">${typeLabel}</div>
-          <div class="meta">${date}</div>
-          <div class="code">${reservationId} <span style="color:#cbd5e1">#${i+1}/${count}</span></div>
-        </div>
-        <div class="qr-wrap">
-          <img src="${qrUrl}" alt="QR" />
-          <div class="qr-label">현장 탑승 확인용 QR</div>
-        </div>
-      </div>`).join('')}
+    ${bands}
     <div class="no-print">
-      <button onclick="window.print()">🖨️ 인쇄 (${count}장)</button>
+      <button onclick="window.print()">🖨️ 인쇄 (${persons.length}장)</button>
       <button class="btn-cancel" onclick="window.close()">닫기</button>
     </div>
     <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
