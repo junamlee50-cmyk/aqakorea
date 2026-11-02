@@ -32,8 +32,11 @@ const Store = (() => {
 
 // 예약 접수 상태는 서버 설정만 사용하며 운행 개시 사실과 구분합니다.
 const BookingState = {
+  // 운행 전 종단간 시험용. 정식 접수 전 false로 변경하고 실제 PG 연동을 검증합니다.
+  testMode: true,
+  testBanner: () => BookingState.testMode ? '<aside role="status" style="padding:80px 16px 16px;background:#fff7ed;color:#9a3412;text-align:center;font-weight:700">시스템 테스트 중 · 실제 운행 전입니다. 테스트 예약·QR 발급을 시험할 수 있으며 실제 결제는 발생하지 않습니다.</aside>' : '',
   canBook: r => r?.status === 'open',
-  label: r => ({open: '예약 접수 중', preparing: '운행 준비 중', closed: '예약 접수 중단', suspended: '운행 중단', hidden: '비공개'})[r?.status] || '운영 상태 확인 필요',
+  label: r => ({open: BookingState.testMode ? '테스트 예약 가능' : '예약 접수 중', preparing: '운행 준비 중', closed: '예약 접수 중단', suspended: '운행 중단', hidden: '비공개'})[r?.status] || '운영 상태 확인 필요',
   summary: regions => regions.length
     ? regions.map(r => `${r.name} · ${BookingState.label(r)}`).join(' / ')
     : '운영 상태를 확인할 수 없습니다. 잠시 후 다시 확인해 주세요.',

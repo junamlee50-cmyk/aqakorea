@@ -18,6 +18,7 @@ const CustomerPages = {
     }, 100);
     return `
 ${Navbar.render('home')}
+${BookingState.testBanner()}
 <!-- HERO -->
 <section class="hero-section" style="padding-top:64px">
   <div class="hero-bg-waves"><div class="wave wave-1"></div><div class="wave wave-2"></div><div class="wave wave-3"></div></div>
@@ -71,6 +72,7 @@ ${Navbar.render('home')}
   </div>
 </section>
 
+${window.__PAGE_DATA__?.searchIntro || ''}
 <!-- 지역 선택 -->
 <section class="max-w-6xl mx-auto px-4 py-16">
   <div class="text-center mb-10">
@@ -88,7 +90,7 @@ ${Navbar.render('home')}
         <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
         <div class="absolute bottom-3 left-3">
           ${BookingState.canBook(r)
-            ? '<span class="region-status status-active"><i class="fas fa-circle text-xs"></i> 예약 접수 중</span>'
+            ? `<span class="region-status status-active"><i class="fas fa-circle text-xs"></i> ${BookingState.testMode ? '테스트 예약 가능' : '예약 접수 중'}</span>`
             : `<span class="region-status status-preparing">${BookingState.label(r)}</span>`}
         </div>
         <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-xs font-bold text-navy-800">
@@ -416,6 +418,7 @@ ${Footer.render()}
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render('reservation')}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
   <div class="bg-gradient-to-r from-navy-900 to-ocean-700 py-12 text-white text-center">
     <h1 class="text-3xl md:text-4xl font-black mb-2">수륙양용투어 예약</h1>
@@ -433,7 +436,7 @@ ${Navbar.render('reservation')}
           <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           <div class="absolute bottom-3 left-3">
             <span class="region-status ${BookingState.canBook(r)?'status-active':'status-preparing'}">
-              ${BookingState.canBook(r)?'✅ 예약 접수 중':BookingState.label(r)}
+              ${BookingState.label(r)}
             </span>
           </div>
         </div>
@@ -578,6 +581,7 @@ ${Footer.render()}
     }, 100);
     return `
 ${Navbar.render('reservation')}
+${BookingState.testBanner()}
 <div style="padding-top:64px">
 <!-- 히어로 -->
 <section class="relative h-72 md:h-96 overflow-hidden">
@@ -1728,6 +1732,7 @@ ${Footer.render()}
     }, 200);
     return `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
   <div class="max-w-xl mx-auto px-4 py-10">
 
@@ -2370,6 +2375,7 @@ ${Footer.render()}`;
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
   <div class="max-w-2xl mx-auto px-4 py-12">
     <h1 class="text-3xl font-black text-navy-800 mb-2">고객 문의</h1>
@@ -2521,6 +2527,7 @@ ${Footer.render()}`;
 
     return `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
   <div class="max-w-4xl mx-auto px-4 py-10">
     <div class="flex items-center gap-3 mb-8">
@@ -2708,6 +2715,7 @@ ${Footer.render()}`;
   // ── 404 ────────────────────────────────────────────────────
   _404: () => `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen flex items-center justify-center">
   <div class="text-center p-8">
     <div class="text-8xl mb-6">🌊</div>
@@ -2719,6 +2727,7 @@ ${Navbar.render()}
 
   _preparingPage: (region) => `
 ${Navbar.render('reservation')}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
   <!-- 히어로 -->
   <div class="relative h-56 overflow-hidden">
@@ -2863,6 +2872,7 @@ const guideDetailPage = async (params) => {
 
   return `
 ${Navbar.render('home')}
+${BookingState.testBanner()}
 <div class="min-h-screen bg-gray-50" style="padding-top:64px">
 
   <!-- 히어로 -->

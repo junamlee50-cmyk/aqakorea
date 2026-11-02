@@ -31,6 +31,7 @@ const PaymentModule = {
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
 <div class="max-w-5xl mx-auto px-4 py-8">
   <!-- 진행 단계 -->
@@ -180,7 +181,7 @@ ${Footer.render()}`;
     if (!regRes.success || !BookingState.canBook(regRes.data)) { Utils.toast('현재 예약 접수가 불가능합니다.', 'warning'); return; }
     Utils.loading(true);
     // PG 분기 - 지역별 merchantId 결정
-    const pgRes = await API.post('/api/payment/request', { regionId, amount: cart.total });
+    const pgRes = await API.post('/api/payment/request', { regionId, amount: cart.total, testMode: BookingState.testMode });
     await new Promise(r => setTimeout(r, 1500));
     Utils.loading(false);
     if (!pgRes.success || !pgRes.data) { Utils.toast(pgRes.message || '결제 요청에 실패했습니다. 다시 시도해 주세요.', 'error'); return; }
@@ -189,6 +190,7 @@ ${Footer.render()}`;
   },
 
   showMockPG: (pgData, cart, regionId) => {
+    if (!BookingState.testMode) { Utils.toast('실제 결제 연동을 확인한 후 이용해 주세요.', 'warning'); return; }
     const m = Utils.modal(`
       <div style="background:linear-gradient(135deg,#071f4e,#0a2d6b);border-radius:16px 16px 0 0;padding:20px;color:white">
         <div class="flex items-center justify-between">
@@ -205,7 +207,7 @@ ${Footer.render()}`;
       <div class="p-6">
         <div class="bg-blue-50 rounded-xl p-4 mb-4 text-sm text-blue-800">
           <div class="font-bold mb-2">⚠️ 목업 결제 안내</div>
-          <p>실제 PG 계약 전이므로 테스트 모드로 동작합니다.<br>실제 결제와 예약 확정은 처리되지 않습니다. 정식 결제 연동 후 이용해 주세요.</p>
+          <p>운행 전 시스템 테스트입니다. 실제 금액은 청구되지 않습니다.<br>아래 버튼을 누르면 서버에 테스트 예약을 저장하고 QR 탑승권 조회를 진행합니다. 테스트 예약은 실제 탑승에 사용할 수 없습니다.</p>
         </div>
         <div class="space-y-2 text-sm mb-4">
           <div class="flex justify-between border-b pb-2"><span class="text-gray-500">주문번호</span><span class="font-mono text-xs">${pgData?.orderId}</span></div>
@@ -214,8 +216,8 @@ ${Footer.render()}`;
           <div class="flex justify-between"><span class="text-gray-500">판매자</span><span class="text-cyan-600 font-bold text-xs">${pgData?.seller}</span></div>
         </div>
         <div class="flex gap-3">
-          <button onclick="Utils.closeModal()" class="btn-ocean flex-1 py-3">
-            <i class="fas fa-check mr-2"></i>확인 (결제·예약 미처리)
+          <button onclick="Utils.closeModal();PaymentModule.completePayment('${regionId}')" class="btn-ocean flex-1 py-3">
+            <i class="fas fa-check mr-2"></i>테스트 예약 완료 · QR 확인
           </button>
           <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3 text-sm">취소</button>
         </div>
@@ -224,6 +226,7 @@ ${Footer.render()}`;
 
   completePayment: async (regionId) => {
     const cart = Store.get('cart');
+    if (!BookingState.testMode) { Utils.toast('테스트 예약 모드가 종료되었습니다.', 'warning'); return; }
     if (PaymentModule._submitting || !cart || cart.regionId !== regionId) return;
     PaymentModule._submitting = true;
     Utils.loading(true);
@@ -235,7 +238,7 @@ ${Footer.render()}`;
       if (!schedule || !['active','available'].includes(schedule.status) || !Number.isFinite(schedule.available) || !Number.isInteger(cart.pax) || cart.pax <= 0 || schedule.available < cart.pax) {
         Utils.toast('선택한 회차의 잔여석을 확인할 수 없거나 좌석이 부족합니다. 다시 선택해 주세요.', 'warning'); return;
       }
-      const res = await API.post('/api/reservations', { ...cart, totalAmount: cart.total, channel: 'online' });
+      const res = await API.post('/api/reservations', { ...cart, name: `[테스트] ${cart.name || ''}`, totalAmount: cart.total, channel: 'online', isTest: true, testMode: true, paymentMethod: 'test', payMethod: '테스트(미청구)' });
       if (!res.success || !BookingState.number(res.data)) { Utils.toast(res.message || '예약 접수에 실패했습니다. 예약내역을 확인한 후 다시 시도해 주세요.', 'error'); return; }
       Store.set('lastReservation', { ...res.data, reservationId: BookingState.number(res.data) });
       Router.go('/payment/complete');
@@ -278,6 +281,7 @@ ${Footer.render()}`;
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
 <div class="max-w-xl mx-auto px-4 py-12">
   <div class="text-center mb-8">

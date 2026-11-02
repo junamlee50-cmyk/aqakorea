@@ -79,19 +79,22 @@ test('phone suffix collision rejected; full phone match accepted', async () => {
   await run('CustomerPages.checkBooking()'); assert.match(elements['booking-result'].innerHTML,/예약 정보를 찾을 수 없습니다/);
   elements['chk-phone'].value='01012345678'; await run('CustomerPages.checkBooking()'); assert.match(elements['booking-result'].innerHTML,/예약 확정/);
 });
-test('test payment does not expose a reservation confirmation action', () => {
+test('explicit test payment permits full booking flow but cannot run as real payment', () => {
   const {run,ctx} = setup(); run(`Utils.modal = html => window.modalHtml=html; PaymentModule.showMockPG({}, {pax:1,total:1000}, 'buyeo');`);
-  assert.doesNotMatch(ctx.modalHtml,/PaymentModule.completePayment/); assert.match(ctx.modalHtml,/예약 미처리/);
+  assert.match(ctx.modalHtml,/PaymentModule.completePayment/); assert.match(ctx.modalHtml,/실제 금액은 청구되지 않습니다/);
+  run(`BookingState.testMode=false; window.modalHtml=''; PaymentModule.showMockPG({}, {pax:1,total:1000}, 'buyeo');`);
+  assert.equal(ctx.modalHtml,''); assert.match(ctx.message,/실제 결제 연동/);
 });
 test('submission rechecks seats, handles failure, and prevents double submit', async () => {
   for(const mode of ['closed','missing','insufficient','error','success']) {
     const {run,ctx} = setup(); ctx.mode=mode; ctx.calls=0;
     run(`Store.set('cart',{regionId:'buyeo',date:'2026-11-03',scheduleId:'s1',pax:2,total:1000});
     API.get=async p=>p.includes('/regions/')?{success:true,data:{status:mode==='closed'?'closed':'open'}}:{success:mode!=='missing',data:[{id:'s1',status:'active',available:mode==='insufficient'?1:3}]};
-    API.post=async()=>{calls++; return mode==='error'?{success:false}:{success:true,data:{reservationId:'RES-TEST',status:'payment_pending'}}};`);
+    API.post=async(p,body)=>{window.submitted=body; calls++; return mode==='error'?{success:false}:{success:true,data:{reservationId:'RES-TEST',status:'payment_pending'}}};`);
     await Promise.all([run(`PaymentModule.completePayment('buyeo')`),run(`PaymentModule.completePayment('buyeo')`)]);
     assert.equal(ctx.calls,['success','error'].includes(mode)?1:0);
     assert.equal(ctx.destination,mode==='success'?'/payment/complete':undefined);
     assert.equal(run('PaymentModule._submitting'),false);
+    if(ctx.calls){assert.equal(ctx.submitted.isTest,true);assert.equal(ctx.submitted.paymentMethod,'test');assert.match(ctx.submitted.name,/^\[테스트\]/);}
   }
 });

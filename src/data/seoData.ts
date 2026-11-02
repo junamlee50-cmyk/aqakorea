@@ -6,10 +6,10 @@ export const SEO_CONFIG = {
   siteName: '아쿠아모빌리티코리아',
   siteNameEn: 'Aqua Mobility Korea',
   siteUrl: 'https://aquamobility.co.kr',
-  defaultTitle: '아쿠아모빌리티코리아 | 전국 수륙양용투어 통합예약 플랫폼',
-  defaultDescription: '통영·부여·합천 수륙양용버스 온라인 예약. QR 탑승권, QR 손목밴드 발급, 현장판매까지 한 번에. 전국 수륙양용투어 통합 예약·결제·운영 플랫폼.',
+  defaultTitle: '아쿠아모빌리티코리아 | 수륙양용버스·수륙양용시티투어 통합솔루션',
+  defaultDescription: '수륙양용버스·수륙양용시티투어 통합솔루션 아쿠아모빌리티코리아. 부여수륙양용버스·통영수륙양용시티투어·통영수륙양용버스 안내와 부산수륙양용버스 관련 문의, 예약·QR 시스템을 확인하세요.',
   defaultOgImage: 'https://aquamobility.co.kr/static/og-default.jpg',
-  defaultKeywords: '수륙양용버스,수륙양용투어,수륙양용버스예약,수륙양용시티투어,아쿠아모빌리티,아쿠아모빌리티코리아,통영수륙양용버스,부여수륙양용버스,합천수륙양용버스,수륙양용관광,통영해양관광,부여관광,합천관광,수상투어,amphibious bus tour korea',
+  defaultKeywords: '부산수륙양용버스,부산 수륙양용버스,통영수륙양용시티투어,통영 수륙양용시티투어,수륙양용버스,수륙양용투어,수륙양용버스예약,수륙양용시티투어,아쿠아모빌리티,아쿠아모빌리티코리아,통영수륙양용버스,부여수륙양용버스,합천수륙양용버스,수륙양용관광,통영해양관광,부여관광,합천관광,수상투어,amphibious bus tour korea',
   twitterHandle: '@aquamobilitykr',
   locale: 'ko_KR',
   organization: {
@@ -68,7 +68,7 @@ export const REGION_SEO: Record<string, {
 }> = {
   buyeo: {
     title: '부여 수륙양용버스 예약 | 아쿠아모빌리티코리아',
-    description: '부여 백마강에서 즐기는 수륙양용버스 시티투어. 온라인 예약, QR 탑승권, QR 손목밴드, 주변 관광지 안내까지 한 번에 확인하세요. 성인 30,000원, 어린이 20,000원.',
+    description: '부여수륙양용버스·부여 수륙양용시티투어 안내. 아직 실제 운행 전이며 아쿠아모빌리티코리아에서 테스트 예약과 QR 탑승권 조회 절차를 확인할 수 있습니다.',
     keywords: [
       '부여 수륙양용버스', '부여 수륙양용투어', '부여 수륙양용 시티투어',
       '백마강 수륙양용버스', '부여 관광', '부여 여행', '부여 아이와 가볼만한 곳',
@@ -77,7 +77,7 @@ export const REGION_SEO: Record<string, {
       '구드래 나루터', '백마강 관광', '부여 수상투어',
     ],
     ogTitle: '부여 백마강 수륙양용버스 투어 | 아쿠아모빌리티코리아',
-    ogDescription: '백제의 고도 부여! 백마강을 수륙양용버스로 누비는 특별한 역사문화 투어. 지금 바로 예약하세요.',
+    ogDescription: '부여 수륙양용버스 시스템 테스트 안내. 테스트 예약과 QR 조회를 확인하고 정식운행 일정은 확정 공지를 참고해 주세요.',
     ogImage: 'https://aquamobility.co.kr/static/og-buyeo.jpg',
     canonicalUrl: 'https://aquamobility.co.kr/reservation/buyeo',
     h1: '부여 수륙양용버스 투어 예약',
@@ -112,7 +112,7 @@ export const REGION_SEO: Record<string, {
     },
     faq: [
       { q: '부여 수륙양용버스는 어디서 타나요?', a: '부여 구드래 나루터 수변공원에서 탑승하실 수 있습니다. 주소: 충남 부여군 부여읍 구드래로. 구드래 공영주차장을 이용하시면 편리합니다.' },
-      { q: '부여 수륙양용투어 예약은 어떻게 하나요?', a: '아쿠아모빌리티코리아 홈페이지(aquamobility.kr)에서 원하는 날짜와 회차를 선택하고 온라인으로 예약하실 수 있습니다. 현장 매표소에서도 잔여석 범위 내 구매 가능합니다.' },
+      { q: '부여 수륙양용투어 예약은 어떻게 하나요?', a: '아쿠아모빌리티코리아 홈페이지(aquamobility.co.kr)에서 원하는 날짜와 회차를 선택하고 온라인으로 예약하실 수 있습니다. 현장 매표소에서도 잔여석 범위 내 구매 가능합니다.' },
       { q: '부여 수륙양용버스 요금은 얼마인가요?', a: '성인 30,000원 / 청소년 25,000원 / 어린이(만4세~13세) 20,000원 / 경로(만65세이상) 25,000원 / 지역민 20,000원입니다. 단체(20인 이상)는 25,000원이 적용됩니다.' },
       { q: '현장판매도 가능한가요?', a: '네, 현장 매표소에서도 잔여석 범위 내에서 구매하실 수 있습니다. 단, 성수기·주말에는 온라인 예약 좌석 위주로 운영되어 현장 잔여석이 적을 수 있으니 온라인 예약을 권장합니다.' },
       { q: '비가 오면 운행하나요?', a: '경미한 비는 우산 착용 후 운행합니다. 강풍, 폭우, 기상특보 발령 시에는 안전을 위해 운휴할 수 있으며, 이 경우 사전에 문자/알림톡으로 안내드립니다.' },
@@ -332,6 +332,6 @@ export const SITEMAP_PAGES = [
   { url: '/about', changefreq: 'monthly', priority: '0.5', lastmod: '' },
   { url: '/inquiry', changefreq: 'monthly', priority: '0.5', lastmod: '' },
   { url: '/content/buyeo-daytrip', changefreq: 'monthly', priority: '0.6', lastmod: '' },
-  { url: '/content/tongyeong-marine', changefreq: 'monthly', priority: '0.6', lastmod: '' },
-  { url: '/content/hapcheon-family', changefreq: 'monthly', priority: '0.6', lastmod: '' },
+  { url: '/content/tongyeong-ocean', changefreq: 'monthly', priority: '0.6', lastmod: '' },
+  { url: '/content/hapcheon-lake', changefreq: 'monthly', priority: '0.6', lastmod: '' },
 ];

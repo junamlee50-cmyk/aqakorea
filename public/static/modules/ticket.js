@@ -64,6 +64,7 @@ const TicketPage = {
     setTimeout(() => _renderQR(), 150);
 
     return `
+${BookingState.testBanner()}
 <div class="min-h-screen bg-gradient-to-br from-navy-900 via-ocean-700 to-navy-800 flex items-center justify-center p-4">
   <div class="w-full max-w-sm">
 
