@@ -391,43 +391,127 @@ const FieldModule = {
     const time = rsv?.time || '';
     const typeMap = {adult:'성인',child:'소아',elder:'경로',disabled:'장애인',veteran:'국가유공자',local:'지역민',group:'단체',free:'무료/초대권'};
     const colorMap = {adult:'#0ea5e9',child:'#f97316',elder:'#8b5cf6',disabled:'#10b981',veteran:'#ef4444',local:'#06b6d4',group:'#64748b',free:'#94a3b8'};
-    const printWin = window.open('', '_blank', 'width=440,height=700');
+    const gradMap = {adult:'#0284c7,#38bdf8',child:'#ea580c,#fb923c',elder:'#7c3aed,#a78bfa',disabled:'#059669,#34d399',veteran:'#dc2626,#f87171',local:'#0891b2,#22d3ee',group:'#475569,#94a3b8',free:'#64748b,#cbd5e1'};
+    const printWin = window.open('', '_blank', 'width=500,height=800');
     if (!printWin) { Utils.toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error', 4000); return; }
+
+    // 수상레저 아이콘 SVG
+    const waveIcon = `<svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="19" cy="19" r="19" fill="rgba(255,255,255,0.18)"/>
+      <!-- 파란 -->
+      <path d="M5 22 Q9 17 13 22 Q17 27 21 22 Q25 17 29 22 Q32 26 33 22" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <path d="M5 26 Q9 21 13 26 Q17 31 21 26 Q25 21 29 26 Q32 30 33 26" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <!-- 제트스키 -->
+      <ellipse cx="19" cy="13" rx="7" ry="3.5" fill="rgba(255,255,255,0.85)" transform="rotate(-18 19 13)"/>
+      <ellipse cx="22" cy="11.5" rx="2" ry="1" fill="rgba(255,255,255,0.5)" transform="rotate(-18 22 11.5)"/>
+      <!-- 사람 -->
+      <circle cx="13" cy="11" r="1.5" fill="white" opacity="0.7"/>
+    </svg>`;
+
     const bands = persons.map((p, i) => {
       const label = typeMap[p.type] || '성인';
       const color = colorMap[p.type] || '#0ea5e9';
-      return `<div class="band">
-        <div class="brand">AQUA MOBILITY KOREA</div>
-        <div class="region">${regionName}</div>
-        <div class="time">${time}</div>
-        ${p.name ? `<div class="pname">${p.name}</div>` : ''}
-        <div class="type-badge" style="background:${color}">${label}</div>
-        <div class="meta">${date}</div>
-        <div class="code">${reservationId} <span style="color:#cbd5e1">#${i+1}/${persons.length}</span></div>
+      const grad = (gradMap[p.type] || '0ea5e9,38bdf8').split(',');
+      return `
+      <div class="band">
+        <!-- 왼쪽: 스타일 헤더 -->
+        <div class="band-left" style="background:linear-gradient(160deg,${grad[0]},${grad[1]})">
+          <div class="band-icon">${waveIcon}</div>
+          <div class="band-brand">AQUA<br>MOBILITY<br>KOREA</div>
+          <div class="band-type">${label}</div>
+        </div>
+        <!-- 오른쪽: 정보 -->
+        <div class="band-right">
+          <div class="band-region">${regionName}</div>
+          <div class="band-time">${time}</div>
+          ${p.name ? `<div class="band-name">${p.name}</div>` : ''}
+          <div class="band-date">${date}</div>
+          <div class="band-wave-deco">
+            <svg width="120" height="18" viewBox="0 0 120 18">
+              <path d="M0 9 Q15 2 30 9 Q45 16 60 9 Q75 2 90 9 Q105 16 120 9" stroke="${color}" stroke-width="2" fill="none" opacity="0.35"/>
+              <path d="M0 13 Q15 6 30 13 Q45 20 60 13 Q75 6 90 13 Q105 20 120 13" stroke="${color}" stroke-width="1.2" fill="none" opacity="0.2"/>
+            </svg>
+          </div>
+          <div class="band-code">${reservationId} <span style="opacity:.45">#${i+1}/${persons.length}</span></div>
+        </div>
       </div>`;
     }).join('');
+
     printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>팔찌 인쇄</title><style>
-      *{box-sizing:border-box}
-      body{margin:0;padding:10px;font-family:'Malgun Gothic',sans-serif;background:#fff}
-      .band{border:2.5px dashed #0ea5e9;border-radius:14px;padding:12px 16px;margin-bottom:10px;width:360px;background:#f8fafc;page-break-inside:avoid}
-      .brand{font-size:8px;color:#64748b;font-weight:700;letter-spacing:1.5px;margin-bottom:2px}
-      .region{font-size:16px;font-weight:900;color:#0c1461;margin:3px 0 2px}
-      .time{font-size:26px;font-weight:900;color:#0ea5e9;line-height:1.1}
-      .pname{font-size:17px;font-weight:900;color:#1e293b;margin:5px 0 2px}
-      .type-badge{display:inline-block;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;margin:4px 0}
-      .meta{font-size:10px;color:#475569;margin-top:3px}
-      .code{font-size:8px;font-family:monospace;color:#94a3b8;margin-top:2px}
-      .no-print{margin-top:12px;text-align:center}
-      button{padding:10px 28px;background:#0ea5e9;color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:15px;font-weight:700;margin:4px}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:#f1f5f9;padding:16px}
+      .band{
+        display:flex;width:420px;height:90px;margin-bottom:14px;
+        border-radius:16px;overflow:hidden;
+        box-shadow:0 4px 18px rgba(0,0,0,0.13);
+        page-break-inside:avoid;
+      }
+      .band-left{
+        width:90px;flex-shrink:0;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:3px;padding:8px 6px;
+        position:relative;
+      }
+      .band-icon{margin-bottom:2px}
+      .band-brand{
+        font-size:6px;font-weight:900;color:rgba(255,255,255,0.9);
+        text-align:center;letter-spacing:.5px;line-height:1.3;
+      }
+      .band-type{
+        font-size:9px;font-weight:900;color:#fff;
+        background:rgba(0,0,0,0.2);border-radius:10px;
+        padding:2px 7px;margin-top:2px;
+      }
+      .band-right{
+        flex:1;background:#fff;padding:10px 14px 8px 14px;
+        display:flex;flex-direction:column;justify-content:center;
+        position:relative;
+      }
+      .band-region{
+        font-size:13px;font-weight:900;color:#0c1461;
+        letter-spacing:-.2px;margin-bottom:1px;
+      }
+      .band-time{
+        font-size:28px;font-weight:900;color:#0ea5e9;
+        line-height:1;letter-spacing:-1px;
+      }
+      .band-name{
+        font-size:13px;font-weight:700;color:#1e293b;margin-top:3px;
+      }
+      .band-date{
+        font-size:9px;color:#94a3b8;margin-top:1px;
+      }
+      .band-wave-deco{
+        position:absolute;bottom:6px;right:12px;
+      }
+      .band-code{
+        font-size:7px;font-family:monospace;color:#cbd5e1;
+        position:absolute;bottom:5px;left:14px;
+      }
+      /* 절단선 표시 -- 실제 팔찌시 잘라는 선 --*/
+      .cut-line{
+        border:none;border-top:1.5px dashed #cbd5e1;
+        margin:0 0 14px 0;width:420px;
+      }
+      .no-print{margin-top:16px;text-align:center}
+      button{
+        padding:10px 28px;background:#0ea5e9;color:#fff;
+        border:none;border-radius:10px;cursor:pointer;
+        font-size:15px;font-weight:700;margin:4px;
+      }
       .btn-cancel{background:#e2e8f0;color:#374151}
-      @media print{.no-print{display:none}body{padding:4px}}
+      @media print{
+        body{background:#fff;padding:6px}
+        .no-print{display:none}
+        .band{box-shadow:none}
+      }
     </style></head><body>
     ${bands}
     <div class="no-print">
       <button onclick="window.print()">🖨️ 인쇄 (${persons.length}장)</button>
       <button class="btn-cancel" onclick="window.close()">닫기</button>
     </div>
-    <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
+    <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
     </body></html>`);
     printWin.document.close();
   },
