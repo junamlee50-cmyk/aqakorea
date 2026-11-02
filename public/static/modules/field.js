@@ -311,6 +311,7 @@ const FieldModule = {
             <span class="flex-1 font-medium text-sm">${p.name || '성명미입력'}</span>
             <select class="border rounded px-1 py-0.5 text-xs" style="width:80px" id="wb-type-${i}">
               <option value="adult" ${tv==='adult'?'selected':''}>성인</option>
+              <option value="teen" ${tv==='teen'?'selected':''}>청소년</option>
               <option value="child" ${tv==='child'?'selected':''}>소아</option>
               <option value="elder" ${tv==='elder'?'selected':''}>경로</option>
               <option value="disabled" ${tv==='disabled'?'selected':''}>장애인</option>
@@ -327,12 +328,8 @@ const FieldModule = {
             <input type="text" class="border rounded px-2 py-0.5 flex-1 text-sm" id="wb-name-${i}" placeholder="성명 (선택)">
             <select class="border rounded px-1 py-0.5 text-xs" style="width:80px" id="wb-type-${i}">
               <option value="adult">성인</option>
+              <option value="teen">청소년</option>
               <option value="child">소아</option>
-              <option value="elder">경로</option>
-              <option value="disabled">장애인</option>
-              <option value="veteran">국가유공자</option>
-              <option value="local">지역민</option>
-              <option value="free">무료</option>
             </select>
             <button onclick="FieldModule._printOne(${i})" class="bg-blue-500 text-white text-xs px-2 py-1 rounded-lg">팔찌</button>
           </div>`).join('');
@@ -389,9 +386,9 @@ const FieldModule = {
     const regionName = rsv?.regionName || '';
     const date = rsv?.date || new Date().toLocaleDateString('ko-KR');
     const time = rsv?.time || '';
-    const typeMap = {adult:'성인',child:'소아',elder:'경로',disabled:'장애인',veteran:'국가유공자',local:'지역민',group:'단체',free:'무료/초대권'};
-    const colorMap = {adult:'#0ea5e9',child:'#f97316',elder:'#8b5cf6',disabled:'#10b981',veteran:'#ef4444',local:'#06b6d4',group:'#64748b',free:'#94a3b8'};
-    const gradMap = {adult:'#0284c7,#38bdf8',child:'#ea580c,#fb923c',elder:'#7c3aed,#a78bfa',disabled:'#059669,#34d399',veteran:'#dc2626,#f87171',local:'#0891b2,#22d3ee',group:'#475569,#94a3b8',free:'#64748b,#cbd5e1'};
+    const typeMap = {adult:'성인',teen:'청소년',child:'소아'};
+    const colorMap = {adult:'#0ea5e9',teen:'#10b981',child:'#f97316'};
+    const gradMap = {adult:'#0284c7,#38bdf8',teen:'#059669,#34d399',child:'#ea580c,#fb923c'};
     const printWin = window.open('', '_blank', 'width=500,height=800');
     if (!printWin) { Utils.toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.', 'error', 4000); return; }
 
