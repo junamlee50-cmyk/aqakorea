@@ -30,6 +30,18 @@ const Store = (() => {
   };
 })();
 
+// 예약 접수 상태는 서버 설정만 사용하며 운행 개시 사실과 구분합니다.
+const BookingState = {
+  canBook: r => r?.status === 'open',
+  label: r => ({open: '예약 접수 중', preparing: '운행 준비 중', closed: '예약 접수 중단', suspended: '운행 중단', hidden: '비공개'})[r?.status] || '운영 상태 확인 필요',
+  summary: regions => regions.length
+    ? regions.map(r => `${r.name} · ${BookingState.label(r)}`).join(' / ')
+    : '운영 상태를 확인할 수 없습니다. 잠시 후 다시 확인해 주세요.',
+  canIssue: r => !!(r?.reservationNo || r?.reservationId || r?.id) && ['confirmed', 'payment_done', 'checkedin'].includes(r?.status),
+  number: r => r?.reservationNo || r?.reservationId || r?.id || '',
+};
+window.BookingState = BookingState;
+
 // ── API 클라이언트 ───────────────────────────────────────────
 const API = {
   base: '',
@@ -102,7 +114,7 @@ const Router = (() => {
     // 쿼리스트링 분리 (매칭은 pathname만)
     const [pathname] = path.split('?');
     _current = path;
-    if (pushState && window.location.pathname !== pathname) {
+    if (pushState && window.location.pathname + window.location.search !== path) {
       history.pushState({}, '', path);
     }
     const app = document.getElementById('app');
@@ -126,7 +138,11 @@ const Router = (() => {
     }
   };
 
-  window.addEventListener('popstate', () => go(location.pathname + location.search, false));
+  window.addEventListener('popstate', () => {
+    // QR 모달이 열린 상태의 뒤로가기는 모달 리스너가 처리합니다.
+    if (document.getElementById('ticket-modal')) return;
+    go(location.pathname + location.search, false);
+  });
 
   return {
     add: (pattern, handler) => {

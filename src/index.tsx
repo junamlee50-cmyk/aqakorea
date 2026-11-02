@@ -382,15 +382,15 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app"></div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=5751b348"></script>
-<script src="/static/modules/customer.js?v=5751b348"></script>
-<script src="/static/modules/payment.js?v=5751b348"></script>
-<script src="/static/modules/field.js?v=5751b348"></script>
-<script src="/static/modules/admin.js?v=5751b348"></script>
-<script src="/static/modules/stats.js?v=5751b348"></script>
-<script src="/static/modules/seo.js?v=5751b348"></script>
-<script src="/static/modules/ticket.js?v=5751b348"></script>
-<script src="/static/app.js?v=5751b348"></script>
+<script src="/static/modules/core.js?v=ba4add8341f4"></script>
+<script src="/static/modules/customer.js?v=ba4add8341f4"></script>
+<script src="/static/modules/payment.js?v=ba4add8341f4"></script>
+<script src="/static/modules/field.js?v=ba4add8341f4"></script>
+<script src="/static/modules/admin.js?v=ba4add8341f4"></script>
+<script src="/static/modules/stats.js?v=ba4add8341f4"></script>
+<script src="/static/modules/seo.js?v=ba4add8341f4"></script>
+<script src="/static/modules/ticket.js?v=ba4add8341f4"></script>
+<script src="/static/app.js?v=ba4add8341f4"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {

@@ -28,7 +28,8 @@ const TicketPage = {
     const st = statusMap[r.status] || { label: r.status, color: 'bg-gray-500', icon: '📋' };
 
     // 캔버스 QR 생성용 데이터
-    const qrData = r.reservationNo;
+    const qrData = BookingState.number(r);
+    const canIssue = BookingState.canIssue(r);
 
     // QR 코드 렌더링 — 라이브러리 로딩 완료 대기
     const _renderQR = (attempt = 0) => {
@@ -84,8 +85,8 @@ const TicketPage = {
 
       <!-- QR 코드 영역 -->
       <div class="flex justify-center items-center py-6 bg-gray-50 border-b-2 border-dashed border-gray-200">
-        ${r.status === 'cancelled'
-          ? `<div class="text-center text-gray-400"><div class="text-5xl mb-2">🚫</div><div class="text-sm">취소된 예약입니다</div></div>`
+        ${!canIssue
+          ? `<div class="text-center text-gray-400"><div class="text-5xl mb-2">🚫</div><div class="text-sm">현재 상태에서는 탑승권을 사용할 수 없습니다</div></div>`
           : `<div class="flex flex-col items-center">
                <canvas id="ticket-qr-canvas" class="rounded-xl shadow"></canvas>
                <div class="text-xs text-gray-400 mt-2">매표소에서 스캔</div>
@@ -166,7 +167,7 @@ const TicketPage = {
       </div>` : ''}
 
       <!-- 안내사항 -->
-      ${r.status !== 'cancelled' ? `
+      ${canIssue ? `
       <div class="mx-4 mb-4 bg-blue-50 rounded-xl p-3 text-xs text-blue-700 space-y-1">
         <div class="font-bold mb-1">📌 탑승 안내</div>
         <div>• 탑승 30분 전까지 매표소에서 QR 제시</div>
@@ -176,7 +177,7 @@ const TicketPage = {
 
       <!-- 하단 버튼 -->
       <div class="px-4 pb-4 flex gap-2">
-        <button onclick="history.back()"
+        <button onclick="Router.go('/reservation/check')"
           class="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">
           ← 뒤로
         </button>

@@ -1,15 +1,13 @@
 import { createHash } from 'crypto';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync } from 'fs';
 
-// admin.js 기준으로 해시 생성 (가장 최근 수정 파일)
-const hash = createHash('md5')
-  .update(readFileSync('./dist/static/modules/admin.js'))
-  .digest('hex').slice(0, 8);
-
-let tsx = readFileSync('./src/index.tsx', 'utf8');
-// ?v=xxxxx 패턴 전부 동일 해시로 교체 (new123646 등 수동 태그 포함)
-tsx = tsx.replace(/\?v=[a-zA-Z0-9]+/g, `?v=${hash}`);
-writeFileSync('./src/index.tsx', tsx);
-
-// app.js 직접 참조도 교체
-console.log(`✓ 캐시버스터 버전 통일: v=${hash}`);
+// 모든 고객/관리 모듈과 스타일 변경을 빌드 전에 캐시 버전에 반영합니다.
+const files = readdirSync('./public/static/modules').filter(f => f.endsWith('.js')).sort()
+  .map(f => `./public/static/modules/${f}`);
+files.push('./public/static/app.js', './public/static/style.css');
+const digest = createHash('sha256');
+for (const file of files) digest.update(file).update(readFileSync(file));
+const hash = digest.digest('hex').slice(0, 12);
+const path = './src/index.tsx';
+writeFileSync(path, readFileSync(path, 'utf8').replace(/\?v=[a-zA-Z0-9]+/g, `?v=${hash}`));
+console.log(`캐시버스터 버전: ${hash}`);

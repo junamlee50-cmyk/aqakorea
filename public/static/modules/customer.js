@@ -6,11 +6,9 @@ const CustomerPages = {
 
   // ── 메인 홈 ────────────────────────────────────────────────
   home: async () => {
-    const [regRes, statsRes] = await Promise.all([
-      API.get('/api/regions'),
-      API.get('/api/stats'),
-    ]);
-    const regions = (regRes.data || []).filter(r => r.status === 'open' || r.status === 'preparing');
+    const regRes = await API.get('/api/regions');
+    const regions = (regRes.success && Array.isArray(regRes.data) ? regRes.data : []).filter(r => r.status !== 'hidden');
+    const buyeo = regions.find(r => r.id === 'buyeo');
     const today = Utils.today();
     setTimeout(() => {
       Navbar.init();
@@ -32,12 +30,7 @@ ${Navbar.render('home')}
         <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium mb-6 border border-white/20 whitespace-nowrap max-w-full overflow-hidden">
           <span class="w-2 h-2 bg-green-400 rounded-full pulse-anim flex-shrink-0"></span>
           <span class="truncate">
-            ${(() => {
-              const shorten = n => n.replace('수륙양용투어','').replace('해양관광','').replace('수륙양용','').trim() || n;
-              const open = regions.filter(r=>r.status==='open').map(r=>shorten(r.name));
-              const prep = regions.filter(r=>r.status==='preparing').map(r=>shorten(r.name));
-              return open.join(' · ') + ' 예약가능' + (prep.length ? ' · ' + prep.join('/') + ' 준비중' : '');
-            })()}
+            ${BookingState.summary(regions)}
           </span>
         </div>
         <h1 class="text-4xl md:text-6xl font-black leading-tight mb-6">
@@ -57,13 +50,7 @@ ${Navbar.render('home')}
             <i class="fas fa-question-circle"></i> 자주 묻는 질문
           </button>
         </div>
-        <div class="flex items-center gap-6 mt-8 text-sm text-white/60">
-          <div><span class="text-white font-bold text-xl" data-count="4531"></span>명 탑승 완료</div>
-          <div class="w-px h-8 bg-white/20"></div>
-          <div><span class="text-white font-bold text-xl">4.9</span> ⭐ 만족도</div>
-          <div class="w-px h-8 bg-white/20"></div>
-          <div><span class="text-white font-bold text-xl">${regions.length}</span>개 지역 운행</div>
-        </div>
+        <p class="mt-8 text-sm text-white/70">예약 접수 여부는 지역별 운영 설정을 기준으로 안내합니다.<br>가운행·무료탑승 행사·정식운행 일정은 공지사항을 확인해 주세요.</p>
       </div>
       <div class="hidden md:flex justify-center fade-in">
         <div class="relative">
@@ -72,7 +59,7 @@ ${Navbar.render('home')}
           </div>
           <div class="absolute -bottom-4 -left-8 bg-white rounded-2xl p-3 shadow-xl flex items-center gap-3 slide-up" style="animation-delay:0.3s">
             <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl">🎫</div>
-            <div><div class="font-bold text-navy-800 text-sm">부여 예약 가능</div><div class="text-blue-600 font-bold">온라인 즉시 예약</div></div>
+            <div><div class="font-bold text-navy-800 text-sm">${buyeo ? `부여 · ${BookingState.label(buyeo)}` : '부여 운영 상태 확인 필요'}</div><div class="text-blue-600 font-bold">지역별 일정 확인</div></div>
           </div>
           <div class="absolute -top-4 -right-4 bg-cyan-500 text-white rounded-2xl p-3 shadow-xl slide-up" style="animation-delay:0.5s">
             <div class="font-bold text-sm">QR 손목밴드</div>
@@ -91,20 +78,21 @@ ${Navbar.render('home')}
     <p class="text-gray-500">원하는 지역을 선택하고 바로 예약하세요</p>
   </div>
   <div class="grid md:grid-cols-3 gap-6">
+    ${!regions.length ? '<p role="status">운영 상태를 확인할 수 없습니다. 잠시 후 다시 확인해 주세요.</p>' : ''}
     ${regions.map(r => `
-    <div class="region-card ${r.status==='preparing'?'opacity-80':''}"
-      onclick="${r.status==='open'?`Router.go('/reservation/${r.id}')`:''}"
-      style="${r.status==='preparing'?'cursor:default':'cursor:pointer'}">
+    <div class="region-card ${!BookingState.canBook(r)?'opacity-80':''}"
+      onclick="${BookingState.canBook(r)?`Router.go('/reservation/${r.id}')`:''}"
+      style="${!BookingState.canBook(r)?'cursor:default':'cursor:pointer'}">
       <div class="relative overflow-hidden" style="height:200px">
         <img src="${r.image}" alt="${r.name} 수륙양용버스" class="w-full h-full object-cover transition-transform duration-500 hover:scale-110" loading="lazy">
         <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
         <div class="absolute bottom-3 left-3">
-          ${r.status==='open'
-            ? '<span class="region-status status-active"><i class="fas fa-circle text-xs"></i> 예약 가능</span>'
-            : '<span class="region-status status-preparing">🔧 준비중</span>'}
+          ${BookingState.canBook(r)
+            ? '<span class="region-status status-active"><i class="fas fa-circle text-xs"></i> 예약 접수 중</span>'
+            : `<span class="region-status status-preparing">${BookingState.label(r)}</span>`}
         </div>
         <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-xs font-bold text-navy-800">
-          ${r.status==='open'?`성인 ${Utils.money(r.fares?.find(f=>f.type==='adult')?.price||0).replace('원','')}~`:'오픈 예정'}
+          ${BookingState.canBook(r)?`성인 ${Utils.money(r.fares?.find(f=>f.type==='adult')?.price||0).replace('원','')}~`:BookingState.label(r)}
         </div>
       </div>
       <div class="region-card-body">
@@ -112,9 +100,9 @@ ${Navbar.render('home')}
         <p class="text-gray-500 text-sm mb-4 leading-relaxed">${r.tagline}</p>
         <div class="flex items-center justify-between">
           <div class="text-xs text-gray-400"><i class="fas fa-map-marker-alt mr-1 text-cyan-500"></i>${r.location}</div>
-          ${r.status==='open'
+          ${BookingState.canBook(r)
             ? '<button class="btn-ocean text-sm px-4 py-2" style="border-radius:10px">예약하기 →</button>'
-            : '<span class="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">🔔 오픈 알림 신청</span>'}
+            : '<button onclick="event.stopPropagation();Router.go(\'/notice\')" class="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">운영 공지 확인</button>'}
         </div>
       </div>
     </div>`).join('')}
@@ -310,7 +298,7 @@ ${Navbar.render('home')}
     </div>
     <div class="grid md:grid-cols-4 gap-6">
       ${[
-        {icon:'📱',t:'모바일 QR 탑승권',d:'예약 즉시 QR 발급. 종이 없이 스마트하게'},
+        {icon:'📱',t:'모바일 QR 탑승권',d:'예약 확정 후 QR 조회. 현장 직원에게 제시'},
         {icon:'🎫',t:'QR 손목밴드 발급',d:'현장 도착 후 QR 손목밴드로 탑승 완료'},
         {icon:'🏦',t:'지역 법인 직접 결제',d:'각 지역 운영 법인에 직접 결제, 안전한 정산'},
         {icon:'🌊',t:'날씨 실시간 안내',d:'기상 악화 시 즉시 알림 및 전액 환불'},
@@ -348,23 +336,17 @@ ${Navbar.render('home')}
 <section class="bg-gradient-to-br from-cyan-50 to-blue-50 py-14">
   <div class="max-w-6xl mx-auto px-4">
     <div class="text-center mb-10">
-      <h2 class="text-2xl font-black text-navy-800 mb-2">지금 바로 예약하세요</h2>
-      <p class="text-gray-500 text-sm">부여 수륙양용투어 온라인 예약 운영 중 · 통영/합천 오픈 예정</p>
+      <h2 class="text-2xl font-black text-navy-800 mb-2">지역별 예약 안내</h2>
+      <p class="text-gray-500 text-sm">${BookingState.summary(regions)}</p>
     </div>
     <div class="grid md:grid-cols-3 gap-6">
-      <!-- 부여 예약 -->
-      <div class="bg-white rounded-2xl p-6 shadow-sm border-2 border-cyan-400 relative overflow-hidden">
-        <div class="absolute top-3 right-3 bg-cyan-500 text-white text-xs font-bold px-2 py-1 rounded-full">예약 가능</div>
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
         <div class="text-4xl mb-3">🌊</div>
         <h3 class="font-black text-navy-800 text-lg mb-1">부여 수륙양용투어</h3>
-        <p class="text-gray-500 text-sm mb-4">백제의 수도 부여에서 펼쳐지는<br>수륙양용버스 체험 · 백마강 수상 진입 코스</p>
-        <div class="space-y-1.5 text-xs text-gray-500 mb-5">
-          <div><i class="fas fa-clock text-cyan-500 mr-1"></i> 09:30 / 11:30 / 13:30 / 15:30 (4회차)</div>
-          <div><i class="fas fa-map-marker-alt text-cyan-500 mr-1"></i> 충남 부여군 백마강 선착장</div>
-          <div><i class="fas fa-won-sign text-cyan-500 mr-1"></i> 성인 25,000원 ~ (소아/경로 할인)</div>
-        </div>
-        <button onclick="Router.go('/reservation/buyeo')" class="btn-ocean w-full text-sm py-2.5" style="border-radius:10px">
-          <i class="fas fa-ticket-alt mr-1"></i> 부여 예약하기
+        <p class="text-gray-500 text-sm mb-4">${BookingState.label(buyeo)}</p>
+        <p class="text-gray-500 text-sm mb-4">가운행·군민 무료탑승 행사·정식운행 일정은 확정 공지를 확인해 주세요. 요금과 회차는 예약 화면에서 확인할 수 있습니다.</p>
+        <button onclick="Router.go('${BookingState.canBook(buyeo) ? '/reservation/buyeo' : '/notice'}')" class="btn-ocean w-full text-sm py-2.5">
+          ${BookingState.canBook(buyeo) ? '부여 예약 일정 확인' : '운영 공지 확인'}
         </button>
       </div>
       <!-- 단체예약 -->
@@ -430,7 +412,7 @@ ${Footer.render()}
   // ── 예약 허브 ───────────────────────────────────────────────
   reservationHub: async () => {
     const res = await API.get('/api/regions');
-    const regions = (res.data || []).filter(r => r.status !== 'hidden');
+    const regions = (res.success && Array.isArray(res.data) ? res.data : []).filter(r => r.status !== 'hidden');
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render('reservation')}
@@ -441,33 +423,34 @@ ${Navbar.render('reservation')}
   </div>
   <div class="max-w-5xl mx-auto px-4 py-10">
     <div class="grid md:grid-cols-3 gap-6 mb-10">
-      ${regions.map(r => `
-      <div class="region-card ${r.status==='preparing'?'opacity-80':''}"
-        onclick="${r.status==='open'?`Router.go('/reservation/${r.id}')`:''}"
-        style="${r.status==='preparing'?'cursor:default':'cursor:pointer'}">
+      ${!regions.length ? '<p role="status">운영 상태를 확인할 수 없습니다. 잠시 후 다시 확인해 주세요.</p>' : ''}
+    ${regions.map(r => `
+      <div class="region-card ${!BookingState.canBook(r)?'opacity-80':''}"
+        onclick="${BookingState.canBook(r)?`Router.go('/reservation/${r.id}')`:''}"
+        style="${!BookingState.canBook(r)?'cursor:default':'cursor:pointer'}">
         <div class="relative overflow-hidden" style="height:180px">
           <img src="${r.image}" alt="${r.name} 수륙양용버스" class="w-full h-full object-cover" loading="lazy">
           <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           <div class="absolute bottom-3 left-3">
-            <span class="region-status ${r.status==='open'?'status-active':'status-preparing'}">
-              ${r.status==='open'?'✅ 예약 가능':'🔧 준비중'}
+            <span class="region-status ${BookingState.canBook(r)?'status-active':'status-preparing'}">
+              ${BookingState.canBook(r)?'✅ 예약 접수 중':BookingState.label(r)}
             </span>
           </div>
         </div>
         <div class="p-4">
           <h2 class="font-black text-navy-800 text-lg mb-1">${r.name}</h2>
           <p class="text-gray-500 text-sm mb-3">${r.tagline}</p>
-          ${r.status==='open' ? `
+          ${BookingState.canBook(r) ? `
           <div class="text-xs text-gray-400 mb-3"><i class="fas fa-map-marker-alt text-cyan-500 mr-1"></i>${r.boardingPlace}</div>
           <div class="flex items-center justify-between">
             <div class="text-sm"><span class="font-bold text-navy-800">성인 ${Utils.money(r.fares?.find(f=>f.type==='adult')?.price||0)}</span><span class="text-gray-400">~</span></div>
             <button class="btn-ocean text-sm px-4 py-2" style="border-radius:10px">예약 →</button>
           </div>` : `
           <div class="text-center py-3">
-            <p class="text-gray-400 text-sm mb-2">오픈 준비 중입니다</p>
-            <button onclick="event.stopPropagation();Utils.toast('오픈 시 알림을 보내드립니다 📢','info')"
+            <p class="text-gray-400 text-sm mb-2">${BookingState.label(r)}</p>
+            <button onclick="event.stopPropagation();Router.go('/notice')"
               class="text-xs text-blue-500 border border-blue-300 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-all">
-              🔔 오픈 알림 신청
+              운영 공지 확인
             </button>
           </div>`}
         </div>
@@ -493,7 +476,7 @@ ${Footer.render()}
     if (!regRes.success) return CustomerPages._404();
     const region = regRes.data;
     if (region.status === 'hidden') return CustomerPages._404();
-    if (region.status === 'preparing') return CustomerPages._preparingPage(region);
+    if (!BookingState.canBook(region)) return CustomerPages._preparingPage(region);
 
     // API로부터 스케줄 기본 정보 로드
     const apiSchedules = (schRes.data || []).filter(s => {
@@ -511,13 +494,14 @@ ${Footer.render()}
         time: s.time || '-',
         endTime: s.endTime || (s.time ? (() => { const [h,m]=s.time.split(':').map(Number); const t=h*60+m+(s.duration||70); return `${String(Math.floor(t/60)%24).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; })() : '-'),
         capacity: cap38, online: onl, offline: off,
-        onlineBooked: 0, available: onl,
-        status: 'active',
+        onlineBooked: 0, available: 0,
+        status: 'unverified',
         course: s.course || `${region.name} 수륙양용 코스`,
         vehicle: s.vehicle || '',
         vehicleName: s.vehicleName || '',
         roundNum: s.roundNum || 0,
         days: s.days || s.operatingDays || [],
+        startDate: s.startDate, endDate: s.endDate,
         duration: s.duration || 45,
       };
     });
@@ -526,7 +510,7 @@ ${Footer.render()}
     window._getAvailableSchedules = async (date) => {
       try {
         const avRes = await API.get(`/api/schedules/${regionId}/availability?date=${date}`);
-        if (!avRes.success || !avRes.data) return _baseSchedules;
+        if (!avRes.success || !Array.isArray(avRes.data)) { Utils.toast('잔여석을 확인할 수 없습니다. 다시 조회해 주세요.', 'warning'); return []; }
         const avMap = {};
         avRes.data.forEach(a => { avMap[a.id] = a; });
         // 날짜 요일 필터
@@ -534,12 +518,13 @@ ${Footer.render()}
         const dowKo = ['일','월','화','수','목','금','토'][dow];
         return _baseSchedules
           .filter(s => {
+            if ((s.startDate && date < s.startDate) || (s.endDate && date > s.endDate)) return false;
             if (!s.days || !s.days.length) return true;
             return s.days.includes(dowKo) || s.days.includes(String(dow));
           })
           .map(s => {
             const av = avMap[s.id];
-            if (!av) return { ...s, onlineBooked: 0 };
+            if (!av || !Number.isFinite(av.available) || av.available <= 0 || !['active','available'].includes(av.status)) return { ...s, available: 0, status: 'soldout' };
             return {
               ...s,
               onlineBooked: av.onlineBooked,
@@ -548,7 +533,7 @@ ${Footer.render()}
               status: av.status === 'soldout' ? 'soldout' : (av.status === 'online_full' ? 'soldout' : 'active'),
             };
           });
-      } catch(e) { return _baseSchedules; }
+      } catch(e) { Utils.toast('잔여석 조회에 실패했습니다.', 'warning'); return []; }
     };
 
     const schedules = _baseSchedules;
@@ -636,16 +621,16 @@ ${noticeBannerHtml}
         <h2 class="font-bold text-navy-800 text-lg mb-4">🕐 회차 선택</h2>
         <div id="schedule-list" class="grid grid-cols-2 gap-2 sm:gap-3">
           ${schedules.map(s => `
-          <div class="schedule-card ${s.status==='soldout'?'soldout':''}" data-schedule-id="${s.id}" onclick="CustomerPages.selectSchedule('${s.id}', this)">
+          <div class="schedule-card ${s.status!=='active'?'soldout':''}" data-schedule-id="${s.id}" onclick="CustomerPages.selectSchedule('${s.id}', this)">
             <div class="flex justify-between items-start mb-2">
               <span class="schedule-card-time">${s.time}</span>
               <span class="text-xs ${s.status==='soldout'?'text-red-500 font-bold':'text-green-600 font-bold'}">
-                ${s.status==='soldout'?'매진':s.onlineBooked>=s.online?'온라인 마감':'잔여 '+(s.online-s.onlineBooked)+'석'}
+                ${s.status==='unverified'?'날짜 선택 후 확인':s.status==='soldout'?'매진':s.onlineBooked>=s.online?'온라인 마감':'잔여 '+(s.available)+'석'}
               </span>
             </div>
             <div class="text-xs text-gray-500">${s.course.split('→')[0].trim()} 출발</div>
             <div class="seat-bar mt-2"><div class="seat-bar-fill ${(s.onlineBooked/s.online)>0.8?'danger':(s.onlineBooked/s.online)>0.6?'warning':''}" style="width:${Math.min(100,Math.round(s.onlineBooked/s.online*100))}%"></div></div>
-            <div class="text-xs text-gray-400 mt-1">온라인 예약 ${s.online-s.onlineBooked}/${s.online}석</div>
+            <div class="text-xs text-gray-400 mt-1">온라인 예약 ${s.available}/${s.online}석</div>
           </div>`).join('')}
         </div>
       </div>
@@ -985,7 +970,7 @@ ${noticeBannerHtml}
           ${schedules.map(s=>`
           <div class="bg-gray-50 rounded-xl p-4 flex items-center justify-between">
             <div><div class="font-bold text-navy-800">${s.time} ~ ${s.endTime}</div><div class="text-xs text-gray-500">온라인 ${s.online}석 / 현장 ${s.offline}석</div></div>
-            <span class="${s.status==='soldout'?'badge badge-red':'badge badge-green'}">${s.status==='soldout'?'매진':'운행'}</span>
+            <span class="${s.status==='soldout'?'badge badge-red':'badge badge-green'}">${s.status==='unverified'?'날짜 선택 후 확인':s.status==='soldout'?'매진':'운행'}</span>
           </div>`).join('')}
         </div>
       </div>
@@ -1165,6 +1150,8 @@ ${Footer.render()}
   _allSchedules: [], // 날짜별 필터링을 위한 전체 회차 목록 저장
 
   initRegionPage: (region, schedules) => {
+    CustomerPages._state.date = '';
+    CustomerPages._state.scheduleId = '';
     CustomerPages._state.regionId = region.id;
     CustomerPages._state.fares = {};
 
@@ -1225,6 +1212,8 @@ ${Footer.render()}
     el.classList.add('selected');
     CustomerPages._state.date = dateStr;
     CustomerPages._state.scheduleId = '';
+    CustomerPages._allSchedules = [];
+    CustomerPages.updateSummary();
     const sumDate = document.getElementById('sum-date');
     if (sumDate) sumDate.textContent = Utils.dateKo(dateStr);
     // ★ 날짜 선택 시 실제 잔여석 API 조회 후 회차 재렌더링
@@ -1232,6 +1221,7 @@ ${Footer.render()}
       const listEl = document.getElementById('schedule-list');
       if (listEl) listEl.innerHTML = '<div class="col-span-2 text-center py-4 text-gray-400 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>잔여석 확인중...</div>';
       const liveSchedules = await window._getAvailableSchedules(dateStr);
+      if (CustomerPages._state.date !== dateStr) return;
       CustomerPages._allSchedules = liveSchedules;
     }
     CustomerPages.renderSchedulesByDate(dateStr);
@@ -1268,23 +1258,24 @@ ${Footer.render()}
       const vehicleLabel = s.vehicleName ? s.vehicleName : '';
       const subLabel = [roundLabel, vehicleLabel].filter(Boolean).join(' · ');
       return `
-      <div class="schedule-card ${s.status==='soldout'?'soldout':''}" data-schedule-id="${s.id}" onclick="CustomerPages.selectSchedule('${s.id}', this)">
+      <div class="schedule-card ${s.status!=='active'?'soldout':''}" data-schedule-id="${s.id}" onclick="CustomerPages.selectSchedule('${s.id}', this)">
         <div class="flex justify-between items-start mb-1">
           <span class="schedule-card-time">${s.time}</span>
           <span class="text-xs ${s.status==='soldout'?'text-red-500 font-bold':'text-green-600 font-bold'}">
-            ${s.status==='soldout'?'매진':s.onlineBooked>=s.online?'온라인 마감':'잔여 '+(s.online-s.onlineBooked)+'석'}
+            ${s.status==='unverified'?'날짜 선택 후 확인':s.status==='soldout'?'매진':s.onlineBooked>=s.online?'온라인 마감':'잔여 '+(s.available)+'석'}
           </span>
         </div>
         ${subLabel ? '<div class="text-xs text-blue-600 font-medium mb-1">'+subLabel+'</div>' : ''}
         <div class="text-xs text-gray-500">${(s.course||'').split('→')[0].trim()} 출발</div>
         <div class="seat-bar mt-2"><div class="seat-bar-fill ${(s.onlineBooked/s.online)>0.8?'danger':(s.onlineBooked/s.online)>0.6?'warning':''}" style="width:${Math.min(100,Math.round(s.onlineBooked/s.online*100))}%"></div></div>
-        <div class="text-xs text-gray-400 mt-1">온라인 예약 ${s.online-s.onlineBooked}/${s.online}석</div>
+        <div class="text-xs text-gray-400 mt-1">온라인 예약 ${s.available}/${s.online}석</div>
       </div>`;
     }).join('');
   },
 
   selectSchedule: (id, el) => {
-    if (el.classList.contains('soldout')) return;
+    const selected = (CustomerPages._allSchedules || []).find(s => s.id === id);
+    if (!CustomerPages._state.date || !selected || selected.available <= 0 || selected.status === 'soldout' || el.classList.contains('soldout')) return;
     document.querySelectorAll('.schedule-card.selected').forEach(e => e.classList.remove('selected'));
     el.classList.add('selected');
     CustomerPages._state.scheduleId = id;
@@ -1843,9 +1834,9 @@ ${Footer.render()}`;
       // DB API로 직접 조회
       const apiRes = await API.get(`/api/reservations/check/${encodeURIComponent(reservationId)}`);
       if (apiRes.success && apiRes.data) {
-        const r = apiRes.data; const st = r.status || 'confirmed';
+        const r = apiRes.data; const st = r.status || 'unknown';
         found = {
-          id: r.reservationNo || r.id,
+          id: BookingState.number(r),
           regionName: r.regionName || r.regionId || '-',
           boardingPlace: r.boardingPlace || '-',
           date: r.date || '-',
@@ -1855,34 +1846,7 @@ ${Footer.render()}`;
           name: r.name || '-', phone: r.phone || '-', status: st,
           statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
           cancelable: ['confirmed'].includes(st),
-          wristband: ['confirmed','checkedin'].includes(st), qr: true,
-        };
-      }
-    } catch(e) {}
-    // localStorage 폴백
-    if (!found) try {
-      const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
-      const raw = stored.find(r => (r.reservationId === reservationId || r.id === reservationId));
-      if (raw) {
-        const st = raw.status || 'confirmed';
-        found = {
-          id:              raw.reservationId || raw.id,
-          regionName:      raw.regionName || raw.regionId || '-',
-          boardingPlace:   raw.boardingPlace || '-',
-          parkingInfo:     raw.parkingInfo || '-',
-          customerService: raw.customerService || '1588-0000',
-          date:            raw.date || '-',
-          schedule:        raw.schedule || raw.time || '-',
-          pax:             raw.pax || raw.totalPassengers || 1,
-          paxList:         raw.paxList || [],
-          totalAmount:     raw.totalAmount || raw.total || 0,
-          name:            raw.name || '-',
-          phone:           raw.phone || '-',
-          status:          st,
-          statusBadge:     statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
-          cancelable:      ['confirmed','payment_done','payment_pending'].includes(st),
-          wristband:       ['confirmed','payment_done','checkedin'].includes(st),
-          qr:              ['confirmed','payment_done','checkedin'].includes(st),
+          wristband: ['confirmed','checkedin'].includes(st), qr: BookingState.canIssue(r),
         };
       }
     } catch(e) {}
@@ -1918,7 +1882,7 @@ ${Footer.render()}`;
       if (d.length < 8) return p;
       return d.slice(0,3) + '-****-' + d.slice(-4);
     };
-    const qrUrl = `${window.location.origin}/reservation/check?id=${found.id}`;
+    const qrUrl = found.id;
 
     el.innerHTML = `
       <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -2070,7 +2034,7 @@ ${Footer.render()}`;
     };
     const smap = statusLabelMap || defaultMap;
     const rows = list.map((r, i) => {
-      const st = r.status || 'confirmed';
+      const st = r.status || 'unknown';
       const badge = r.statusBadge || smap[st] || { cls:'bg-gray-100 text-gray-600', label: st };
       const resId = r.reservationId || r.id || '-';
       const date  = r.date || r.boardingDate || '-';
@@ -2142,7 +2106,7 @@ ${Footer.render()}`;
         <span class="text-sm">예약 정보를 조회 중입니다...</span>
       </div>`;
 
-    // 휴대폰 번호 매칭: normalized_phone 우선, phone fallback, 끝 4자리도 허용
+    // 휴대폰 번호 매칭: normalized_phone 우선, phone fallback, 전체 번호 일치만 허용
     const phoneMatch = (raw, input) => {
       const normalized = (raw.normalized_phone || '').replace(/[^0-9]/g, '');
       const plain      = (raw.phone           || '').replace(/[^0-9]/g, '');
@@ -2152,9 +2116,6 @@ ${Footer.render()}`;
       if (normalized && normalized === inp) return true;
       // phone 원본 숫자 완전 일치
       if (plain && plain === inp) return true;
-      // 끝 4자리 일치 (보조)
-      const ref = normalized || plain;
-      if (ref && ref.length >= 4 && inp.length >= 4 && ref.slice(-4) === inp.slice(-4)) return true;
       return false;
     };
 
@@ -2180,10 +2141,10 @@ ${Footer.render()}`;
             // 휴대폰 번호 매칭
             const dbPhone = (r.phone || '').replace(/[^0-9]/g, '');
             const inPhone = phone.replace(/[^0-9]/g, '');
-            if (dbPhone === inPhone || dbPhone.slice(-4) === inPhone.slice(-4)) {
-              const st = r.status || 'confirmed';
+            if (dbPhone === inPhone) {
+              const st = r.status || 'unknown';
               found = {
-                id: r.reservationNo || r.id,
+                id: BookingState.number(r),
                 regionName: r.regionName || r.regionId || '-',
                 boardingPlace: r.boardingPlace || '-',
                 parkingInfo: r.parkingInfo || '-',
@@ -2209,7 +2170,7 @@ ${Footer.render()}`;
                 statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
                 cancelable: ['confirmed','payment_done','payment_pending'].includes(st),
                 wristband: ['confirmed','payment_done','checkedin'].includes(st),
-                qr: ['confirmed','payment_done','checkedin'].includes(st),
+                qr: BookingState.canIssue(r),
               };
             }
           }
@@ -2222,244 +2183,27 @@ ${Footer.render()}`;
             const inPhone = phone.replace(/[^0-9]/g, '');
             const matched = apiRes.data.filter(r => {
               const dbPhone = (r.phone || '').replace(/[^0-9]/g, '');
-              return dbPhone === inPhone || dbPhone.slice(-4) === inPhone.slice(-4);
+              return dbPhone === inPhone;
             });
             if (matched.length === 1) {
-              const r = matched[0]; const st = r.status || 'confirmed';
+              const r = matched[0]; const st = r.status || 'unknown';
               found = {
-                id: r.reservationNo || r.id, regionName: r.regionId || '-',
+                id: BookingState.number(r), regionName: r.regionId || '-',
                 boardingPlace: '-', date: r.date || '-',
                 schedule: r.scheduleId || '-', pax: r.pax || 1,
                 totalAmount: r.totalPrice || 0, name: r.name || '-',
                 phone: r.phone || '-', status: st,
                 statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
-                cancelable: ['confirmed'].includes(st), wristband: ['confirmed'].includes(st), qr: true,
+                cancelable: ['confirmed'].includes(st), wristband: ['confirmed'].includes(st), qr: BookingState.canIssue(r),
               };
             } else if (matched.length > 1) {
-              const items = matched.map(r => ({ id: r.reservationNo || r.id, date: r.date, regionName: r.regionId, name: r.name, status: r.status }));
+              const items = matched.map(r => ({ id: BookingState.number(r), date: r.date, regionName: r.regionId, name: r.name, status: r.status }));
               CustomerPages._renderAltMultiResult(el, items, statusLabelMap);
               return;
             }
           }
         }
       } catch(apiErr) { console.warn('API 조회 실패:', apiErr); }
-
-      // 2) localStorage 폴백 (오프라인 등)
-      if (!found) try {
-        const stored = JSON.parse(localStorage.getItem('amk_reservations') || '[]');
-        if (stored.length > 0) {
-          const statusLabelMap = {
-            confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
-            payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
-            payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
-            checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
-            cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
-            refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
-            noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
-          };
-          let raw = null;
-          if (mode === 'primary') {
-            // reservationId 또는 id 필드 모두 지원 + normalized_phone 비교
-            raw = stored.find(r =>
-              (r.reservationId === resId || r.id === resId) &&
-              phoneMatch(r, phone)
-            );
-          } else {
-            // altDate 미입력 시 전화번호만으로 복수 조회
-            const matched = stored.filter(r => phoneMatch(r, phone) && (altDate ? (r.date === altDate || r.boardingDate === altDate) : true));
-            raw = matched.length === 1 ? matched[0] : null;
-            if (matched.length > 1) {
-              // 복수 결과 → 목록 표시 후 리턴
-              CustomerPages._renderAltMultiResult(el, matched, statusLabelMap);
-              return;
-            }
-          }
-          if (raw) {
-            const st = raw.status || 'confirmed';
-            found = {
-              id:               raw.reservationId || raw.id,
-              regionName:       raw.regionName || raw.region || raw.regionId || '-',
-              boardingPlace:    raw.boardingPlace || '-',
-              date:             raw.date || raw.boardingDate || '-',
-              schedule:         raw.schedule || raw.scheduleTime || raw.time || '-',
-              adultCnt:         raw.adultCnt || raw.adults || (raw.pax ? raw.pax : 1),
-              childCnt:         raw.childCnt || raw.children || 0,
-              totalPassengers:  raw.totalPassengers || raw.pax || 1,
-              totalAmount:      raw.totalAmount || raw.total || raw.amount || 0,
-              name:             raw.name || raw.booker || '-',
-              phone:            raw.phone || '-',
-              status:           st,
-              statusBadge:      statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
-              cancelable:       ['confirmed','payment_done','payment_pending'].includes(st),
-              wristband:        ['confirmed','payment_done','checkedin'].includes(st),
-              qr:               ['confirmed','payment_done','checkedin'].includes(st),
-            };
-          }
-        }
-      } catch (_) { /* localStorage 오류 무시 */ }
-
-      // 2) 실제 API 시도
-      if (!found) {
-        try {
-          const res = await API.get('/api/reservations');
-          const list = res.data || [];
-          const apiStatusMap = {
-            confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
-            payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
-            payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
-            checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
-            cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
-            refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
-            noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
-          };
-          // API 원시 객체 → 표시용 normalized 객체 변환
-          const normalizeApiItem = (r) => {
-            const st = r.status || 'confirmed';
-            // passengers 배열에서 adultCnt/childCnt 추출
-            const passengers = r.passengers || [];
-            const adultCnt = passengers.find(p => p.type === 'adult')?.count ||
-                             r.adultCnt || r.adults || r.pax || 1;
-            const childCnt = passengers.filter(p => p.type !== 'adult')
-                             .reduce((s, p) => s + (p.count || 0), 0) ||
-                             r.childCnt || r.children || 0;
-            return {
-              id:            r.id || r.reservationId,
-              regionName:    r.regionName || r.region || '-',
-              boardingPlace: r.boardingPlace || '-',
-              date:          r.date || r.boardingDate || '-',
-              schedule:      r.time || r.schedule || r.scheduleTime || '-',
-              adultCnt,
-              childCnt,
-              totalPassengers: adultCnt + childCnt,
-              totalAmount:   r.total || r.totalAmount || r.amount || 0,
-              name:          r.name || r.booker || '-',
-              phone:         r.phone || '-',
-              status:        st,
-              statusBadge:   apiStatusMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
-              cancelable:    ['confirmed','payment_done','payment_pending'].includes(st),
-              wristband:     ['confirmed','payment_done','checkedin'].includes(st),
-              qr:            ['confirmed','payment_done','checkedin'].includes(st),
-            };
-          };
-          if (mode === 'primary') {
-            // phoneMatch는 객체를 첫 번째 인자로 받음
-            const raw = list.find(r => (r.id === resId || r.reservationId === resId) && phoneMatch(r, phone));
-            if (raw) found = normalizeApiItem(raw);
-          } else {
-            const apiMatched = list.filter(r => phoneMatch(r, phone) && (altDate ? (r.date === altDate || r.boardingDate === altDate) : true));
-            if (apiMatched.length > 1) { CustomerPages._renderAltMultiResult(el, apiMatched.map(normalizeApiItem), null); return; }
-            if (apiMatched[0]) found = normalizeApiItem(apiMatched[0]);
-          }
-        } catch (_) { /* fallback */ }
-      }
-
-      // 3) 데모 데이터 fallback
-      if (!found) {
-        const DEMO_RESERVATIONS = (() => {
-          const regions = [
-            { id:'tongyeong', name:'통영해양관광',     boardingPlace:'통영 해양공원 선착장', fareBase:35000 },
-            { id:'buyeo',     name:'부여수륙양용투어', boardingPlace:'부여 구드래 나루터',   fareBase:30000 },
-            { id:'hapcheon',  name:'합천수륙양용투어', boardingPlace:'합천 황강 선착장',     fareBase:28000 },
-          ];
-          const names   = ['김민준','이서연','박지호','최하늘','정다은','오현우','강지수','임도현'];
-          const schedules = ['10:00','12:00','14:00','15:30'];
-          // 8가지 상태
-          const statuses = [
-            'confirmed','confirmed','confirmed','confirmed',
-            'payment_pending','payment_done','checkedin',
-            'cancelled','refunded','noshow',
-          ];
-          const statusLabelMap = {
-            confirmed:      { cls:'bg-green-100 text-green-700',  label:'예약 확정' },
-            payment_pending:{ cls:'bg-yellow-100 text-yellow-700',label:'결제 대기' },
-            payment_done:   { cls:'bg-blue-100 text-blue-700',    label:'결제 완료' },
-            checkedin:      { cls:'bg-cyan-100 text-cyan-700',    label:'탑승 완료' },
-            cancelled:      { cls:'bg-red-100 text-red-700',      label:'예약 취소' },
-            refunded:       { cls:'bg-gray-100 text-gray-600',    label:'환불 완료' },
-            noshow:         { cls:'bg-orange-100 text-orange-700',label:'노쇼' },
-          };
-          const res = [];
-          let seq = 1;
-          const today = new Date();
-          // RES-2025-XXXXXX 형식 고정 데이터 (조회 예시)
-          const FIXED = [
-            { id:'RES-2025-052668', regionId:'buyeo',     name:'김민준', phone:'010-1234-5678',
-              date:'2025-06-15', schedule:'10:00', adultCnt:2, childCnt:1, status:'confirmed',
-              wristband:true, qr:true },
-            { id:'RES-2025-000001', regionId:'tongyeong', name:'이서연', phone:'010-9876-5432',
-              date:'2025-06-20', schedule:'14:00', adultCnt:1, childCnt:0, status:'payment_pending',
-              wristband:false, qr:false },
-            { id:'RES-2025-001234', regionId:'hapcheon',  name:'박지호', phone:'010-5555-1111',
-              date:'2025-05-30', schedule:'12:00', adultCnt:2, childCnt:2, status:'checkedin',
-              wristband:true, qr:true },
-            { id:'RES-2025-099999', regionId:'buyeo',     name:'최하늘', phone:'010-2222-3333',
-              date:'2025-05-10', schedule:'15:30', adultCnt:1, childCnt:0, status:'cancelled',
-              wristband:false, qr:false },
-          ];
-          FIXED.forEach(f => {
-            const reg = regions.find(r => r.id === f.regionId);
-            const adultFare = reg.fareBase;
-            const childFare = Math.round(reg.fareBase * 0.5);
-            res.push({
-              ...f,
-              regionName: reg.name,
-              boardingPlace: reg.boardingPlace,
-              totalPassengers: f.adultCnt + f.childCnt,
-              totalAmount: f.adultCnt * adultFare + f.childCnt * childFare,
-              statusBadge: statusLabelMap[f.status] || { cls:'bg-gray-100 text-gray-600', label: f.status },
-              cancelable: ['confirmed','payment_done','payment_pending'].includes(f.status),
-            });
-          });
-          // 동적 생성 데모 데이터
-          regions.forEach(reg => {
-            for (let i = 0; i < 30; i++) {
-              const d = new Date(today);
-              d.setDate(d.getDate() - Math.floor(Math.random() * 60));
-              const dateStr = d.toISOString().slice(0, 10);
-              const adultCnt = Math.floor(Math.random() * 3) + 1;
-              const childCnt = Math.floor(Math.random() * 2);
-              const st = statuses[seq % statuses.length];
-              const seqStr = String(10000 + seq).padStart(6, '0');
-              const yr = dateStr.slice(0, 4);
-              res.push({
-                id: `RES-${yr}-${seqStr}`,
-                regionId: reg.id, regionName: reg.name,
-                boardingPlace: reg.boardingPlace,
-                name: names[seq % names.length],
-                phone: `010-${String(3000 + seq).padStart(4, '0')}-${String(7000 + seq).padStart(4, '0')}`,
-                date: dateStr,
-                schedule: schedules[seq % schedules.length],
-                adultCnt, childCnt,
-                totalPassengers: adultCnt + childCnt,
-                totalAmount: adultCnt * reg.fareBase + childCnt * Math.round(reg.fareBase * 0.5),
-                status: st,
-                statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
-                cancelable: ['confirmed','payment_done','payment_pending'].includes(st),
-                wristband: ['confirmed','payment_done','checkedin'].includes(st),
-                qr: ['confirmed','payment_done','checkedin'].includes(st),
-              });
-              seq++;
-            }
-          });
-          return res;
-        })();
-
-        if (mode === 'primary') {
-          // RES-XXXX 또는 AMK-XXXX 형식 모두 지원
-          found = DEMO_RESERVATIONS.find(r => r.id === resId);
-          if (found && phone.length >= 4) {
-            // 고정 데모: 전화번호 뒤 4자리 허용
-            const storedLast4 = (found.phone || '').replace(/[^0-9]/g, '').slice(-4);
-            const inputLast4  = phone.slice(-4);
-            if (storedLast4 !== inputLast4) found = null;
-          }
-        } else {
-          // phoneMatch는 객체를 첫 번째 인자로 받음
-          const demoMatched = DEMO_RESERVATIONS.filter(r => phoneMatch(r, phone) && (altDate ? r.date === altDate : true));
-          if (demoMatched.length > 1) { CustomerPages._renderAltMultiResult(el, demoMatched, null); return; }
-          found = demoMatched[0] || null;
-        }
-      }
 
       // ── 조회 실패 ───────────────────────────────────────────
       if (!found) {
@@ -2852,14 +2596,14 @@ ${Footer.render()}`;
     } else {
       try { f = typeof foundJson === 'string' ? JSON.parse(foundJson) : foundJson; } catch(e) { f = null; }
     }
-    if (!f) return;
+    if (!f || !BookingState.canIssue(f)) return;
 
     // 기존 모달 제거 후 재생성
     let existing = document.getElementById('ticket-modal');
     if (existing) existing.remove();
 
     const badge = f.statusBadge || { cls:'bg-gray-100 text-gray-600', label: f.status || '' };
-    const qrData = `AMK:${f.id}:${(f.date||'').replace(/-/g,'')}:${(f.schedule||'').replace(':','')}`;
+    const qrData = f.id;
 
     const modal = document.createElement('div');
     modal.id = 'ticket-modal';
@@ -2993,15 +2737,15 @@ ${Navbar.render('reservation')}
     <!-- 오픈 예정 안내 -->
     <div class="bg-white rounded-2xl p-8 shadow-sm text-center mb-6">
       <div class="text-5xl mb-4">🚧</div>
-      <h2 class="text-xl font-black text-navy-800 mb-2">${region.name} 오픈 준비 중</h2>
+      <h2 class="text-xl font-black text-navy-800 mb-2">${region.name} · ${BookingState.label(region)}</h2>
       <p class="text-gray-500 text-sm leading-relaxed mb-6">
-        현재 PG 결제 계약 및 운영 법인 등록 절차가 진행 중입니다.<br>
-        오픈 즉시 온라인 예약 서비스를 제공해 드립니다.
+        현재 온라인 예약을 접수하지 않습니다.<br>
+        가운행·행사·정식운행 일정은 확정 공지를 확인해 주세요.
       </p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
-        <button onclick="Utils.toast('오픈 시 알림을 보내드립니다 📢 (기능 준비 중)','info')"
+        <button onclick="Router.go('/notice')"
           class="btn-ocean px-6 py-2.5">
-          🔔 오픈 알림 신청하기
+          운영 공지 확인하기
         </button>
         <button onclick="Router.go('/inquiry')"
           class="border-2 border-navy-800 text-navy-800 font-bold px-6 py-2.5 rounded-xl hover:bg-navy-800 hover:text-white transition-all">
