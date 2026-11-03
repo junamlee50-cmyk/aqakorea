@@ -738,8 +738,8 @@ ${noticeBannerHtml}
             </div>
           </div>`).join('')}
         </div>
-        <div class="mt-4 p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800">
-          <i class="fas fa-info-circle mr-1"></i> 만 36개월 미만 유아는 무료(좌석 미제공). 장애인/국가유공자/다자녀는 현장 증빙 확인
+        <div id="fare-hint-box" class="mt-4 p-3 bg-yellow-50 rounded-xl text-xs text-yellow-800">
+          <i class="fas fa-info-circle mr-1"></i> 요금 정보를 업데이트 중입니다...
         </div>
       </div>
 
@@ -1164,8 +1164,26 @@ ${Footer.render()}
     const regionId = region.id;
     CustomerPages._allSchedules = schedules; // 전체 회차 저장
     console.log(`[AMK DEBUG] initRegionPage: region=${regionId}, 전체회차=${schedules.length}개, 시간=[${schedules.map(s=>s.time).join(',')}]`);
-    region.fares?.forEach(f => { CustomerPages._state.fares[f.id] = { count: 0, price: f.price, label: f.label, type: f.type }; });
+    // 활성 요금만 _state에 저장 (서버가 이미 필터링했지만 이중 체크)
+    (region.fares || []).filter(f => f.status !== 'inactive').forEach(f => {
+      CustomerPages._state.fares[f.id] = { count: 0, price: f.price, label: f.label, type: f.type };
+    });
     CustomerPages.renderCalendar(new Date());
+
+    // 특별할인 로드 후 hint box 업데이트
+    API.get(`/api/special-discounts?regionId=${regionId}`).then(sdRes => {
+      const sds = (sdRes.data || []).filter(s => s.is_active);
+      const hintEl = document.getElementById('fare-hint-box');
+      if (!hintEl) return;
+      const infants = (region.fares||[]).find(f=>f.type==='infant');
+      const lines = [];
+      if (infants) lines.push(`${infants.label}: 무료(좌석 미제공)`);
+      sds.forEach(s => lines.push(`${s.name}: 현장 ${s.proof_required||'증빙'} 확인`));
+      hintEl.innerHTML = lines.length
+        ? `<i class="fas fa-info-circle mr-1"></i> ${lines.join(' &nbsp;&middot;&nbsp; ')}`
+        : '';
+      if (!lines.length) hintEl.style.display='none';
+    }).catch(()=>{});
 
     // FAQ 로드
     API.get(`/api/faq?region=${region.id}`).then(res => {

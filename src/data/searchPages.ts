@@ -145,13 +145,12 @@ export const SEARCH_PAGES = [
   },
 ]
 
-// 홈페이지 통합 소개 섹션용 HTML
-export const SEARCH_INTRO = `<section class="max-w-6xl mx-auto px-4 py-12">
-  <h2 class="text-2xl font-bold mb-4">수륙양용버스·수륙양용시티투어버스 지역 안내</h2>
-  <p class="mb-5">아쿠아모빌리티코리아는 수륙양용버스·수륙양용시티투어버스 예약·운영·QR 탑승권을 연결하는 통합솔루션입니다. 지역별 안내를 아래에서 확인하세요.</p>
-  <ul class="grid md:grid-cols-2 gap-4">
-    ${SEARCH_PAGES.map(p => `<li><a class="text-blue-700 underline" href="/${p.slug}">${p.heading}</a></li>`).join('')}
-  </ul>
+// SEO 랜딩 페이지 하단 지역 연결 섹션
+export const SEARCH_INTRO = `<section class="border-t mt-12 pt-8">
+  <h2 class="text-lg font-bold mb-4 text-gray-700">다른 지역 안내</h2>
+  <div class="grid sm:grid-cols-2 gap-3">
+    ${SEARCH_PAGES.map(p => `<a class="block border rounded-xl px-4 py-3 hover:bg-blue-50 hover:border-blue-300 transition-colors" href="/${p.slug}"><span class="font-medium text-blue-700">${p.heading}</span></a>`).join('')}
+  </div>
 </section>`
 
 export const searchPageUrl = (slug: string) => `${origin}/${slug}`

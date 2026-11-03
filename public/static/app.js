@@ -147,6 +147,14 @@
     // ── 탑승권 QR 확인 페이지 ─────────────────────────────────
     Router.add('/ticket/:reservationNo', async (params) => TicketPage.show(params.reservationNo));
 
+    // SEO 랜딩 페이지: SPA 라우터가 잡지 않도록 서버 렌더 페이지로 직접 이동
+    // (내부 링크 클릭 시 SPA 대신 서버 HTML을 직접 요청)
+    const _seoRedirect = (slug) => () => { window.location.href = '/' + slug; };
+    Router.add('/amphibious-bus',          _seoRedirect('amphibious-bus'));
+    Router.add('/buyeo-amphibious-bus',     _seoRedirect('buyeo-amphibious-bus'));
+    Router.add('/tongyeong-amphibious-bus', _seoRedirect('tongyeong-amphibious-bus'));
+    Router.add('/busan-amphibious-bus',     _seoRedirect('busan-amphibious-bus'));
+
     // ── 404 ───────────────────────────────────────────────
     Router.add('*', CustomerPages._404);
   };

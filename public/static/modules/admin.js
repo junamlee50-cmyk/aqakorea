@@ -2674,7 +2674,147 @@ const AdminModule = (() => {
         </div>
       </div>
     `;
+    // 특별할인 탭 콘텐츠 추가
+    let specialDiscountSection = '';
+    try {
+      const sdRes = await API.get('/api/special-discounts' + (activeRegionId ? `?regionId=${activeRegionId}` : ''));
+      const sds = sdRes.data || [];
+      const sdRows = sds.map(s => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 text-sm">${s.name}</td>
+          <td class="px-3 py-2 text-sm">${s.region_id||'전체'}</td>
+          <td class="px-3 py-2 text-sm">${s.discount_type==='rate'?s.discount_value+'%':Utils.money(s.discount_value)}</td>
+          <td class="px-3 py-2 text-sm">${s.target_type==='self'?'본인':s.target_type==='family'?'본인+동반':s.target_type}</td>
+          <td class="px-3 py-2 text-sm text-gray-500 truncate max-w-xs">${s.proof_required||'-'}</td>
+          <td class="px-3 py-2">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.is_active?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}">
+              ${s.is_active?'활성':'비활성'}
+            </span>
+          </td>
+          <td class="px-3 py-2">
+            <button onclick="AdminModule.toggleSpecialDiscount('${s.id}', ${s.is_active?'false':'true'})" class="text-xs border px-2 py-1 rounded hover:bg-gray-50">${s.is_active?'비활성화':'활성화'}</button>
+            <button onclick="AdminModule.editSpecialDiscount(${JSON.stringify(s).replace(/"/g,'&quot;')})" class="text-xs border px-2 py-1 rounded hover:bg-gray-50 ml-1">수정</button>
+          </td>
+        </tr>`).join('');
+      specialDiscountSection = `
+        <div class="bg-white rounded-xl shadow-sm p-6 mt-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold text-gray-800"><i class="fas fa-percent text-purple-500 mr-2"></i>특별할인 설정</h3>
+            <button onclick="AdminModule.addSpecialDiscount()" class="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-purple-700"><i class="fas fa-plus mr-1"></i>할인 추가</button>
+          </div>
+          <p class="text-xs text-gray-500 mb-4">활성 상태인 할인만 고객 화면에 표시됩니다. 비활성 할인은 선택지와 안내에서 숨깁니다.</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left">할인명</th>
+                  <th class="px-3 py-2 text-left">지역</th>
+                  <th class="px-3 py-2 text-left">할인값</th>
+                  <th class="px-3 py-2 text-left">대상</th>
+                  <th class="px-3 py-2 text-left">증빙</th>
+                  <th class="px-3 py-2 text-left">상태</th>
+                  <th class="px-3 py-2 text-left">관리</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">${sdRows || '<tr><td colspan="7" class="px-3 py-6 text-center text-gray-400">등록된 특별할인이 없습니다</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>`;
+    } catch(e) { specialDiscountSection = ''; }
+
+    content = content + specialDiscountSection;
     return renderAdminLayout('fares', content, '요금 관리');
+  };
+
+  // 특별할인 토글
+  const toggleSpecialDiscount = async (id, active) => {
+    await API.put(`/api/special-discounts/${id}`, { isActive: active === 'true' || active === true });
+    Utils.toast(`${active?'활성화':'비활성화'} 완료`, 'success');
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  // 특별할인 취소/편집 모달
+  const addSpecialDiscount = () => {
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold">특별할인 추가</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
+      <div class="modal-body space-y-3">
+        <div><label class="label-sm">할인명 *</label><input id="sd-name" class="form-input" placeholder="예: 군인할인"></div>
+        <div><label class="label-sm">지역 (비울 시 전체 적용)</label>
+          <select id="sd-region" class="form-input">
+            <option value="">전체 지역</option>
+            ${(window.REGIONS||[]).map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label-sm">할인 유형</label>
+            <select id="sd-type" class="form-input">
+              <option value="rate">정률(%)</option>
+              <option value="amount">정액(원)</option>
+            </select></div>
+          <div><label class="label-sm">할인값</label>
+            <input id="sd-value" type="number" class="form-input" placeholder="20">
+          </div>
+        </div>
+        <div><label class="label-sm">대상</label>
+          <select id="sd-target" class="form-input">
+            <option value="self">본인</option>
+            <option value="family">본인+동반가족</option>
+            <option value="group">일부 인원</option>
+          </select>
+        </div>
+        <div><label class="label-sm">대상자 조건</label><input id="sd-cond" class="form-input" placeholder="예: 현역군인"></div>
+        <div><label class="label-sm">필요 증빙</label><input id="sd-proof" class="form-input" placeholder="예: 군인신분증(현장 확인)"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label-sm">적용기간 시작</label><input id="sd-from" type="date" class="form-input"></div>
+          <div><label class="label-sm">적용기간 종료</label><input id="sd-to" type="date" class="form-input"></div>
+        </div>
+        <div><label class="label-sm">상태</label>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="sd-active" checked> 활성</label>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="AdminModule.saveSpecialDiscount()" class="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm">저장</button>
+        <button onclick="Utils.closeModal()" class="flex-1 border py-2 rounded-lg text-sm">취소</button>
+      </div>`);
+  };
+
+  const editSpecialDiscount = (sd) => {
+    addSpecialDiscount();
+    setTimeout(() => {
+      document.getElementById('sd-name').value = sd.name||'';
+      document.getElementById('sd-region').value = sd.region_id||'';
+      document.getElementById('sd-type').value = sd.discount_type||'rate';
+      document.getElementById('sd-value').value = sd.discount_value||0;
+      document.getElementById('sd-target').value = sd.target_type||'self';
+      document.getElementById('sd-cond').value = sd.conditions||'';
+      document.getElementById('sd-proof').value = sd.proof_required||'';
+      document.getElementById('sd-from').value = sd.effective_from||'';
+      document.getElementById('sd-to').value = sd.effective_to||'';
+      document.getElementById('sd-active').checked = !!sd.is_active;
+      document.querySelector('#app button[onclick*="saveSpecialDiscount"]').onclick = () => AdminModule.saveSpecialDiscount(sd.id);
+    }, 100);
+  };
+
+  const saveSpecialDiscount = async (existingId) => {
+    const body = {
+      name: document.getElementById('sd-name').value.trim(),
+      regionId: document.getElementById('sd-region').value || null,
+      discountType: document.getElementById('sd-type').value,
+      discountValue: parseFloat(document.getElementById('sd-value').value)||0,
+      targetType: document.getElementById('sd-target').value,
+      conditions: document.getElementById('sd-cond').value,
+      proofRequired: document.getElementById('sd-proof').value,
+      effectiveFrom: document.getElementById('sd-from').value||null,
+      effectiveTo: document.getElementById('sd-to').value||null,
+      isActive: document.getElementById('sd-active').checked,
+    };
+    if (!body.name) { Utils.toast('할인명을 입력해주세요', 'warning'); return; }
+    const method = existingId ? 'put' : 'post';
+    const url = existingId ? `/api/special-discounts/${existingId}` : '/api/special-discounts';
+    await API[method](url, body);
+    Utils.closeModal();
+    Utils.toast('저장되었습니다', 'success');
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
   };
 
   const selectFareRegion = (regionId) => {
@@ -8313,6 +8453,7 @@ const backupPage = async () => {
     switchRecMode, calcRecAutoTimes,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare, cancelFareApproval,
+    toggleSpecialDiscount, addSpecialDiscount, editSpecialDiscount, saveSpecialDiscount,
     updateSeatRatio, saveSeatRatio, saveGroupDiscount, saveSensConfig, testSms, _doTestSms,
     showWristbandDetail, searchWristbands, voidWristband, _doVoidWristband, scanCheckWristband, reissueWristband, _doReissueWristband,
     viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter, issueWristbandFromReservation, _doIssueWristbandFromRes,

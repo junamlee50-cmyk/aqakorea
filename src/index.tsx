@@ -413,15 +413,15 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=40471fdd71f2"></script>
-<script src="/static/modules/customer.js?v=40471fdd71f2"></script>
-<script src="/static/modules/payment.js?v=40471fdd71f2"></script>
-<script src="/static/modules/field.js?v=40471fdd71f2"></script>
-<script src="/static/modules/admin.js?v=40471fdd71f2"></script>
-<script src="/static/modules/stats.js?v=40471fdd71f2"></script>
-<script src="/static/modules/seo.js?v=40471fdd71f2"></script>
-<script src="/static/modules/ticket.js?v=40471fdd71f2"></script>
-<script src="/static/app.js?v=40471fdd71f2"></script>
+<script src="/static/modules/core.js?v=4a7d3874b408"></script>
+<script src="/static/modules/customer.js?v=4a7d3874b408"></script>
+<script src="/static/modules/payment.js?v=4a7d3874b408"></script>
+<script src="/static/modules/field.js?v=4a7d3874b408"></script>
+<script src="/static/modules/admin.js?v=4a7d3874b408"></script>
+<script src="/static/modules/stats.js?v=4a7d3874b408"></script>
+<script src="/static/modules/seo.js?v=4a7d3874b408"></script>
+<script src="/static/modules/ticket.js?v=4a7d3874b408"></script>
+<script src="/static/app.js?v=4a7d3874b408"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {
@@ -466,7 +466,8 @@ app.get('/', (c) => {
       potentialAction: { '@type': 'SearchAction', target: `${SEO_CONFIG.siteUrl}/reservation?q={search_term_string}`, 'query-input': 'required name=search_term_string' }
     }
   })
-  return c.html(buildPage(meta, { page: 'home', searchIntro: SEARCH_INTRO }))
+  // searchIntro 제거: 홈페이지에서 검색어 링크 나열 영역 삭제 (지역 카드에 통합)
+  return c.html(buildPage(meta, { page: 'home' }))
 })
 
 // 검색 유입용 공개 안내: 검색로봇과 방문자에게 동일한 실제 본문을 제공합니다.
