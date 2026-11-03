@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { SEARCH_PAGES, SEARCH_INTRO, searchPageUrl } from './data/searchPages'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { REGIONS, SCHEDULES, SAMPLE_RESERVATIONS, SAMPLE_STATS, POPUPS, NOTICES, VEHICLES, WRISTBANDS, INQUIRIES, ADMIN_USERS } from './data/mockData'
 import { SEO_CONFIG, REGION_SEO, COMMON_FAQ, SITEMAP_PAGES } from './data/seoData'
@@ -106,8 +107,6 @@ const buildMeta = (opts: {
     name: SEO_CONFIG.siteName,
     url: SEO_CONFIG.siteUrl,
     logo: SEO_CONFIG.organization.logo,
-    contactPoint: SEO_CONFIG.organization.contactPoint,
-    sameAs: SEO_CONFIG.organization.sameAs,
   }
 
   const schemas = [orgSchema]
@@ -163,7 +162,7 @@ const buildMeta = (opts: {
     </script>` : ''}
     <!-- 구조화 데이터 -->
     <script type="application/ld+json">${JSON.stringify(schemas.length === 1 ? schemas[0] : schemas)}</script>
-    <meta property="article:modified_time" content="${today}">
+
   `.trim()
 }
 
@@ -201,13 +200,11 @@ Disallow: /mypage
 Disallow: /ticket/
 Disallow: /payment/
 Disallow: /boarding/
-
-# 검색봇별 크롤링 속도 조절
-User-agent: Googlebot
-Crawl-delay: 1
-
-User-agent: Yeti
-Crawl-delay: 1
+Disallow: /reservation/check
+Disallow: /reservation/detail/
+Disallow: /booking-check
+Disallow: /field
+Disallow: /stats
 
 Sitemap: ${SEO_CONFIG.siteUrl}/sitemap.xml
 `
@@ -224,15 +221,13 @@ app.get('/sitemap.xml', (c) => {
   const regionUrls = activeRegions.map(r => `
   <url>
     <loc>${SEO_CONFIG.siteUrl}/reservation/${r.id}</loc>
-    <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
     <priority>${r.status === 'open' ? '0.9' : '0.5'}</priority>
   </url>`).join('')
 
-  const staticUrls = SITEMAP_PAGES.map(p => `
+  const staticUrls = [...SITEMAP_PAGES.filter(p => !p.url.startsWith('/reservation/')), ...SEARCH_PAGES.map(p => ({url: '/' + p.slug, changefreq: 'monthly', priority: '0.8'}))].map(p => `
   <url>
     <loc>${SEO_CONFIG.siteUrl}${p.url}</loc>
-    <lastmod>${today}</lastmod>
     <changefreq>${p.changefreq}</changefreq>
     <priority>${p.priority}</priority>
   </url>`).join('')
@@ -353,7 +348,7 @@ app.get('/api/faq', (c) => {
 // ============================================================
 // HTML 빌더 (SEO 완전 지원)
 // ============================================================
-const buildPage = (metaTags: string, pageData?: object) => `<!DOCTYPE html>
+const buildPage = (metaTags: string, pageData?: { [key: string]: any }) => `<!DOCTYPE html>
 <html lang="ko" prefix="og: https://ogp.me/ns#">
 <head>
 <meta charset="UTF-8">
@@ -375,22 +370,22 @@ ${metaTags}
 <script src="/static/qrcode.min.js"></script>
 <link rel="stylesheet" href="/static/style.css">
 <script>
-tailwind.config={theme:{extend:{colors:{navy:{'50':'#f0f4ff','100':'#e0e9ff','600':'#1e3a8a','700':'#1e40af','800':'#0a2d6b','900':'#071f4e'},ocean:{'400':'#22d3ee','500':'#06b6d4','600':'#0891b2','700':'#0e7490'},mint:{'400':'#4ade80','500':'#22c55e','600':'#16a34a'}},fontFamily:{sans:['Noto Sans KR','Apple SD Gothic Neo','sans-serif']}}}}
+window.tailwind=window.tailwind||{};window.tailwind.config={theme:{extend:{colors:{navy:{'50':'#f0f4ff','100':'#e0e9ff','600':'#1e3a8a','700':'#1e40af','800':'#0a2d6b','900':'#071f4e'},ocean:{'400':'#22d3ee','500':'#06b6d4','600':'#0891b2','700':'#0e7490'},mint:{'400':'#4ade80','500':'#22c55e','600':'#16a34a'}},fontFamily:{sans:['Noto Sans KR','Apple SD Gothic Neo','sans-serif']}}}}
 window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 </script>
 </head>
 <body class="bg-gray-50 font-sans">
-<div id="app"></div>
+<div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=1eb4f905"></script>
-<script src="/static/modules/customer.js?v=1eb4f905"></script>
-<script src="/static/modules/payment.js?v=1eb4f905"></script>
-<script src="/static/modules/field.js?v=1eb4f905"></script>
-<script src="/static/modules/admin.js?v=1eb4f905"></script>
-<script src="/static/modules/stats.js?v=1eb4f905"></script>
-<script src="/static/modules/seo.js?v=1eb4f905"></script>
-<script src="/static/modules/ticket.js?v=1eb4f905"></script>
-<script src="/static/app.js?v=1eb4f905"></script>
+<script src="/static/modules/core.js?v=259a8c14de70"></script>
+<script src="/static/modules/customer.js?v=259a8c14de70"></script>
+<script src="/static/modules/payment.js?v=259a8c14de70"></script>
+<script src="/static/modules/field.js?v=259a8c14de70"></script>
+<script src="/static/modules/admin.js?v=259a8c14de70"></script>
+<script src="/static/modules/stats.js?v=259a8c14de70"></script>
+<script src="/static/modules/seo.js?v=259a8c14de70"></script>
+<script src="/static/modules/ticket.js?v=259a8c14de70"></script>
+<script src="/static/app.js?v=259a8c14de70"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {
@@ -435,8 +430,18 @@ app.get('/', (c) => {
       potentialAction: { '@type': 'SearchAction', target: `${SEO_CONFIG.siteUrl}/reservation?q={search_term_string}`, 'query-input': 'required name=search_term_string' }
     }
   })
-  return c.html(buildPage(meta, { page: 'home' }))
+  return c.html(buildPage(meta, { page: 'home', searchIntro: SEARCH_INTRO }))
 })
+
+// 검색 유입용 공개 안내: 검색로봇과 방문자에게 동일한 실제 본문을 제공합니다.
+for (const page of SEARCH_PAGES) {
+  app.get('/' + page.slug, (c) => {
+    const canonical = searchPageUrl(page.slug)
+    const meta = buildMeta({title: page.title, description: page.description, canonicalUrl: canonical,
+      structuredData: { '@context': 'https://schema.org', '@type': 'WebPage', name: page.title, description: page.description, url: canonical }})
+    return c.html(`<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${meta}<link rel="icon" href="/static/favicon.svg"><link rel="stylesheet" href="/static/vendor/tailwind.min.css"></head><body class="bg-gray-50 text-gray-800"><header class="bg-white p-5 border-b"><a href="/" class="font-bold text-blue-700">아쿠아모빌리티코리아 통합솔루션</a></header><main class="max-w-4xl mx-auto p-6 py-12"><h1 class="text-3xl font-bold mb-8">${page.heading}</h1>${page.paragraphs.map(text => `<p class="mb-6 leading-relaxed">${text}</p>`).join('')}<nav class="flex flex-wrap gap-4 py-6" aria-label="서비스 바로가기">${'reservation' in page ? `<a class="text-blue-700 underline" href="${page.reservation}">지역 예약 시스템 테스트</a>` : ''}<a class="text-blue-700 underline" href="/reservation">통합 예약</a><a class="text-blue-700 underline" href="/inquiry">문의</a><a class="text-blue-700 underline" href="/notice">운영 공지</a></nav>${SEARCH_INTRO}</main></body></html>`)
+  })
+}
 
 // 예약 상세 페이지 (SPA 라우팅용 서버 라우트)
 app.get('/reservation/detail/:reservationNo', (c) => {
@@ -454,6 +459,7 @@ app.get('/reservation/detail/:reservationNo', (c) => {
 app.get('/reservation/check', (c) => {
   const meta = buildMeta({
     title: '예약 확인/취소 | 아쿠아모빌리티코리아',
+    noindex: true,
     description: '예약번호와 휴대폰번호로 예약 내역을 확인하고 취소하세요.',
     keywords: ['예약확인','예약취소','탑승권 확인'],
     canonicalUrl: `${SEO_CONFIG.siteUrl}/reservation/check`,
@@ -499,27 +505,7 @@ app.get('/reservation/:regionId', (c) => {
       ogImage: seo.ogImage,
       canonicalUrl: seo.canonicalUrl,
       breadcrumbs: seo.breadcrumbs,
-      structuredData: [
-        { '@context': 'https://schema.org', ...seo.localBusiness },
-        {
-          '@context': 'https://schema.org',
-          '@type': 'Service',
-          name: region.name,
-          provider: { '@type': 'Organization', name: region.company?.name || SEO_CONFIG.siteName },
-          areaServed: { '@type': 'Place', name: region.name },
-          description: region.description,
-          url: seo.canonicalUrl,
-        },
-        {
-          '@context': 'https://schema.org',
-          '@type': 'FAQPage',
-          mainEntity: seo.faq.map(f => ({
-            '@type': 'Question',
-            name: f.q,
-            acceptedAnswer: { '@type': 'Answer', text: f.a }
-          }))
-        }
-      ]
+      structuredData: { '@context': 'https://schema.org', '@type': 'WebPage', name: seo.title, description: seo.description, url: seo.canonicalUrl }
     })
     return c.html(buildPage(meta, { page: 'reservation', regionId, seo }))
   }

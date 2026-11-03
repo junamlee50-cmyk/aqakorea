@@ -26,10 +26,12 @@ const PaymentModule = {
     const cart = Store.get('cart');
     if (!cart) { Router.go('/reservation'); return ''; }
     const regRes = await API.get(`/api/regions/${cart.regionId}`);
-    const region = regRes.data || {};
+    if (!regRes.success || !BookingState.canBook(regRes.data)) { Utils.toast('현재 예약 접수가 불가능하거나 운영 상태를 확인할 수 없습니다.', 'warning'); Router.go('/reservation'); return ''; }
+    const region = regRes.data;
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
 <div class="max-w-5xl mx-auto px-4 py-8">
   <!-- 진행 단계 -->
@@ -174,16 +176,21 @@ ${Footer.render()}`;
 
   processPayment: async (regionId) => {
     const cart = Store.get('cart');
+    if (!cart || cart.regionId !== regionId) { Router.go('/reservation'); return; }
+    const regRes = await API.get(`/api/regions/${encodeURIComponent(regionId)}`);
+    if (!regRes.success || !BookingState.canBook(regRes.data)) { Utils.toast('현재 예약 접수가 불가능합니다.', 'warning'); return; }
     Utils.loading(true);
     // PG 분기 - 지역별 merchantId 결정
-    const pgRes = await API.post('/api/payment/request', { regionId, amount: cart.total });
+    const pgRes = await API.post('/api/payment/request', { regionId, amount: cart.total, testMode: BookingState.testMode });
     await new Promise(r => setTimeout(r, 1500));
     Utils.loading(false);
+    if (!pgRes.success || !pgRes.data) { Utils.toast(pgRes.message || '결제 요청에 실패했습니다. 다시 시도해 주세요.', 'error'); return; }
     // 목업 결제창 표시
     PaymentModule.showMockPG(pgRes.data, cart, regionId);
   },
 
   showMockPG: (pgData, cart, regionId) => {
+    if (!BookingState.testMode) { Utils.toast('실제 결제 연동을 확인한 후 이용해 주세요.', 'warning'); return; }
     const m = Utils.modal(`
       <div style="background:linear-gradient(135deg,#071f4e,#0a2d6b);border-radius:16px 16px 0 0;padding:20px;color:white">
         <div class="flex items-center justify-between">
@@ -200,7 +207,7 @@ ${Footer.render()}`;
       <div class="p-6">
         <div class="bg-blue-50 rounded-xl p-4 mb-4 text-sm text-blue-800">
           <div class="font-bold mb-2">⚠️ 목업 결제 안내</div>
-          <p>실제 PG 계약 전이므로 테스트 모드로 동작합니다.<br>실제 결제는 발생하지 않습니다.</p>
+          <p>운행 전 시스템 테스트입니다. 실제 금액은 청구되지 않습니다.<br>아래 버튼을 누르면 서버에 테스트 예약을 저장하고 QR 탑승권 조회를 진행합니다. 테스트 예약은 실제 탑승에 사용할 수 없습니다.</p>
         </div>
         <div class="space-y-2 text-sm mb-4">
           <div class="flex justify-between border-b pb-2"><span class="text-gray-500">주문번호</span><span class="font-mono text-xs">${pgData?.orderId}</span></div>
@@ -210,7 +217,7 @@ ${Footer.render()}`;
         </div>
         <div class="flex gap-3">
           <button onclick="Utils.closeModal();PaymentModule.completePayment('${regionId}')" class="btn-ocean flex-1 py-3">
-            <i class="fas fa-check mr-2"></i>결제 완료 (테스트)
+            <i class="fas fa-check mr-2"></i>테스트 예약 완료 · QR 확인
           </button>
           <button onclick="Utils.closeModal()" class="btn-outline px-4 py-3 text-sm">취소</button>
         </div>
@@ -219,144 +226,37 @@ ${Footer.render()}`;
 
   completePayment: async (regionId) => {
     const cart = Store.get('cart');
+    if (!BookingState.testMode) { Utils.toast('테스트 예약 모드가 종료되었습니다.', 'warning'); return; }
+    if (PaymentModule._submitting || !cart || cart.regionId !== regionId) return;
+    PaymentModule._submitting = true;
     Utils.loading(true);
-    const res = await API.post('/api/reservations', { ...cart, totalAmount: cart.total, channel: 'online' });
-    Utils.loading(false);
-    if (res.success) {
-      // reservationNo를 reservationId로 통일
-      const reservationData = { ...res.data, reservationId: res.data.reservationNo || res.data.id };
-      Store.set('lastReservation', reservationData);
-
-      // DB에 저장됨 — localStorage 불필요
-
+    try {
+      const regRes = await API.get(`/api/regions/${encodeURIComponent(regionId)}`);
+      if (!regRes.success || !BookingState.canBook(regRes.data)) { Utils.toast('현재 예약 접수가 불가능합니다.', 'warning'); return; }
+      const seats = await API.get(`/api/schedules/${encodeURIComponent(regionId)}/availability?date=${encodeURIComponent(cart.date)}`);
+      const schedule = seats.success && Array.isArray(seats.data) && seats.data.find(s => s.id === cart.scheduleId);
+      if (!schedule || !['active','available'].includes(schedule.status) || !Number.isFinite(schedule.available) || !Number.isInteger(cart.pax) || cart.pax <= 0 || schedule.available < cart.pax) {
+        Utils.toast('선택한 회차의 잔여석을 확인할 수 없거나 좌석이 부족합니다. 다시 선택해 주세요.', 'warning'); return;
+      }
+      const res = await API.post('/api/reservations', { ...cart, name: `[테스트] ${cart.name || ''}`, totalAmount: cart.total, channel: 'online', isTest: true, testMode: true, paymentMethod: 'test', payMethod: '테스트(미청구)' });
+      if (!res.success || !BookingState.number(res.data)) { Utils.toast(res.message || '예약 접수에 실패했습니다. 예약내역을 확인한 후 다시 시도해 주세요.', 'error'); return; }
+      Store.set('lastReservation', { ...res.data, reservationId: BookingState.number(res.data) });
       Router.go('/payment/complete');
+    } catch (e) {
+      Utils.toast('예약 처리 결과를 확인할 수 없습니다. 예약내역을 먼저 확인해 주세요.', 'error');
+    } finally {
+      PaymentModule._submitting = false;
+      Utils.loading(false);
     }
   },
 
   // ── 결제 완료 + QR 탑승권 ───────────────────────────────────
   complete: async () => {
     const reservation = Store.get('lastReservation');
-    const cart = Store.get('cart');
     if (!reservation) { Router.go('/'); return ''; }
-    const regRes = await API.get(`/api/regions/${cart?.regionId}`);
-    const region = regRes.data || {};
-    const qrData = `AMK:${reservation.reservationId}:${cart?.date}:${cart?.scheduleId}`;
-    setTimeout(async () => {
-      Navbar.init();
-      // QR 생성 - DOM 렌더링 완료 후 시도 (최대 3회 재시도)
-      const tryQR = async (id, data, attempt = 1) => {
-        const el = document.getElementById(id);
-        if (!el && attempt <= 5) { await new Promise(r => setTimeout(r, 300)); return tryQR(id, data, attempt + 1); }
-        await Utils.generateQR(id, data);
-      };
-      await tryQR('qr-main', qrData);
-      await tryQR('qr-wristband-preview', qrData);
-    }, 500);
-    return `
-${Navbar.render()}
-<div style="padding-top:64px" class="min-h-screen bg-gradient-to-br from-green-50 to-cyan-50">
-<div class="max-w-2xl mx-auto px-4 py-8">
-  <!-- 완료 헤더 -->
-  <div class="text-center mb-8">
-    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 bounce-anim">✅</div>
-    <h1 class="text-3xl font-black text-navy-800 mb-2">예약이 완료되었습니다!</h1>
-    <p class="text-gray-500">카카오 알림톡 / SMS로 탑승권을 발송해드렸습니다 (목업)</p>
-  </div>
-
-  <!-- QR 탑승권 -->
-  <div class="qr-ticket mb-6 no-print">
-    <div class="qr-ticket-header">
-      <div class="text-xs font-bold tracking-widest text-cyan-400 mb-1">AQUA MOBILITY KOREA</div>
-      <div class="text-2xl font-black mb-1">${region.name} 탑승권</div>
-      <div class="text-white/70 text-sm">${reservation.reservationId}</div>
-    </div>
-    <div class="px-6 py-4">
-      <div class="grid grid-cols-2 gap-3 text-sm mb-4">
-        <div><div class="text-gray-400 text-xs mb-1">탑승일자</div><div class="font-bold text-navy-800">${Utils.dateKo(cart?.date||'')}</div></div>
-        <div><div class="text-gray-400 text-xs mb-1">탑승시간</div><div class="font-bold text-navy-800 text-xl">${PaymentModule._getScheduleTime(cart?.scheduleId, cart?.regionId)}</div></div>
-        <div><div class="text-gray-400 text-xs mb-1">탑승인원</div><div class="font-bold text-navy-800">${cart?.pax}명</div></div>
-        <div><div class="text-gray-400 text-xs mb-1">예약자</div><div class="font-bold text-navy-800">${cart?.name}</div></div>
-        <div class="col-span-2"><div class="text-gray-400 text-xs mb-1">탑승장</div><div class="font-medium text-navy-800 text-xs">${region.boardingPlace}</div></div>
-      </div>
-      <div style="border-top:2px dashed #e2e8f0;margin:0 -8px;padding:16px 8px 0">
-        <div class="text-center text-xs text-gray-400 mb-3">현장에서 QR을 제시하면 손목밴드를 발급받을 수 있습니다</div>
-        <div class="qr-code-area"><canvas id="qr-main" style="border-radius:12px;border:3px solid #e2e8f0"></canvas></div>
-        <div class="text-center mt-3 font-mono text-xs text-gray-400">${reservation.reservationId}</div>
-      <div class="text-center mt-2">
-        <button onclick="Router.go('/reservation/check?id=\${reservation.reservationId}')"
-          class="text-xs text-blue-500 border border-blue-200 px-4 py-1.5 rounded-full hover:bg-blue-50 transition-colors">
-          <i class="fas fa-search mr-1"></i>상세보기
-        </button>
-      </div>
-      </div>
-    </div>
-    <div class="px-6 pb-4 space-y-2">
-      <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-800">
-        <strong>⚠️ 탑승 안내:</strong> 탑승 20분 전까지 탑승장에 도착해주세요. 현장 직원의 안전 안내를 확인해 주세요.
-      </div>
-      <div class="text-xs text-gray-400 text-center">판매자: ${region.company?.name} | 고객센터: ${region.customerService}</div>
-    </div>
-  </div>
-
-  <!-- 손목밴드 미리보기 -->
-  <div class="bg-white rounded-2xl p-5 shadow-sm mb-4">
-    <h3 class="font-bold text-navy-800 mb-3">🎫 현장 발급 예정 QR 손목밴드</h3>
-    <p class="text-sm text-gray-500 mb-4">현장 도착 후 직원에게 위 QR을 제시하면 아래와 같은 손목밴드를 발급받습니다</p>
-    ${PaymentModule.renderWristbandPreview({
-      region: region.name,
-      date: cart?.date,
-      time: PaymentModule._getScheduleTime(cart?.scheduleId, cart?.regionId),
-      round: '1회차',
-      type: '성인',
-      reservationId: reservation.reservationId,
-    })}
-    <div class="mt-3 text-xs text-gray-400 text-center">* 실제 손목밴드는 현장에서 프린터로 출력됩니다</div>
-  </div>
-
-  <!-- 버튼 -->
-  <div class="space-y-3 mb-4">
-    <!-- 주요 액션 버튼 -->
-    <button onclick="Router.go('/reservation/check?id=\${reservation.reservationId}')"
-      class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
-      <i class="fas fa-ticket-alt"></i>예약내역 확인하기
-    </button>
-    <!-- 보조 버튼 2개 -->
-    <div class="grid grid-cols-2 gap-3">
-      <button onclick="Utils.print()" class="btn-outline py-3 text-sm"><i class="fas fa-print mr-2"></i>탑승권 인쇄</button>
-      <button onclick="Utils.copy('\${reservation.reservationId}')"
-        class="btn-outline py-3 text-sm"><i class="fas fa-copy mr-2"></i>예약번호 복사</button>
-    </div>
-    <!-- 홈 + 고객센터 -->
-    <div class="grid grid-cols-2 gap-3">
-      <button onclick="Router.go('/')" class="btn-outline py-3 text-sm">
-        <i class="fas fa-home mr-2"></i>홈으로
-      </button>
-      <button onclick="Router.go('/inquiry')" class="btn-outline py-3 text-sm">
-        <i class="fas fa-headset mr-2"></i>고객센터
-      </button>
-    </div>
-  </div>
-
-  <!-- 알림 상태 -->
-  <div class="bg-white rounded-2xl p-5 shadow-sm mt-4">
-    <h3 class="font-bold text-navy-800 mb-3">📲 알림 발송 현황 (목업)</h3>
-    <div class="space-y-2 text-sm">
-      ${[
-        {t:'예약완료 알림톡',s:'발송완료',c:'green'},
-        {t:'모바일 QR 탑승권',s:'발송완료',c:'green'},
-        {t:'탑승 전날(18:00) 리마인드',s:'발송예정',c:'yellow'},
-        {t:'탑승 당일(3시간 전) 리마인드',s:'발송예정',c:'yellow'},
-      ].map(a=>`
-      <div class="flex items-center justify-between bg-gray-50 rounded-xl p-3">
-        <span>${a.t}</span>
-        <span class="badge badge-${a.c}">${a.s}</span>
-      </div>`).join('')}
-    </div>
-  </div>
-</div>
-</div>
-${Footer.render()}`;
+    return TicketPage.show(BookingState.number(reservation));
   },
+
 
   renderWristbandPreview: (data) => {
     const wb = Settings.get('wristbandText');
@@ -381,6 +281,7 @@ ${Footer.render()}`;
     setTimeout(() => Navbar.init(), 100);
     return `
 ${Navbar.render()}
+${BookingState.testBanner()}
 <div style="padding-top:64px" class="min-h-screen bg-gray-50">
 <div class="max-w-xl mx-auto px-4 py-12">
   <div class="text-center mb-8">
