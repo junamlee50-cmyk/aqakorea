@@ -261,40 +261,35 @@ const Utils = {
       }
     } else { el?.remove(); }
   },
-  // QR 생성 (qrcode@1.5.3 브라우저 빌드 기반)
-  generateQR: async (canvasId, text) => {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    // QRCode 라이브러리 로드 대기 (최대 3초)
+  // QR 생성 (qrcodejs 브라우저 전용 라이브러리)
+  generateQR: async (targetId, text, opts = {}) => {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    // QRCode 라이브러리 로드 대기 (최대 4초)
     let waited = 0;
-    while (typeof QRCode === 'undefined' && waited < 3000) {
+    while (typeof QRCode === 'undefined' && waited < 4000) {
       await new Promise(r => setTimeout(r, 100));
       waited += 100;
     }
     if (typeof QRCode === 'undefined') {
-      // CDN 폴백: QRCode.js (qrcodejs) 동적 로드
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      }).catch(() => {});
+      el.innerHTML = '<div style="padding:16px;color:#ef4444;text-align:center;font-size:13px">QR 생성 실패<br><button onclick="Utils.generateQR(\'' + targetId + '\',\'' + text + '\')" style="margin-top:8px;padding:6px 14px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer">재시도</button></div>';
+      return;
     }
-    if (typeof QRCode === 'undefined') return;
     try {
-      // qrcode@1.5.3: QRCode.toCanvas API
-      if (typeof QRCode.toCanvas === 'function') {
-        await QRCode.toCanvas(canvas, text, { width: 200, margin: 2, color: { dark: '#0a2d6b', light: '#ffffff' } });
-      } else if (typeof QRCode === 'function') {
-        // qrcodejs 라이브러리: new QRCode(element, opts)
-        canvas.innerHTML = '';
-        const div = document.createElement('div');
-        canvas.parentNode.insertBefore(div, canvas);
-        canvas.remove();
-        div.id = canvasId;
-        new QRCode(div, { text, width: 200, height: 200, colorDark: '#0a2d6b', colorLight: '#ffffff' });
-      }
-    } catch(e) { console.error('QR error:', e); }
+      el.innerHTML = '';
+      const size = opts.size || 200;
+      new QRCode(el, {
+        text,
+        width: size,
+        height: size,
+        colorDark: opts.dark || '#0a2d6b',
+        colorLight: opts.light || '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+    } catch(e) {
+      console.error('QR error:', e);
+      el.innerHTML = '<div style="padding:16px;color:#ef4444;text-align:center;font-size:13px">QR 생성 실패: ' + e.message + '<br><button onclick="Utils.generateQR(\'' + targetId + '\',\'' + text + '\')" style="margin-top:8px;padding:6px 14px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer">재시도</button></div>';
+    }
   },
   // 날짜 유효성
   isFuture: (dateStr) => new Date(dateStr) > new Date(),
@@ -588,11 +583,7 @@ const Footer = {
             <span style="font-size:15px;font-weight:700;color:#fff;letter-spacing:0.5px">AQUA MOBILITY KOREA</span>
           </div>
           <p class="footer-sub text-sm leading-relaxed mb-4">전국 수륙양용투어 통합 예약·결제·운영 플랫폼<br>통영 · 부여 · 합천 수륙양용버스 투어</p>
-          <div class="flex gap-3">
-            <a href="#" class="footer-sns-btn"><i class="fab fa-instagram text-sm"></i></a>
-            <a href="#" class="footer-sns-btn"><i class="fab fa-youtube text-sm"></i></a>
-            <a href="#" class="footer-sns-btn text-xs font-bold">N</a>
-          </div>
+          <!-- SNS 링크: 공식 주소 확정 전 비표시 -->
         </div>
         <div>
           <h4 class="footer-label mb-3">수륙양용투어</h4>
@@ -621,10 +612,9 @@ const Footer = {
       <div class="footer-divider border-t mt-8 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
         <div class="footer-copy">© 2025 Aqua Mobility Korea. All rights reserved.</div>
         <div class="flex gap-4">
-          <a href="#" class="footer-copy hover:text-white transition-colors">이용약관</a>
-          <a href="#" class="footer-copy hover:text-white transition-colors">개인정보처리방침</a>
-          <a href="#" class="footer-copy hover:text-white transition-colors">환불규정</a>
-          <a href="/admin" data-link class="footer-copy hover:text-white transition-colors">관리자</a>
+          <a href="javascript:void(0)" onclick="CustomerPages.termsModal()" class="footer-copy hover:text-white transition-colors">이용약관</a>
+          <a href="javascript:void(0)" onclick="CustomerPages.privacyModal()" class="footer-copy hover:text-white transition-colors">개인정보처리방침</a>
+          <a href="javascript:void(0)" onclick="CustomerPages.refundModal()" class="footer-copy hover:text-white transition-colors">환불규정</a>
         </div>
       </div>
     </div>

@@ -1605,13 +1605,33 @@ ${Footer.render()}
 
   termsModal: () => {
     const terms = Settings.get('terms');
-    return `
-      <div class="modal-header"><h3 class="font-bold">약관 및 규정</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold">이용약관</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
       <div class="modal-body space-y-4">
-        <div><h4 class="font-bold text-navy-800 mb-2">환불 규정</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.refundPolicy}</pre></div>
-        <div><h4 class="font-bold text-navy-800 mb-2">안전 수칙</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.safetyRules}</pre></div>
-        <div><h4 class="font-bold text-navy-800 mb-2">개인정보 수집·이용 동의</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.privacyPolicy}</pre></div>
-      </div>`;
+        <div><h4 class="font-bold text-navy-800 mb-2">서비스 이용약관</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.serviceTerms || '아쿠아모빌리티코리아 서비스 이용약관\n\n수정 중입니다. 관리자에게 문의해 주세요.'}</pre></div>
+        <div><h4 class="font-bold text-navy-800 mb-2">안전 수칙</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.safetyRules || '안전 수칙 수정 중입니다.'}</pre></div>
+        <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">⚠️ 현재 시스템 테스트 단계입니다. 정식 약관은 오픈 전 최종 확정 후 게시됩니다.</div>
+      </div>`);
+  },
+
+  privacyModal: () => {
+    const terms = Settings.get('terms');
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold">개인정보처리방침</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
+      <div class="modal-body space-y-4">
+        <div><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.privacyPolicy || '개인정보처리방침 수정 중입니다.\n\n▶ 수집 항목: 성명, 휴대폰번호, 이메일(선택)\n▶ 이용 목적: 예약 확인 및 탑승 안내\n▶ 보유 기간: 서비스 종료 후 1년\n\n관리자에게 문의하시면 상세 내용을 안내해 드립니다.'}</pre></div>
+        <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">⚠️ 보유기간 등 세부 기재사항은 정식 오픈 전 안전자에게 검토 후 확정 예정입니다.</div>
+      </div>`);
+  },
+
+  refundModal: () => {
+    const terms = Settings.get('terms');
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold">환불규정</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
+      <div class="modal-body space-y-4">
+        <div><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.refundPolicy || '환불 규정 수정 중입니다.\n\n▶ 탑승 7일 전: 전액 환불\n▶ 탑승 3일 전: 90% 환불\n▶ 탑승 1일 전: 50% 환불\n▶ 당일: 환불 불가\n\n사항이 확정되지 않은 항목은 정식 오픈 전 검토 예정입니다.'}</pre></div>
+        <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">⚠️ 정식 오픈 전 환불 조건이 변경될 수 있습니다. 확정된 기준은 관리자에게 문의해 주세요.</div>
+      </div>`);
   },
 
   goPayment: (regionId) => {
@@ -2180,32 +2200,23 @@ ${Footer.render()}`;
             }
           }
         } else if (mode === 'alt') {
-          // 휴대폰번호로 조회
-          let url = `/api/reservations?limit=50`;
-          if (altDate) url += `&date=${altDate}`;
-          const apiRes = await API.get(url);
-          if (apiRes.success && apiRes.data) {
-            const inPhone = phone.replace(/[^0-9]/g, '');
-            const matched = apiRes.data.filter(r => {
-              const dbPhone = (r.phone || '').replace(/[^0-9]/g, '');
-              return dbPhone === inPhone;
-            });
-            if (matched.length === 1) {
-              const r = matched[0]; const st = r.status || 'unknown';
-              found = {
-                id: BookingState.number(r), regionName: r.regionId || '-',
-                boardingPlace: '-', date: r.date || '-',
-                schedule: r.scheduleId || '-', pax: r.pax || 1,
-                totalAmount: r.totalPrice || 0, name: r.name || '-',
-                phone: r.phone || '-', status: st,
-                statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
-                cancelable: ['confirmed'].includes(st), wristband: ['confirmed'].includes(st), qr: BookingState.canIssue(r),
-              };
-            } else if (matched.length > 1) {
-              const items = matched.map(r => ({ id: BookingState.number(r), date: r.date, regionName: r.regionId, name: r.name, status: r.status }));
-              CustomerPages._renderAltMultiResult(el, items, statusLabelMap);
-              return;
-            }
+          // 휴대폰번호로 조회 → 서버에서 검증 (lookup API 사용)
+          const altRes = await API.post('/api/reservations/lookup', {
+            reservationNo: altId || resNo,
+            phone: phone,
+          });
+          if (altRes.success && altRes.data) {
+            const r = altRes.data; const st = r.status || 'unknown';
+            found = {
+              id: r.reservationNo || r.id, regionName: r.regionName || r.regionId || '-',
+              boardingPlace: '-', date: r.date || '-',
+              schedule: r.scheduleId || '-', pax: r.pax || 1,
+              totalAmount: r.totalPrice || 0, name: r.name || '-',
+              phone: r.phone || '-', status: st,
+              statusBadge: statusLabelMap[st] || { cls:'bg-gray-100 text-gray-600', label: st },
+              cancelable: ['confirmed'].includes(st), wristband: ['confirmed'].includes(st), qr: BookingState.canIssue(r),
+              isTest: r.isTest,
+            };
           }
         }
       } catch(apiErr) { console.warn('API 조회 실패:', apiErr); }
