@@ -676,7 +676,7 @@ ${noticeBannerHtml}
       <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="fare-section">
         <h2 class="font-bold text-navy-800 text-lg mb-4">👥 인원 선택</h2>
         <div id="fare-list">
-          ${region.fares?.map(f => `
+          ${(region.fares||[]).filter(f=>f.status==='active').map(f => `
           <div class="fare-row" id="fare-${f.id}">
             <div>
               <div class="font-medium text-navy-800">${f.label}</div>
@@ -916,7 +916,7 @@ ${noticeBannerHtml}
         <h3 class="font-bold text-navy-800 mb-3">요금표</h3>
         <table class="admin-table">
           <tr><th>구분</th><th>요금</th><th>비고</th></tr>
-          ${region.fares?.map(f=>`<tr><td>${f.label}</td><td class="font-bold text-navy-800">${Utils.money(f.price)}</td><td class="text-gray-400 text-xs">${f.type==='infant'?'좌석 미제공':f.type==='disabled'||f.type==='veteran'?'현장 증빙 필수':''}</td></tr>`).join('')}
+          ${(region.fares||[]).filter(f=>f.status==='active').map(f=>`<tr><td>${f.label}</td><td class="font-bold text-navy-800">${Utils.money(f.price)}</td><td class="text-gray-400 text-xs">${f.type==='infant'?'좌석 미제공':f.type==='disabled'||f.type==='veteran'?'현장 증빙 필수':''}</td></tr>`).join('')}
         </table>
       </div>
       <div data-tab-content="운행시간" data-tab-content-group="region-info" class="hidden">
@@ -2788,11 +2788,11 @@ ${BookingState.testBanner()}
     </div>
 
     <!-- 코스/요금 미리보기 -->
-    ${region.fares?.length ? `
+    ${(region.fares||[]).filter(f=>f.status==='active').length ? `
     <div class="bg-white rounded-2xl p-6 shadow-sm mb-6">
       <h3 class="font-bold text-navy-800 mb-4">💰 예상 요금 안내 <span class="text-xs text-gray-400 font-normal">(오픈 후 예약 적용)</span></h3>
       <div class="space-y-2">
-        ${(region.fares||[]).map(f => `
+        ${(region.fares||[]).filter(f=>f.status==='active').map(f => `
         <div class="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
           <span class="text-gray-700 text-sm">${f.label}</span>
           <span class="font-bold text-navy-800">${Utils.money(f.price)}</span>

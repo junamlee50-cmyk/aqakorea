@@ -2438,36 +2438,43 @@ const AdminModule = (() => {
     const recentResults = isSuper ? [] : _allApprovals.filter(a =>
       a.region_id === activeRegionId && (a.status === 'approved' || a.status === 'rejected')
     ).slice(0, 10);
-    const recentResultSection = recentResults.length === 0 ? '' : `
-      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div class="px-5 py-3 bg-gray-50 border-b flex items-center gap-2">
-          <i class="fas fa-history text-gray-400"></i>
-          <h3 class="font-semibold text-gray-700 text-sm">최근 처리 결과</h3>
-          <span class="text-xs text-gray-400">(최근 10건)</span>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="admin-table w-full">
-            <thead><tr class="bg-gray-50">
-              \${['구분명','변경금액','사유','처리','처리자·일시'].map(h=>\`<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">\${h}</th>\`).join('')}
-            </tr></thead>
-            <tbody class="divide-y divide-gray-100">
-              \${recentResults.map(a => {
-                const isApproved = a.status === 'approved';
-                const badge = isApproved
-                  ? '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">✅ 승인</span>'
-                  : '<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">❌ 반려</span>';
-                return \`<tr class="hover:bg-gray-50 \${isApproved ? '' : 'bg-red-50/30'}">
-                  <td class="px-4 py-3 text-sm font-medium">\${a.fare_label||'-'}</td>
-                  <td class="px-4 py-3 text-right text-sm">\${a.old_price != null ? \`<span class="line-through text-gray-400 text-xs mr-1">₩\${(a.old_price||0).toLocaleString()}</span>\` : ''}₩\${(a.new_price||0).toLocaleString()}</td>
-                  <td class="px-4 py-3 text-xs text-gray-500 text-center">\${a.reason||'-'}</td>
-                  <td class="px-4 py-3 text-center">\${badge}</td>
-                  <td class="px-4 py-3 text-xs text-gray-400 text-center">\${a.reviewed_by||'-'}<br>\${(a.reviewed_at||'').replace('T',' ').slice(0,16)}</td>
-                </tr>\`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>`;
+    // recentResultSection: 즉시 평가하여 실제 HTML 문자열로 생성 (템플릿 이중 이스케이프 방지)
+    const recentResultSection = (() => {
+      if (recentResults.length === 0) {
+        return '<div class="px-5 py-4 text-sm text-gray-400 text-center bg-white rounded-xl shadow-sm">최근 처리내역이 없습니다</div>';
+      }
+      const rows = recentResults.map(a => {
+        const isApproved = a.status === 'approved';
+        const badge = isApproved
+          ? '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">✅ 승인</span>'
+          : '<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">❌ 반려</span>';
+        const oldP = a.old_price != null
+          ? '<span class="line-through text-gray-400 text-xs mr-1">₩' + (a.old_price||0).toLocaleString() + '</span>'
+          : '';
+        return '<tr class="hover:bg-gray-50' + (isApproved ? '' : ' bg-red-50/30') + '">'
+          + '<td class="px-4 py-3 text-sm font-medium">' + (a.fare_label||'-') + '</td>'
+          + '<td class="px-4 py-3 text-right text-sm">' + oldP + '₩' + (a.new_price||0).toLocaleString() + '</td>'
+          + '<td class="px-4 py-3 text-xs text-gray-500 text-center">' + (a.reason||'-') + '</td>'
+          + '<td class="px-4 py-3 text-center">' + badge + '</td>'
+          + '<td class="px-4 py-3 text-xs text-gray-400 text-center">' + (a.reviewed_by||'-') + '<br>' + (a.reviewed_at||'').replace('T',' ').slice(0,16) + '</td>'
+          + '</tr>';
+      }).join('');
+      return '<div class="bg-white rounded-xl shadow-sm overflow-hidden">'
+        + '<div class="px-5 py-3 bg-gray-50 border-b flex items-center gap-2">'
+        + '<i class="fas fa-history text-gray-400"></i>'
+        + '<h3 class="font-semibold text-gray-700 text-sm">최근 처리 결과</h3>'
+        + '<span class="text-xs text-gray-400">(최근 10건)</span>'
+        + '</div>'
+        + '<div class="overflow-x-auto"><table class="admin-table w-full">'
+        + '<thead><tr class="bg-gray-50"><th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">구분명</th>'
+        + '<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">변경금액</th>'
+        + '<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">사유</th>'
+        + '<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">처리</th>'
+        + '<th class="px-4 py-3 text-xs font-semibold text-gray-600 text-center">처리자·일시</th></tr></thead>'
+        + '<tbody class="divide-y divide-gray-100">' + rows + '</tbody>'
+        + '</table></div></div>';
+    })();
+
     // fareChangeMode를 서버에서 읽어와서 전역에 캐시
     let fareMode;
     try {
