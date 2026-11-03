@@ -9,7 +9,7 @@ export const SEO_CONFIG = {
   defaultTitle: '아쿠아모빌리티코리아 | 수륙양용버스·수륙양용시티투어 통합솔루션',
   defaultDescription: '수륙양용버스·수륙양용시티투어 통합솔루션 아쿠아모빌리티코리아. 부여수륙양용버스·통영수륙양용시티투어·통영수륙양용버스 안내와 부산수륙양용버스 관련 문의, 예약·QR 시스템을 확인하세요.',
   defaultOgImage: 'https://aquamobility.co.kr/static/og-default.jpg',
-  defaultKeywords: '부산수륙양용버스,부산 수륙양용버스,통영수륙양용시티투어,통영 수륙양용시티투어,수륙양용버스,수륙양용투어,수륙양용버스예약,수륙양용시티투어,아쿠아모빌리티,아쿠아모빌리티코리아,통영수륙양용버스,부여수륙양용버스,합천수륙양용버스,수륙양용관광,통영해양관광,부여관광,합천관광,수상투어,amphibious bus tour korea',
+  defaultKeywords: '부산수륙양용버스,부산 수륙양용버스,수륙야용버스부산,수륙양용버스부산,부산수상버스,부산해양투어,수륙양용버스부여,부여수륙양용버스,수륙양용버스 부여,부여수상투어,수륙양용버스통영,통영수륙양용버스,통영수륙양용시티투어,통영 수륙양용시티투어,수륙양용버스,수륙야용버스,수상버스,수륙양용투어,수륙양용버스예약,수륙양용시티투어,아쿠아모빌리티,아쿠아모빌리티코리아,합천수륙양용버스,수륙양용관광,통영해양관광,부여관광,합천관광,수상투어,백마강수륙양용,한려수도수상투어,amphibious bus korea,amphibious bus tour korea',
   twitterHandle: '@aquamobilitykr',
   locale: 'ko_KR',
   organization: {
