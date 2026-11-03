@@ -413,15 +413,15 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=4a7d3874b408"></script>
-<script src="/static/modules/customer.js?v=4a7d3874b408"></script>
-<script src="/static/modules/payment.js?v=4a7d3874b408"></script>
-<script src="/static/modules/field.js?v=4a7d3874b408"></script>
-<script src="/static/modules/admin.js?v=4a7d3874b408"></script>
-<script src="/static/modules/stats.js?v=4a7d3874b408"></script>
-<script src="/static/modules/seo.js?v=4a7d3874b408"></script>
-<script src="/static/modules/ticket.js?v=4a7d3874b408"></script>
-<script src="/static/app.js?v=4a7d3874b408"></script>
+<script src="/static/modules/core.js?v=b3a03b1e432d"></script>
+<script src="/static/modules/customer.js?v=b3a03b1e432d"></script>
+<script src="/static/modules/payment.js?v=b3a03b1e432d"></script>
+<script src="/static/modules/field.js?v=b3a03b1e432d"></script>
+<script src="/static/modules/admin.js?v=b3a03b1e432d"></script>
+<script src="/static/modules/stats.js?v=b3a03b1e432d"></script>
+<script src="/static/modules/seo.js?v=b3a03b1e432d"></script>
+<script src="/static/modules/ticket.js?v=b3a03b1e432d"></script>
+<script src="/static/app.js?v=b3a03b1e432d"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {

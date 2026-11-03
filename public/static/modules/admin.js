@@ -2722,8 +2722,7 @@ const AdminModule = (() => {
         </div>`;
     } catch(e) { specialDiscountSection = ''; }
 
-    content = content + specialDiscountSection;
-    return renderAdminLayout('fares', content, '요금 관리');
+    return renderAdminLayout('fares', content + specialDiscountSection, '요금 관리');
   };
 
   // 특별할인 토글

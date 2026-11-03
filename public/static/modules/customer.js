@@ -639,85 +639,36 @@ ${noticeBannerHtml}
         </div>
       </div>
 
-      <!-- 특별할인 선택 (회차 선택 직후) -->
-      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="special-section">
+      <!-- 특별할인 선택 - API 기반 동적 렌더링 -->
+      <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm" id="special-section" style="display:none">
         <h2 class="font-bold text-navy-800 text-lg mb-4">🎫 특별할인 <span class="text-xs font-normal text-gray-500">(해당자만 / 현장 서류 확인 필수)</span></h2>
-        <div class="bg-green-50 border border-green-200 rounded-xl p-4">
-          <div class="text-xs text-green-700 font-semibold mb-1">아래 대상자 10% 할인 — 탑승 시 관련 서류 지참 필수</div>
-          <div class="text-xs text-gray-500 mb-3">서류 미제출 시 할인 취소, 차액 현장 결제</div>
-
-          <!-- 제복공무원 그룹 -->
-          <div class="mb-3">
-            <div class="text-xs font-bold text-indigo-700 mb-1">🪖 제복공무원 <span class="font-normal text-gray-500">(본인 + 직계가족 포함)</span></div>
-            <div class="text-xs text-gray-400 mb-2">필요서류: 공무원증 + 주민등록등본 또는 가족관계증명서</div>
-            <div class="grid grid-cols-3 gap-2">
-              <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="military" class="accent-indigo-500"> <span class="text-sm">🪖 군인</span>
-              </label>
-              <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="police" class="accent-indigo-500"> <span class="text-sm">👮 경찰</span>
-              </label>
-              <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-indigo-100 cursor-pointer hover:border-indigo-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="fire" class="accent-indigo-500"> <span class="text-sm">🚒 소방</span>
-              </label>
-            </div>
-            <!-- 제복공무원 가족 할인 안내 -->
-            <div id="family-discount-area" class="hidden mt-3 bg-indigo-50 border border-indigo-200 rounded-xl p-3">
-              <div class="text-xs font-semibold text-indigo-700 mb-2">👨‍👩‍👧‍👦 직계가족 전원 10% 할인 적용</div>
-              <div class="bg-white border border-indigo-100 rounded-lg px-3 py-2.5 text-xs text-gray-700 leading-relaxed mb-2">
-                본인을 포함한 <strong>직계가족 모두</strong>에게 10% 할인이 적용됩니다.
-              </div>
-              <div class="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-800">
-                <div class="font-bold mb-1">📋 탑승 시 현장 제출 서류 (필수)</div>
-                <div>· 공무원 신분증 (군인증 / 경찰증 / 소방관증)</div>
-                <div>· 주민등록등본 또는 가족관계증명서</div>
-                <div class="mt-1 text-yellow-900">⚠️ 서류 미제출 시 할인 취소 후 차액 현장 결제</div>
-              </div>
-            </div>
+        <div id="special-discount-list" class="space-y-2">
+          <div class="text-sm text-gray-400 text-center py-4">특별할인 정보를 불러오는 중...</div>
+        </div>
+        <!-- 다자녀 인원 입력 (필요 시 표시) -->
+        <div id="multi-child-input" class="hidden mt-2 space-y-2 border-t pt-3">
+          <div class="text-xs text-gray-500 mb-2">고등학생 이하 자녀만 해당 (합계 3명 이상)</div>
+          <div class="flex gap-2 items-center">
+            <label class="text-xs text-gray-600 w-20 flex-shrink-0">청소년 자녀<br><span style="color:#9ca3af;font-size:10px;">중학생~고등학생</span></label>
+            <input type="number" id="inp-youth-count" min="0" value="0" placeholder="0" oninput="CustomerPages.updateSummary()"
+              class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+            <span class="text-xs text-gray-400">명</span>
           </div>
-
-          <!-- 다자녀 가정 -->
-          <div class="border-t border-green-200 pt-3 mb-2">
-            <div class="text-xs font-bold text-green-700 mb-1">👨‍👩‍👧‍👦 다자녀 가정 <span class="font-normal text-gray-500">(부모 최대 2명 + 자녀 전원 할인)</span></div>
-            <div class="text-xs text-gray-400 mb-2">필요서류: 가족관계증명서</div>
-            <div class="grid grid-cols-1 gap-2">
-              <label class="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100 cursor-pointer hover:border-green-400 transition" onclick="CustomerPages.onSpecialDiscountChange()">
-                <input type="radio" name="special_discount" value="multi_child" class="accent-green-500"> <span class="text-sm">👨‍👩‍👧‍👦 다자녀가정 (3자녀 이상)</span>
-              </label>
-            </div>
-            <!-- 다자녀 자녀수 + 부모수 입력 -->
-            <div id="multi-child-input" class="hidden mt-2 space-y-2">
-              <div class="text-xs text-gray-500 mb-2">고등학생 이하 자녀만 해당 (합계 3명 이상)</div>
-              <div class="flex gap-2 items-center">
-                <label class="text-xs text-gray-600 w-20 flex-shrink-0">청소년 자녀<br><span style="color:#9ca3af;font-size:10px;">중학생~고등학생</span></label>
-                <input type="number" id="inp-youth-count" min="0" value="0" placeholder="0"
-                  oninput="CustomerPages.updateSummary()"
-                  class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
-                <span class="text-xs text-gray-400">명</span>
-              </div>
-              <div class="flex gap-2 items-center">
-                <label class="text-xs text-gray-600 w-20 flex-shrink-0">어린이 자녀<br><span style="color:#9ca3af;font-size:10px;">초등학생 이하</span></label>
-                <input type="number" id="inp-child-count" min="0" value="0" placeholder="0"
-                  oninput="CustomerPages.updateSummary()"
-                  class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
-                <span class="text-xs text-gray-400">명</span>
-              </div>
-              <div class="flex gap-2 items-center">
-                <label class="text-xs text-gray-600 w-20 flex-shrink-0">부모 수</label>
-                <select id="inp-parent-count" onchange="CustomerPages.updateSummary()"
-                  class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 outline-none bg-white">
-                  <option value="1">1명 (한부모)</option>
-                  <option value="2" selected>2명 (양부모)</option>
-                </select>
-              </div>
-              <div class="text-xs rounded-lg px-3 py-2" id="multi-child-preview" style="background:#eff6ff;color:#1e40af;"></div>
-            </div>
+          <div class="flex gap-2 items-center">
+            <label class="text-xs text-gray-600 w-20 flex-shrink-0">어린이 자녀<br><span style="color:#9ca3af;font-size:10px;">초등학생 이하</span></label>
+            <input type="number" id="inp-child-count" min="0" value="0" placeholder="0" oninput="CustomerPages.updateSummary()"
+              class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+            <span class="text-xs text-gray-400">명</span>
           </div>
-
-          <!-- 해당없음 -->
-          <label class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer" onclick="CustomerPages.onSpecialDiscountChange()">
-            <input type="radio" name="special_discount" value="" checked class="accent-gray-400"> <span class="text-sm text-gray-500">해당 없음</span>
-          </label>
+          <div class="flex gap-2 items-center">
+            <label class="text-xs text-gray-600 w-20 flex-shrink-0">부모 수</label>
+            <select id="inp-parent-count" onchange="CustomerPages.updateSummary()"
+              class="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+              <option value="1">1명 (한부모)</option>
+              <option value="2" selected>2명 (양부모)</option>
+            </select>
+          </div>
+          <div class="text-xs rounded-lg px-3 py-2" id="multi-child-preview" style="background:#eff6ff;color:#1e40af;"></div>
         </div>
       </div>
 
@@ -1170,20 +1121,8 @@ ${Footer.render()}
     });
     CustomerPages.renderCalendar(new Date());
 
-    // 특별할인 로드 후 hint box 업데이트
-    API.get(`/api/special-discounts?regionId=${regionId}`).then(sdRes => {
-      const sds = (sdRes.data || []).filter(s => s.is_active);
-      const hintEl = document.getElementById('fare-hint-box');
-      if (!hintEl) return;
-      const infants = (region.fares||[]).find(f=>f.type==='infant');
-      const lines = [];
-      if (infants) lines.push(`${infants.label}: 무료(좌석 미제공)`);
-      sds.forEach(s => lines.push(`${s.name}: 현장 ${s.proof_required||'증빙'} 확인`));
-      hintEl.innerHTML = lines.length
-        ? `<i class="fas fa-info-circle mr-1"></i> ${lines.join(' &nbsp;&middot;&nbsp; ')}`
-        : '';
-      if (!lines.length) hintEl.style.display='none';
-    }).catch(()=>{});
+    // 특별할인 API 로드 → #special-section 동적 렌더링
+    CustomerPages._loadSpecialDiscounts(regionId, region);
 
     // FAQ 로드
     API.get(`/api/faq?region=${region.id}`).then(res => {
@@ -1198,6 +1137,70 @@ ${Footer.render()}
           <div class="hidden p-4 pt-0 text-sm text-gray-600 leading-relaxed">A. ${f.a}</div>
         </div>`).join('');
     });
+  },
+
+  // 특별할인 API 조회 + #special-section 동적 렌더링
+  _loadSpecialDiscounts: async (regionId, region) => {
+    const sectionEl = document.getElementById('special-section');
+    const listEl = document.getElementById('special-discount-list');
+    if (!sectionEl || !listEl) return;
+
+    let sds = [];
+    let apiError = false;
+    try {
+      const sdRes = await API.get(`/api/special-discounts?regionId=${regionId}`);
+      sds = (sdRes.data || []).filter(s => s.is_active);
+    } catch(e) {
+      apiError = true;
+    }
+
+    // API 오류 시: 영역 숨김 + 안내 없음 (default 사용 안 함)
+    if (apiError) {
+      sectionEl.style.display = 'none';
+      return;
+    }
+
+    // 활성 할인 없으면 영역 전체 숨김
+    if (sds.length === 0) {
+      sectionEl.style.display = 'none';
+      return;
+    }
+
+    // 활성 할인 있으면 렌더링
+    sectionEl.style.display = '';
+    CustomerPages._specialDiscounts = sds; // 이후 쫼 계산에 사용
+
+    const sdHtml = sds.map(s => {
+      const isMultiChild = s.target_type === 'family' || s.id === 'sd-multi-child';
+      const emoji = s.name.includes('군인') ? '🪧' : s.name.includes('경찰') ? '👮' : s.name.includes('소방') ? '🚒' : s.name.includes('다자녀') ? '👨\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66' : '✨';
+      return `
+        <label class="flex items-start gap-3 p-3 bg-white rounded-xl border border-gray-200 cursor-pointer hover:border-blue-300 transition" onclick="CustomerPages.onSpecialDiscountChange()">
+          <input type="radio" name="special_discount" value="${s.id}" class="accent-indigo-500 mt-0.5 flex-shrink-0" ${isMultiChild ? 'data-multi-child="1"' : ''}>
+          <div class="flex-1">
+            <div class="font-medium text-sm">${emoji} ${s.name}
+              <span class="ml-2 text-xs font-bold text-blue-700">${s.discount_type==='rate' ? s.discount_value+'% 할인' : Utils.money(s.discount_value)+' 할인'}</span>
+            </div>
+            ${s.conditions ? `<div class="text-xs text-gray-500 mt-0.5">${s.conditions}</div>` : ''}
+            ${s.proof_required ? `<div class="text-xs text-amber-700 mt-1"><i class="fas fa-file-alt mr-1"></i>현장 ${s.proof_required} 확인</div>` : ''}
+          </div>
+        </label>`;
+    }).join('');
+
+    listEl.innerHTML = sdHtml + `
+      <label class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer" onclick="CustomerPages.onSpecialDiscountChange()">
+        <input type="radio" name="special_discount" value="" checked class="accent-gray-400"> <span class="text-sm text-gray-500">해당 없음</span>
+      </label>`;
+
+    // hint box 업데이트
+    const hintEl = document.getElementById('fare-hint-box');
+    if (hintEl) {
+      const infants = (region.fares||[]).find(f=>f.type==='infant');
+      const lines = [];
+      if (infants) lines.push(`${infants.label}: 무료(좌석 미제공)`);
+      sds.forEach(s => lines.push(`${s.name}: 현장 ${s.proof_required||'증빙'} 확인`));
+      hintEl.innerHTML = lines.length ? `<i class="fas fa-info-circle mr-1"></i> ${lines.join(' &nbsp;&middot;&nbsp; ')}` : '';
+      if (!lines.length) hintEl.style.display='none';
+    }
   },
 
   _calCurrentDate: new Date(),
@@ -1414,25 +1417,15 @@ ${Footer.render()}
 
   onSpecialDiscountChange: () => {
     const selected = document.querySelector('input[name="special_discount"]:checked')?.value || '';
-    const familyArea    = document.getElementById('family-discount-area');
     const multiChildInput = document.getElementById('multi-child-input');
-    const isUniform     = CustomerPages._UNIFORM_TYPES.includes(selected);
 
-    // 제복공무원 → 가족 할인 안내 표시
-    if (familyArea) {
-      if (isUniform) familyArea.classList.remove('hidden');
-      else           familyArea.classList.add('hidden');
-    }
-
-    // 다자녀 → 자녀수 입력 표시
+    // 선택된 할인이 multi-child 유형이면 자녀 수 입력 표시
+    const selectedEl = document.querySelector('input[name="special_discount"]:checked');
+    const isMultiChild = selectedEl?.dataset?.multiChild === '1' || selected === 'multi_child' || selected === 'sd-multi-child';
     if (multiChildInput) {
-      if (selected === 'multi_child') multiChildInput.classList.remove('hidden');
-      else { multiChildInput.classList.add('hidden'); }
+      if (isMultiChild) multiChildInput.classList.remove('hidden');
+      else multiChildInput.classList.add('hidden');
     }
-
-    // 다자녀 아닌 경우 inp-special-id 초기화
-    const inp = document.getElementById('inp-special-id');
-    if (inp && selected !== 'multi_child') inp.value = '';
 
     CustomerPages.updateSummary();
   },
@@ -1474,20 +1467,19 @@ ${Footer.render()}
         discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">⚠️ 단체할인과 특별할인은 중복 적용되지 않습니다.</div>`;
       }
     } else {
-    // 특별할인 단독 계산 시작
-    const specialLabelMap = {
-      military: '🪖 군인', police: '👮 경찰',
-      fire: '🚒 소방공무원', multi_child: '👨‍👩‍👧‍👦 다자녀가정',
-    };
+    // 특별할인 단독 계산 시작 (API 데이터 기반)
+    const activeDiscounts = CustomerPages._specialDiscounts || [];
+    const selectedSd = activeDiscounts.find(s => s.id === specialType);
     // 특별할인 계산
-    const isMultiChild = specialType === 'multi_child';
-    if (isMultiChild) {
+    const sdIsMultiChild = selectedSd ? (selectedSd.target_type === 'family') : false;
+    if (sdIsMultiChild && selectedSd) {
       // 다자녀: 청소년+어린이 자녀 합산
       const youthCount = parseInt(document.getElementById('inp-youth-count')?.value || '0');
       const childCount2 = parseInt(document.getElementById('inp-child-count')?.value || '0');
       const totalChildCount = youthCount + childCount2;
       const parentCount = Math.min(2, parseInt(document.getElementById('inp-parent-count')?.value || '2'));
       const preview = document.getElementById('multi-child-preview');
+      const sdRate = sdIsMultiChild ? (selectedSd.discount_value || 20) : 20;
 
       if (totalChildCount < 3) {
         CustomerPages._state.specialDiscount = null;
@@ -1495,20 +1487,16 @@ ${Footer.render()}
         discountHtml += `<div style="margin-top:4px;padding:6px 10px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;color:#92400e;">👨‍👩‍👧‍👦 ${childMsg}</div>`;
         if (preview) { preview.style.background='#fef3c7'; preview.style.color='#92400e'; preview.textContent=childMsg; }
       } else {
-        const sdRate = 10;
         const fares = CustomerPages._state.fares;
-        // 타입별 요금 및 실제 예약 수
         const adultPrice  = Object.values(fares).find(f=>f.type==='adult')?.price  || 0;
         const youthPrice  = Object.values(fares).find(f=>f.type==='youth')?.price  || 0;
         const childPrice2 = Object.values(fares).find(f=>f.type==='child')?.price  || 0;
         const adultBooked = Object.values(fares).find(f=>f.type==='adult')?.count  || 0;
         const youthBooked = Object.values(fares).find(f=>f.type==='youth')?.count  || 0;
         const childBooked = Object.values(fares).find(f=>f.type==='child')?.count  || 0;
-        // 할인 인원: 입력값과 실제 예약 수 중 작은 값
         const eligibleParent = Math.min(parentCount, adultBooked);
         const eligibleYouth  = Math.min(youthCount,  youthBooked);
         const eligibleChild  = Math.min(childCount2, childBooked);
-        // 할인금액 = 실제 할인 대상 인원 요금의 10%
         const sdAmount = Math.floor(
           (eligibleParent * adultPrice + eligibleYouth * youthPrice + eligibleChild * childPrice2) * sdRate / 100
         );
@@ -1520,7 +1508,7 @@ ${Footer.render()}
         const noteStr = `부모${eligibleParent}+청소년${eligibleYouth}+어린이${eligibleChild}=${discountPersons}명${overMsg}`;
         discountHtml += `
           <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
-            <span>👨‍👩‍👧‍👦 다자녀 할인 ${sdRate}% (${noteStr}) <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
+            <span>👨‍👩‍👧‍👦 ${selectedSd.name} ${sdRate}% (${noteStr}) <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
             <span style="font-weight:700;">-₩${Utils.num(sdAmount)}</span>
           </div>`;
         if (preview) {
@@ -1533,29 +1521,27 @@ ${Footer.render()}
           }
         }
       }
-    } else if (specialType && specialLabelMap[specialType]) {
-      const sdRate = 10;
-      const isUniform = CustomerPages._UNIFORM_TYPES.includes(specialType);
+    } else if (specialType && selectedSd) {
+      const sdRate = selectedSd.discount_type === 'rate' ? selectedSd.discount_value : null;
+      const sdAmountFixed = selectedSd.discount_type === 'amount' ? selectedSd.discount_value : null;
+      const targetAll = selectedSd.target_type === 'self' ? false : true; // 'family': 전원, 'self': 본인 1명
       let sdAmount, discountPersons, familyNote;
-      if (false) { // placeholder for structure
-      } else if (isUniform) {
-        // 제복공무원: 전체 인원 할인
+      if (targetAll) {
         discountPersons = pax;
-        sdAmount = Math.floor(finalTotal * sdRate / 100);
+        sdAmount = sdRate ? Math.floor(finalTotal * sdRate / 100) : Math.min(sdAmountFixed, finalTotal);
         familyNote = ` (전원 ${pax}명)`;
       } else {
-        // 개인: 본인 1명만
         discountPersons = 1;
         const perPerson = pax > 0 ? Math.round(finalTotal / pax) : finalTotal;
-        sdAmount = Math.floor(perPerson * sdRate / 100);
+        sdAmount = sdRate ? Math.floor(perPerson * sdRate / 100) : Math.min(sdAmountFixed, perPerson);
         familyNote = ' (본인 1명)';
       }
-
       finalTotal = finalTotal - sdAmount;
-      CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount, familyCount: discountPersons, isUniform };
+      CustomerPages._state.specialDiscount = { type: specialType, rate: sdRate, amount: sdAmount, familyCount: discountPersons, isUniform: targetAll };
+      const rateLabel = sdRate ? `${sdRate}%` : Utils.money(sdAmountFixed);
       discountHtml += `
         <div style="margin-top:4px;padding:6px 10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;">
-          <span>${specialLabelMap[specialType]} 할인 ${sdRate}%${familyNote} <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
+          <span>${selectedSd.name} 할인 ${rateLabel}${familyNote} <span style="color:#f59e0b;font-size:11px;">⚠️현장확인</span></span>
           <span style="font-weight:700;">-₩${Utils.num(sdAmount)}</span>
         </div>`;
     } else {
@@ -1577,7 +1563,8 @@ ${Footer.render()}
 
     // 다자녀 인원 불일치 시 결제버튼 비활성화
     const payBtn = document.getElementById('pay-btn');
-    const multiChildType = document.querySelector('input[name="special_discount"]:checked')?.value === 'multi_child';
+    const selectedSd2 = (CustomerPages._specialDiscounts||[]).find(s=>s.id===document.querySelector('input[name="special_discount"]:checked')?.value);
+    const multiChildType = selectedSd2?.target_type === 'family';
     if (multiChildType && payBtn) {
       const yc = parseInt(document.getElementById('inp-youth-count')?.value||'0');
       const cc = parseInt(document.getElementById('inp-child-count')?.value||'0');
@@ -1671,7 +1658,8 @@ ${Footer.render()}
     if (!s.scheduleId) { Utils.toast('회차를 선택해주세요', 'warning'); return; }
     if (pax === 0) { Utils.toast('탑승 인원을 선택해주세요', 'warning'); return; }
     // 다자녀 인원 검증
-    if (document.querySelector('input[name="special_discount"]:checked')?.value === 'multi_child') {
+    const _sdVal2 = (CustomerPages._specialDiscounts||[]).find(s=>s.id===document.querySelector('input[name="special_discount"]:checked')?.value);
+    if (_sdVal2?.target_type === 'family') {
       const yc = parseInt(document.getElementById('inp-youth-count')?.value||'0');
       const cc = parseInt(document.getElementById('inp-child-count')?.value||'0');
       const pc = Math.min(2, parseInt(document.getElementById('inp-parent-count')?.value||'2'));
