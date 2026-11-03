@@ -161,6 +161,8 @@ const Router = (() => {
 
 // ── 유틸리티 ────────────────────────────────────────────────
 const Utils = {
+  // HTML 이스케이프 (XSS 방지)
+  escHtml: (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
   // 숫자 포맷
   money: (n) => Number(n||0).toLocaleString('ko-KR') + '원',
   num:   (n) => Number(n||0).toLocaleString('ko-KR'),
@@ -603,9 +605,9 @@ const Footer = {
             <li><a href="/notice" data-link class="footer-link hover:text-white transition-colors">공지사항</a></li>
           </ul>
           <div class="mt-4">
-            <div style="color:#fff;font-weight:700;font-size:0.875rem">본사 대표번호</div>
-            <div class="footer-phone">1588-0000</div>
-            <div class="footer-hours">평일 09:00~18:00</div>
+            <div style="color:#fff;font-weight:700;font-size:0.875rem">고객센터 / 예매문의</div>
+            <div class="footer-phone">041-408-8777</div>
+            <div class="footer-hours">운영시간 09:00~18:00 (점심 12~13시)</div>
           </div>
         </div>
       </div>

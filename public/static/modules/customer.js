@@ -1603,34 +1603,41 @@ ${Footer.render()}
     Utils.toast('전체 동의 처리되었습니다', 'success');
   },
 
-  termsModal: () => {
-    const terms = Settings.get('terms');
+  _fetchTerms: async () => {
+    // 서버 DB 약관 우선 (/api/settings/terms), fallback = localStorage
+    try {
+      const r = await API.get('/api/settings/terms');
+      const data = r.data;
+      if (data && typeof data === 'object') return data;
+    } catch(e) {}
+    return Settings.get('terms') || {};
+  },
+
+  termsModal: async () => {
+    const terms = await CustomerPages._fetchTerms();
     Utils.modal(`
       <div class="modal-header"><h3 class="font-bold">이용약관</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
       <div class="modal-body space-y-4">
-        <div><h4 class="font-bold text-navy-800 mb-2">서비스 이용약관</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.serviceTerms || '아쿠아모빌리티코리아 서비스 이용약관\n\n수정 중입니다. 관리자에게 문의해 주세요.'}</pre></div>
-        <div><h4 class="font-bold text-navy-800 mb-2">안전 수칙</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.safetyRules || '안전 수칙 수정 중입니다.'}</pre></div>
-        <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">⚠️ 현재 시스템 테스트 단계입니다. 정식 약관은 오픈 전 최종 확정 후 게시됩니다.</div>
+        <div><h4 class="font-bold text-navy-800 mb-2">서비스 이용약관</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl" style="max-height:60vh;overflow-y:auto">${Utils.escHtml(terms.serviceTerms || '')}</pre></div>
+        <div><h4 class="font-bold text-navy-800 mb-2">안전 수칙</h4><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${Utils.escHtml(terms.safetyRules || '')}</pre></div>
       </div>`);
   },
 
-  privacyModal: () => {
-    const terms = Settings.get('terms');
+  privacyModal: async () => {
+    const terms = await CustomerPages._fetchTerms();
     Utils.modal(`
       <div class="modal-header"><h3 class="font-bold">개인정보처리방침</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
       <div class="modal-body space-y-4">
-        <div><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.privacyPolicy || '개인정보처리방침 수정 중입니다.\n\n▶ 수집 항목: 성명, 휴대폰번호, 이메일(선택)\n▶ 이용 목적: 예약 확인 및 탑승 안내\n▶ 보유 기간: 서비스 종료 후 1년\n\n관리자에게 문의하시면 상세 내용을 안내해 드립니다.'}</pre></div>
-        <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">⚠️ 보유기간 등 세부 기재사항은 정식 오픈 전 안전자에게 검토 후 확정 예정입니다.</div>
+        <div><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl" style="max-height:70vh;overflow-y:auto">${Utils.escHtml(terms.privacyPolicy || '')}</pre></div>
       </div>`);
   },
 
-  refundModal: () => {
-    const terms = Settings.get('terms');
+  refundModal: async () => {
+    const terms = await CustomerPages._fetchTerms();
     Utils.modal(`
       <div class="modal-header"><h3 class="font-bold">환불규정</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
       <div class="modal-body space-y-4">
-        <div><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${terms.refundPolicy || '환불 규정 수정 중입니다.\n\n▶ 탑승 7일 전: 전액 환불\n▶ 탑승 3일 전: 90% 환불\n▶ 탑승 1일 전: 50% 환불\n▶ 당일: 환불 불가\n\n사항이 확정되지 않은 항목은 정식 오픈 전 검토 예정입니다.'}</pre></div>
-        <div class="bg-amber-50 rounded-xl p-3 text-xs text-amber-700">⚠️ 정식 오픈 전 환불 조건이 변경될 수 있습니다. 확정된 기준은 관리자에게 문의해 주세요.</div>
+        <div><pre class="text-sm text-gray-600 whitespace-pre-line bg-gray-50 p-3 rounded-xl">${Utils.escHtml(terms.refundPolicy || '')}</pre></div>
       </div>`);
   },
 
