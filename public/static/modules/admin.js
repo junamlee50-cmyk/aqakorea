@@ -2508,9 +2508,10 @@ const AdminModule = (() => {
         </td>
         <td class="px-4 py-3 text-center">
           <button onclick="AdminModule.editFare('${activeRegionId}', ${i})" class="text-blue-600 hover:underline text-xs mr-2">수정</button>
-          <button onclick="AdminModule.toggleFareStatus('${activeRegionId}', ${i})" class="text-gray-500 hover:underline text-xs">
+          <button onclick="AdminModule.toggleFareStatus('${activeRegionId}', ${i})" class="text-gray-500 hover:underline text-xs mr-2">
             ${(f.status||'active')==='active'?'비활성화':'활성화'}
           </button>
+          <button onclick="AdminModule.requestDeleteFare('${activeRegionId}', ${i})" class="text-red-400 hover:text-red-600 hover:underline text-xs">삭제</button>
         </td>
       </tr>`).join('');
 
@@ -2525,6 +2526,7 @@ const AdminModule = (() => {
           <td class="px-4 py-3 text-sm font-medium">
             ${a.fare_label||a.label||'-'}
             ${isSuper ? `<div class="text-xs text-blue-500 mt-0.5">${regionLabel}</div>` : ''}
+            <div class="text-xs mt-0.5">${{add:'<span class="text-green-600">➕ 신규추가</span>', update:'<span class="text-blue-600">✏️ 수정</span>', delete:'<span class="text-red-600">🗑 삭제요청</span>'}[a.action_type]||'✏️ 수정'}</div>
           </td>
           <td class="px-4 py-3 text-sm text-center text-gray-500">${a.fare_type||a.type||'일반'}</td>
           <td class="px-4 py-3 text-right font-semibold">${oldP}₩${(a.new_price||a.price||0).toLocaleString()}</td>
@@ -2562,6 +2564,9 @@ const AdminModule = (() => {
                 <i class="fas fa-bolt"></i>즉시적용 권한 부여
               </button>
             ` : (hasInstantPerm ? `<span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full"><i class="fas fa-bolt mr-1"></i>즉시 적용 권한 있음</span>` : '')}
+            <button onclick="AdminModule.viewArchivedFares('${activeRegionId}')" class="border px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 flex items-center gap-1">
+              <i class="fas fa-archive text-gray-400"></i>삭제/보관 목록
+            </button>
             <button onclick="AdminModule.addFare('${activeRegionId}')"
               class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center gap-2">
               <i class="fas fa-plus"></i>요금 추가
@@ -2878,6 +2883,9 @@ const AdminModule = (() => {
     const saveBtn = document.getElementById('fare-save-btn');
     if (saveBtn) saveBtn.textContent = (hasInstant || fareMode === 'auto') ? '저장' : '승인 요청';
     document.getElementById('fare-modal').classList.remove('hidden');
+    // 신규 추가 시 원본 ID 초기화
+    const hid = document.getElementById('f-original-fare-id');
+    if (hid) hid.value = '';
   };
 
   const editFare = async (regionId, idx) => {
@@ -2898,10 +2906,13 @@ const AdminModule = (() => {
     document.getElementById('f-label').value = f.label || '';
     document.getElementById('f-price').value = f.price || 0;
     document.getElementById('f-discount').value = f.discountPrice || '';
-    // oldPrice를 hidden input에 보관
+    // oldPrice + 원본 fareId를 hidden input에 보관
     let hiddenOld = document.getElementById('f-old-price');
     if (!hiddenOld) { hiddenOld = document.createElement('input'); hiddenOld.type='hidden'; hiddenOld.id='f-old-price'; document.getElementById('fare-modal').appendChild(hiddenOld); }
     hiddenOld.value = f.price || 0;
+    let hiddenFareId = document.getElementById('f-original-fare-id');
+    if (!hiddenFareId) { hiddenFareId = document.createElement('input'); hiddenFareId.type='hidden'; hiddenFareId.id='f-original-fare-id'; document.getElementById('fare-modal').appendChild(hiddenFareId); }
+    hiddenFareId.value = f.id || '';
   };
 
   const saveFare = async () => {
@@ -2943,20 +2954,32 @@ const AdminModule = (() => {
       await _setFares(regionId, fares);
       Utils.toast('요금이 즉시 저장되었습니다. 고객 예약화면에 반영됩니다.', 'success');
     } else {
-      // ★ 승인 요청 — DB API로 저장 (슈퍼관리자 로그인 시 즉시 확인)
+      // ★ 승인 요청 — actionType 구분: add(신규) / update(수정) / delete(삭제)
+      const isEdit = _editingFareIdx !== null;
+      const originalFareId = document.getElementById('f-original-fare-id')?.value || '';
+      const actionType = isEdit ? 'update' : 'add';
+
+      // 수정 시 원본 ID 확인
+      if (actionType === 'update' && !originalFareId) {
+        Utils.toast('원본 요금 ID를 찾을 수 없습니다. 페이지를 새로고침 후 다시 시도하세요.', 'error');
+        return;
+      }
+
       Utils.loading(true);
       const approvalRes = await API.post('/api/fares/approvals', {
         regionId,
-        fareId: newFare.id || ('fare-' + Date.now()),
+        fareId: originalFareId || ('new-' + Date.now()),
         fareLabel: newFare.label,
         fareType: newFare.type,
-        oldPrice: _editingFareIdx !== null ? (parseInt(document.getElementById('f-old-price')?.value)||null) : null,
+        oldPrice: isEdit ? (parseInt(document.getElementById('f-old-price')?.value)||null) : null,
         newPrice: newFare.price,
         discountPrice: newFare.discountPrice || null,
         reason: newFare.reason || '',
         requestedBy: user.name || '지역관리자',
         effectiveFrom: newFare.effectiveFrom || null,
         effectiveTo: newFare.effectiveTo || null,
+        actionType,
+        originalFareId: originalFareId || null,
       });
       Utils.loading(false);
       if (approvalRes.success) {
@@ -2982,6 +3005,47 @@ const AdminModule = (() => {
     } else {
       Utils.toast('철회 실패: ' + (res.message||''), 'error');
     }
+  };
+
+  // 삭제 요청 (승인 흐름) 또는 즉시 삭제 (슈퍼)
+  const requestDeleteFare = async (regionId, idx) => {
+    const fares = await _getFares(regionId + '?all=1');
+    const f = fares[idx]; if (!f) return;
+    const user = _adminState.user || {};
+    const isSuper = user.role === 'super';
+    const fareMode = window._fareChangeMode || 'approval';
+
+    if (isSuper && fareMode === 'auto') {
+      const ok = await Utils.confirm(`<b>${f.label}</b> 요금을 삭제하시겠습니까?<br><span class="text-xs text-gray-500">기존 예약 기록은 보관됩니다.</span>`);
+      if (!ok) return;
+      const res = await API.delete(`/api/fares/${regionId}/${f.id}`);
+      if (res.success) { Utils.toast('삭제(\uBCF4관) 처리되었습니다', 'success'); }
+      else { Utils.toast('삭제 실패: '+(res.message||''), 'error'); return; }
+    } else {
+      const reason = await Utils.prompt(`<b>${f.label}</b> 삭제 요청 사유를 입력하세요`, '');
+      if (!reason) return;
+      const res = await API.post('/api/fares/approvals', {
+        regionId, fareLabel: f.label, fareType: f.type,
+        oldPrice: f.price, newPrice: f.price,
+        reason, requestedBy: user.name || '지역관리자',
+        actionType: 'delete', originalFareId: f.id,
+      });
+      if (res.success) { Utils.toast('삭제 승인 요청이 접수되었습니다', 'info'); }
+      else { Utils.toast('요청 실패: '+(res.message||''), 'error'); return; }
+    }
+    faresPage().then(html => { document.getElementById('app').innerHTML = html; });
+  };
+
+  // 보관(archived) 요금 목록 보기
+  const viewArchivedFares = async (regionId) => {
+    const res = await API.get(`/api/fares/${regionId}?archived=1&all=1`);
+    const archived = (res.data||[]).filter(f=>f.status==='archived');
+    if (!archived.length) { Utils.toast('보관된 요금이 없습니다', 'info'); return; }
+    const rows = archived.map(f => `<tr><td class="px-3 py-2 text-sm">${f.label}</td><td class="px-3 py-2 text-sm">${Utils.money(f.price)}</td><td class="px-3 py-2 text-xs text-gray-400">${(f.archivedAt||'').slice(0,10)}</td><td class="px-3 py-2 text-xs text-gray-400">${f.archivedReason||'-'}</td></tr>`).join('');
+    Utils.modal(`<div class="modal-header"><h3 class="font-bold">삭제/보관 요금 목록</h3><button onclick="Utils.closeModal()" class="text-gray-400">&times;</button></div>
+      <div class="overflow-x-auto mt-4"><table class="admin-table w-full"><thead><tr><th class="px-3 py-2">구분명</th><th class="px-3 py-2">정가</th><th class="px-3 py-2">보관일</th><th class="px-3 py-2">사유</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="mt-4 text-xs text-gray-400">물리 삭제되지 않아 기존 예약 참조가 유지됩니다.</div>
+      <button onclick="Utils.closeModal()" class="mt-4 w-full border py-2 rounded-lg text-sm">닫기</button>`);
   };
 
   // 요금 활성/비활성 토글
@@ -8459,6 +8523,7 @@ const backupPage = async () => {
     switchRecMode, calcRecAutoTimes,
     selectFareRegion, setFareMode, addFare, editFare, saveFare,
     grantInstantPerm, toggleFareStatus, approvefare, cancelFareApproval,
+    requestDeleteFare, viewArchivedFares,
     toggleSpecialDiscount, addSpecialDiscount, editSpecialDiscount, saveSpecialDiscount,
     updateSeatRatio, saveSeatRatio, saveGroupDiscount, saveSensConfig, testSms, _doTestSms,
     showWristbandDetail, searchWristbands, voidWristband, _doVoidWristband, scanCheckWristband, reissueWristband, _doReissueWristband,
