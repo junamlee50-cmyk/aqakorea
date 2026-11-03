@@ -181,6 +181,11 @@ app.get('/googlee9064f654e79faa3.html', (c) => {
   });
 });
 
+// IndexNow 키 파일 (Bing / 네이버 색인 요청 프로토콜)
+app.get('/e90d7f011f9a093356e5bf50b5961d8a.txt', (c) => {
+  return c.text('e90d7f011f9a093356e5bf50b5961d8a', 200, { 'Content-Type': 'text/plain; charset=utf-8' });
+});
+
 // robots.txt
 // ============================================================
 app.get('/robots.txt', (c) => {
@@ -192,6 +197,10 @@ Allow: /notice
 Allow: /about
 Allow: /inquiry
 Allow: /content/
+Allow: /amphibious-bus
+Allow: /buyeo-amphibious-bus
+Allow: /tongyeong-amphibious-bus
+Allow: /busan-amphibious-bus
 
 Disallow: /admin
 Disallow: /admin/
@@ -205,8 +214,10 @@ Disallow: /reservation/detail/
 Disallow: /booking-check
 Disallow: /field
 Disallow: /stats
+Disallow: /qr/
 
 Sitemap: ${SEO_CONFIG.siteUrl}/sitemap.xml
+Sitemap: ${SEO_CONFIG.siteUrl}/sitemap-index.xml
 `
   return c.text(txt, 200, { 'Content-Type': 'text/plain; charset=utf-8' })
 })
@@ -216,28 +227,53 @@ Sitemap: ${SEO_CONFIG.siteUrl}/sitemap.xml
 // ============================================================
 app.get('/sitemap.xml', (c) => {
   const today = new Date().toISOString().split('T')[0]
-  // hidden 지역 제외: open + preparing만 sitemap 포함
-  const activeRegions = REGIONS.filter(r => r.status === 'open' || r.status === 'preparing')
+  // hidden 지역 제외: open + preparing만 sitemap 포함 (부산 제외)
+  const activeRegions = REGIONS.filter(r => (r.status === 'open' || r.status === 'preparing') && r.id !== 'busan')
   const regionUrls = activeRegions.map(r => `
   <url>
     <loc>${SEO_CONFIG.siteUrl}/reservation/${r.id}</loc>
+    <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
     <priority>${r.status === 'open' ? '0.9' : '0.5'}</priority>
   </url>`).join('')
 
-  const staticUrls = [...SITEMAP_PAGES.filter(p => !p.url.startsWith('/reservation/')), ...SEARCH_PAGES.map(p => ({url: '/' + p.slug, changefreq: 'monthly', priority: '0.8'}))].map(p => `
+  // SEO 랜딩 페이지 (수륙양용버스 검색어 타겟)
+  const searchPageUrls = SEARCH_PAGES.map(p => `
+  <url>
+    <loc>${SEO_CONFIG.siteUrl}/${p.slug}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>`).join('')
+
+  const staticPages = SITEMAP_PAGES.filter(p => !p.url.startsWith('/reservation/'))
+  const staticUrls = staticPages.map(p => `
   <url>
     <loc>${SEO_CONFIG.siteUrl}${p.url}</loc>
+    <lastmod>${today}</lastmod>
     <changefreq>${p.changefreq}</changefreq>
     <priority>${p.priority}</priority>
   </url>`).join('')
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-  ${staticUrls}
-  ${regionUrls}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${staticUrls}
+${searchPageUrls}
+${regionUrls}
 </urlset>`
+  return c.text(xml, 200, { 'Content-Type': 'application/xml; charset=utf-8' })
+})
+
+// sitemap-index.xml
+app.get('/sitemap-index.xml', (c) => {
+  const today = new Date().toISOString().split('T')[0]
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>${SEO_CONFIG.siteUrl}/sitemap.xml</loc>
+    <lastmod>${today}</lastmod>
+  </sitemap>
+</sitemapindex>`
   return c.text(xml, 200, { 'Content-Type': 'application/xml; charset=utf-8' })
 })
 

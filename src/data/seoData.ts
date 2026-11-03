@@ -17,16 +17,12 @@ export const SEO_CONFIG = {
     url: 'https://aquamobility.co.kr',
     logo: 'https://aquamobility.co.kr/static/logo.png',
     contactPoint: {
-      telephone: '1588-0000',
+      telephone: '041-408-8777',
       contactType: 'customer service',
       areaServed: 'KR',
       availableLanguage: 'Korean',
     },
-    sameAs: [
-      'https://www.instagram.com/aquamobilitykr',
-      'https://www.youtube.com/@aquamobilitykr',
-      'https://blog.naver.com/aquamobilitykr',
-    ],
+    sameAs: [],  // SNS 공식 계정 확정 전 빈 서를 유지
   },
   // 구글/네이버 서치콘솔 소유확인 코드 (관리자에서 수정 가능)
   searchConsole: {
@@ -93,7 +89,7 @@ export const REGION_SEO: Record<string, {
       name: '부여 수륙양용투어',
       description: '부여 백마강에서 즐기는 수륙양용버스 역사문화 투어',
       url: 'https://aquamobility.co.kr/reservation/buyeo',
-      telephone: '041-830-0000',
+      telephone: '041-408-8777',
       address: {
         '@type': 'PostalAddress',
         streetAddress: '구드래로 1',
