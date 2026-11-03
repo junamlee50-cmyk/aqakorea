@@ -470,12 +470,113 @@ app.get('/', (c) => {
 })
 
 // 검색 유입용 공개 안내: 검색로봇과 방문자에게 동일한 실제 본문을 제공합니다.
+// SEO 랜딩 페이지 렌더링 헬퍼
+const renderFareTable = (fares: any[], fareNote: string) => `
+  <section class="mb-10">
+    <h2 class="text-xl font-bold mb-4">이용 요금</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-sm">
+        <thead><tr class="bg-blue-50"><th class="border px-4 py-2 text-left">권종</th><th class="border px-4 py-2 text-right">요금</th></tr></thead>
+        <tbody>${fares.map((f:any) => `<tr><td class="border px-4 py-2">${f.label}</td><td class="border px-4 py-2 text-right">${f.price === 0 ? '무료' : f.price.toLocaleString() + '원'}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <p class="text-xs text-amber-700 mt-2 bg-amber-50 p-2 rounded">⚠️ ${fareNote}</p>
+  </section>`
+
+const renderScheduleBox = (schedules: string[], duration: number, note: string) => `
+  <section class="mb-10">
+    <h2 class="text-xl font-bold mb-4">운행 시간표</h2>
+    <div class="flex flex-wrap gap-2 mb-3">${schedules.map((t:string) => `<span class="bg-blue-100 text-blue-800 px-3 py-1 rounded text-sm">${t}</span>`).join('')}</div>
+    <p class="text-sm text-gray-600">▶ 1회 소요시간: 약 ${duration}분</p>
+    <p class="text-xs text-amber-700 mt-2 bg-amber-50 p-2 rounded">⚠️ ${note}</p>
+  </section>`
+
+const renderInfoBox = (info: any) => `
+  <section class="mb-10 bg-gray-50 rounded-xl p-5">
+    <h2 class="text-xl font-bold mb-4">이용 안내 / 타는 곣</h2>
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+      <div><dt class="font-semibold text-gray-500">운영사</dt><dd>${info.operator || '미정'}</dd></div>
+      <div><dt class="font-semibold text-gray-500">탑승장</dt><dd>${info.boarding || '미정'}</dd></div>
+      <div class="sm:col-span-2"><dt class="font-semibold text-gray-500">주소</dt><dd>${info.address || '미정'}</dd></div>
+      <div><dt class="font-semibold text-gray-500">주차</dt><dd>${info.parking || '미정'}</dd></div>
+      <div><dt class="font-semibold text-gray-500">연락처</dt><dd>${info.phone || (info.phoneNote || '정식 운행 전 미확정')}</dd></div>
+    </dl>
+  </section>`
+
+const renderFaq = (faq: any[]) => `
+  <section class="mb-10">
+    <h2 class="text-xl font-bold mb-4">자주 묻는 질문</h2>
+    <dl class="space-y-4">${faq.map((f:any) => `
+      <div class="bg-white border rounded-xl p-4">
+        <dt class="font-semibold text-gray-800 mb-1">Q. ${f.q}</dt>
+        <dd class="text-sm text-gray-600 leading-relaxed">A. ${f.a}</dd>
+      </div>`).join('')}
+    </dl>
+  </section>`
+
 for (const page of SEARCH_PAGES) {
   app.get('/' + page.slug, (c) => {
     const canonical = searchPageUrl(page.slug)
-    const meta = buildMeta({title: page.title, description: page.description, canonicalUrl: canonical,
-      structuredData: { '@context': 'https://schema.org', '@type': 'WebPage', name: page.title, description: page.description, url: canonical }})
-    return c.html(`<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${meta}<link rel="icon" href="/static/favicon.svg"><link rel="stylesheet" href="/static/vendor/tailwind.min.css"></head><body class="bg-gray-50 text-gray-800"><header class="bg-white p-5 border-b"><a href="/" class="font-bold text-blue-700">아쿠아모빌리티코리아 통합솔루션</a></header><main class="max-w-4xl mx-auto p-6 py-12"><h1 class="text-3xl font-bold mb-8">${page.heading}</h1>${page.paragraphs.map(text => `<p class="mb-6 leading-relaxed">${text}</p>`).join('')}<nav class="flex flex-wrap gap-4 py-6" aria-label="서비스 바로가기">${'reservation' in page ? `<a class="text-blue-700 underline" href="${page.reservation}">지역 예약 시스템 테스트</a>` : ''}<a class="text-blue-700 underline" href="/reservation">통합 예약</a><a class="text-blue-700 underline" href="/inquiry">문의</a><a class="text-blue-700 underline" href="/notice">운영 공지</a></nav>${SEARCH_INTRO}</main></body></html>`)
+    const p = page as any
+    const structuredData: any[] = [
+      { '@context': 'https://schema.org', '@type': 'Organization', name: '아쿠아모빌리티코리아', url: 'https://aquamobility.co.kr', logo: 'https://aquamobility.co.kr/static/logo.png' },
+      { '@context': 'https://schema.org', '@type': 'WebPage', name: page.title, description: page.description, url: canonical },
+    ]
+    if (p.faq) {
+      structuredData.push({ '@context': 'https://schema.org', '@type': 'FAQPage',
+        mainEntity: p.faq.map((f:any) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) })
+    }
+    const meta = buildMeta({ title: page.title, description: page.description, canonicalUrl: canonical, structuredData })
+
+    // 로컬비즈니스 스키마 (info가 있는 지역 페이지)
+    const infoSection = p.info ? renderInfoBox(p.info) : ''
+    const fareSection = p.info?.fares ? renderFareTable(p.info.fares, p.info.fareNote) : ''
+    const schedSection = p.info?.schedules ? renderScheduleBox(p.info.schedules, p.info.duration, p.info.scheduleNote) : ''
+    const faqSection = p.faq ? renderFaq(p.faq) : ''
+
+    const navLinks = [
+      p.reservation ? `<a class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg text-sm" href="${p.reservation}">예약 시스템 테스트</a>` : '',
+      `<a class="inline-block border border-blue-600 text-blue-700 px-4 py-2 rounded-lg text-sm" href="/reservation">통합 예약</a>`,
+      `<a class="inline-block border border-gray-400 text-gray-700 px-4 py-2 rounded-lg text-sm" href="/inquiry">문의</a>`,
+      `<a class="inline-block border border-gray-400 text-gray-700 px-4 py-2 rounded-lg text-sm" href="/notice">운영 공지</a>`,
+    ].filter(Boolean).join('')
+
+    return c.html(`<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${meta}<link rel="icon" href="/static/favicon.svg"><link rel="stylesheet" href="/static/vendor/tailwind.min.css"></head><body class="bg-gray-50 text-gray-800">
+<header class="bg-white border-b sticky top-0 z-10">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="font-bold text-blue-700 text-lg">아쿠아모빌리티코리아</a>
+    <nav class="hidden sm:flex gap-4 text-sm">
+      <a href="/reservation" class="text-gray-600 hover:text-blue-700">예약</a>
+      <a href="/notice" class="text-gray-600 hover:text-blue-700">공지</a>
+      <a href="/inquiry" class="text-gray-600 hover:text-blue-700">문의</a>
+    </nav>
+  </div>
+</header>
+<main class="max-w-4xl mx-auto px-4 py-10">
+  <nav class="text-xs text-gray-400 mb-6" aria-label="breadcrumb">
+    <a href="/">홈</a> &rsaquo; <a href="/amphibious-bus">수륙양용버스 안내</a> &rsaquo; <span>${page.heading}</span>
+  </nav>
+  <h1 class="text-2xl sm:text-3xl font-bold mb-6">${page.heading}</h1>
+  <div class="prose max-w-none mb-8">${page.paragraphs.map((text:string) => `<p class="mb-4 leading-relaxed text-gray-700">${text}</p>`).join('')}</div>
+  <nav class="flex flex-wrap gap-3 mb-10" aria-label="서비스 바로가기">${navLinks}</nav>
+  ${infoSection}${fareSection}${schedSection}${faqSection}
+  ${SEARCH_INTRO}
+</main>
+<footer class="bg-gray-800 text-gray-300 text-xs py-8 mt-16">
+  <div class="max-w-4xl mx-auto px-4">
+    <p class="mb-1 font-semibold text-white">아쿠아모빌리티코리아 (Aqua Mobility Korea)</p>
+    <p>수륙양용버스 · 수륙양용시티투어버스 통합 예약·운영솔루션</p>
+    <div class="mt-4 flex flex-wrap gap-4">
+      <a href="/" class="hover:text-white">홈</a>
+      <a href="/amphibious-bus" class="hover:text-white">수륙양용버스 안내</a>
+      <a href="/buyeo-amphibious-bus" class="hover:text-white">부여 안내</a>
+      <a href="/tongyeong-amphibious-bus" class="hover:text-white">통영 안내</a>
+      <a href="/busan-amphibious-bus" class="hover:text-white">부산 안내</a>
+      <a href="/inquiry" class="hover:text-white">문의</a>
+    </div>
+  </div>
+</footer>
+</body></html>`)
   })
 }
 
