@@ -24,6 +24,8 @@ const STATIC_ASSETS = [
   '/static/modules/payment.js', '/static/modules/field.js',
   '/static/modules/admin.js', '/static/modules/stats.js',
   '/static/modules/seo.js', '/static/modules/ticket.js',
+  '/static/modules/wristband-layout.js', '/static/modules/wristband-engine.js',
+  '/static/modules/wristband-desk.js', '/static/wristband-desk.css',
   '/static/app.js', '/static/qrcode.min.js',
   '/static/manifest.json', '/static/favicon.svg'
 ];
@@ -413,15 +415,18 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=6ccb093f49a9"></script>
-<script src="/static/modules/customer.js?v=6ccb093f49a9"></script>
-<script src="/static/modules/payment.js?v=6ccb093f49a9"></script>
-<script src="/static/modules/field.js?v=6ccb093f49a9"></script>
-<script src="/static/modules/admin.js?v=6ccb093f49a9"></script>
-<script src="/static/modules/stats.js?v=6ccb093f49a9"></script>
-<script src="/static/modules/seo.js?v=6ccb093f49a9"></script>
-<script src="/static/modules/ticket.js?v=6ccb093f49a9"></script>
-<script src="/static/app.js?v=6ccb093f49a9"></script>
+<script src="/static/modules/core.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/customer.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/payment.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/field.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/admin.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/stats.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/seo.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/ticket.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/wristband-layout.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/wristband-engine.js?v=f7c26cf045d9"></script>
+<script src="/static/modules/wristband-desk.js?v=f7c26cf045d9"></script>
+<script src="/static/app.js?v=f7c26cf045d9"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {

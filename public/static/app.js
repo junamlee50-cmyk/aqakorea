@@ -95,6 +95,7 @@
     // ── 현장 매표소 ───────────────────────────────────────
     Router.add('/field',              FieldModule.dashboard);
     Router.add('/field/dashboard',    FieldModule.dashboard);
+    Router.add('/field/issuance',     _adminGuard(() => WristbandDesk.page()));
 
     // ── 관리자 페이지 ─────────────────────────────────────
     Router.add('/admin', _adminGuard(async (params) => {
