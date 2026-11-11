@@ -96,7 +96,7 @@ const FieldModule = {
 
     <!-- 메인 액션 버튼 (크게!) -->
     <button class="field-btn field-btn-ocean w-full mb-4" onclick="Router.go('/field/issuance')">
-      <span>QR 자동 발권</span><span class="text-xs text-white/80">예약·결제 확인 → 인원별 25×250mm 팔찌 출력</span>
+      <span>QR 자동 발권</span><span class="text-xs text-white/80">예약·결제 확인 → 인원별 30×250mm 팔찌 출력</span>
     </button>
     <div class="grid grid-cols-2 gap-3 mb-4">
       <button class="field-btn field-btn-ocean" style="min-height:90px" onclick="FieldModule.showReservationSearch()">

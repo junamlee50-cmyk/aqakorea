@@ -2,20 +2,20 @@
   'use strict';
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const states={queued:'미전송',dispatching:'전송 중 · 결과 확인 필요',accepted:'인쇄 대기열 전송 완료',simulated:'모의 출력 완료',failed:'전송 실패',unknown:'결과 확인 필요'};
-  const defaults={stationId:'DESK-1',printerName:'SIMULATOR',testMode:true,config:{layout:'buyeo-v1',transport:'simulation',dpi:203,rotation:0,offsetX:0,offsetY:0,mediaConfirmed:false}};
+  const defaults={stationId:'DESK-1',printerName:'SIMULATOR',testMode:true,config:{layout:'buyeo-v2-30x250',transport:'simulation',dpi:203,rotation:0,offsetX:0,offsetY:0,mediaConfirmed:false}};
   let engine,container,connection;
   async function fetchJSON(url,options={}){
     const r=await fetch(url,{...options,signal:AbortSignal.timeout(40000),cache:'no-store'});
     const j=await r.json();if(!r.ok || j.success===false)throw Error(j.error||`연결 오류 (${r.status})`);return j.data??j;
   }
   const demo=()=>root.location.pathname.startsWith('/demo') || root.AMK_LOCAL_DEMO===true;
-  const settings=()=>JSON.parse(localStorage.getItem('amk-desk-settings')||JSON.stringify(defaults));
+  const settings=()=>JSON.parse(localStorage.getItem('amk-desk-settings-30x250')||JSON.stringify(defaults));
   const token=()=>sessionStorage.getItem('amk-bridge-token')||'';
   async function bridgeCall(path,body){
     return fetchJSON('http://127.0.0.1:17864'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-AMK-Token':token()},...(body?{body:JSON.stringify(body)}:{})});
   }
   const bridge={
-    async preflight(name){const d=await bridgeCall('/api/printers');if(!d.printers.some(p=>p.name===name && p.available))throw Error('선택한 프린터가 없거나 오프라인입니다. Windows 프린터 설정을 확인해 주세요.');},
+    async preflight(name){const d=await bridgeCall('/api/printers');if(!d.supportedLayouts?.includes('buyeo-v2-30x250'))throw Error('이전 연결 프로그램을 종료하고 30mm용 1.1 버전을 실행해 주세요.');if(!d.printers.some(p=>p.name===name && p.available))throw Error('선택한 프린터가 없거나 오프라인입니다. Windows 프린터 설정을 확인해 주세요.');},
     async print(job){const png=root.WristbandLayout.portrait(job.person,job.config).toDataURL('image/png');return bridgeCall('/api/print',{...job,png});}
   };
   function api(path,body){
@@ -28,15 +28,16 @@
   async function action(fn){try{await fn();}catch(e){message(e.message,true);}finally{if(el('wd-scan') && !engine?.busy)el('wd-scan').focus();}}
   function renderJob(job){
     if(!el('wd-result'))return;
-    const s=settings(), own=job.stationId===s.stationId && job.printerName===s.printerName;
+    const s=settings(), compatible=job.config.layout==='buyeo-v2-30x250', own=compatible && job.stationId===s.stationId && job.printerName===s.printerName;
     el('wd-result').innerHTML=`<h2>${esc(job.items[0]?.person.reservationNo)} · ${job.testMode?'시험':'실제'} 발권</h2>
       <p>${esc(job.stationId)} / ${esc(job.printerName)} · 인쇄 대기열 전송은 실물 출력 확인과 다릅니다.</p>
-      <div class="wd-scroll"><table><thead><tr><th>순번</th><th>권종 / 성명</th><th>상태</th><th>조치</th></tr></thead><tbody>${job.items.map((i,n)=>`<tr><td>${i.person.sequence}/${i.person.total}</td><td>${esc(root.WristbandLayout.labels[i.person.type])} ${esc(i.person.name)}</td><td>${i.current?esc(states[i.state]||i.state):'새 출력 작업으로 대체됨'}</td><td>${i.current && i.state!=='queued'?`<button type="button" data-reprint="${n}">재출력 검토</button>`:''}</td></tr>`).join('')}</tbody></table></div>
+      <div class="wd-scroll"><table><thead><tr><th>순번</th><th>권종 / 성명</th><th>상태</th><th>조치</th></tr></thead><tbody>${job.items.map((i,n)=>`<tr><td>${i.person.sequence}/${i.person.total}</td><td>${esc(root.WristbandLayout.labels[i.person.type])} ${esc(i.person.name)}</td><td>${i.current?esc(states[i.state]||i.state):'새 출력 작업으로 대체됨'}</td><td>${i.current && (i.state!=='queued'||!compatible)?`<button type="button" data-reprint="${n}">재출력 검토</button>`:''}</td></tr>`).join('')}</tbody></table></div>
       ${job.items.some(i=>i.current&&i.state==='queued')?`<button id="wd-resume" ${own?'':'disabled'}>미전송 인원 이어서 출력</button>`:''}
       ${own?'':'<p>이 작업을 시작한 창구와 프린터 설정으로 돌아가면 미전송분을 이어서 출력할 수 있습니다.</p>'}
       <p>가변 정보 미리보기 · 양끝 25mm는 인쇄하지 않습니다.</p><div id="wd-preview" class="wd-preview"></div>`;
-    for(const i of job.items.slice(0,6)){
-      const c=root.WristbandLayout.render(i.person,job.config);c.setAttribute('aria-label','250×25mm 검정 가변 정보');el('wd-preview').appendChild(c);
+    if(!compatible)el('wd-preview').textContent='이전 25mm 양식의 작업입니다. 새 30mm 양식으로 재출력 검토를 진행해 주세요.';
+    for(const i of (compatible?job.items.slice(0,6):[])){
+      const c=root.WristbandLayout.render(i.person,job.config);c.setAttribute('aria-label','250×30mm 검정 가변 정보');el('wd-preview').appendChild(c);
     }
     el('wd-resume')?.addEventListener('click',()=>action(async()=>{if(!el('wd-ready').checked)throw Error('발권 시작을 체크해 주세요.');const current=settings();if(current.stationId!==engine.job.stationId || current.printerName!==engine.job.printerName)throw Error('창구와 프린터 설정이 다릅니다.');await engine.resume();message('미전송 인원을 처리했습니다. 실물을 확인해 주세요.');}));
     el('wd-result').querySelectorAll('[data-reprint]').forEach(b=>b.addEventListener('click',()=>action(async()=>{
@@ -61,7 +62,7 @@
       <label>급지 방향<select id="wd-rotation"><option value="0">기본 방향</option><option value="180">반대 방향 (180°)</option></select></label>
       <label>길이 방향 보정 (mm)<input id="wd-x" type="number" min="-5" max="5" step="0.1"></label>
       <label>폭 방향 보정 (mm)<input id="wd-y" type="number" min="-3" max="3" step="0.1"></label></div>
-      <label class="wd-check"><input id="wd-media" type="checkbox">드라이버의 25×250mm 용지·배율 100%·페이지마다 절단 설정을 확인했습니다.</label>
+      <label class="wd-check"><input id="wd-media" type="checkbox">드라이버의 30×250mm 용지·배율 100%·페이지마다 절단 설정을 확인했습니다.</label>
       <p class="wd-help">부여 선인쇄 양식에 맞춘 검정 정보만 출력합니다. 다른 지역이나 다른 디자인의 밴드는 양식을 먼저 맞춰야 합니다.</p>
       <button id="wd-save" type="button">창구 설정 저장</button></section>
       <section class="wd-card"><h2>2. 예약 QR 스캔</h2>
@@ -85,12 +86,12 @@
     el('wd-connect').onclick=()=>action(async()=>{sessionStorage.setItem('amk-bridge-token',el('wd-token').value.trim());connection=await bridgeCall('/api/printers');el('wd-printer').replaceChildren(new Option('모의 프린터','SIMULATOR'));for(const p of connection.printers)el('wd-printer').add(new Option(p.name+(p.available?'':' (오프라인)'),p.name));if(connection.printers.some(p=>p.name===s.printerName))el('wd-printer').value=s.printerName;message(connection.printers.length?'프린터 목록을 불러왔습니다. 사용할 프린터를 선택해 저장해 주세요.':'연결 프로그램은 정상입니다. Windows에 설치된 프린터가 없습니다.');});
     el('wd-save').onclick=()=>action(async()=>{
       if(engine.busy)throw Error('진행 중인 발권이 끝난 후 설정해 주세요.');
-      const cfg={layout:'buyeo-v1',transport:el('wd-transport').value,dpi:Number(el('wd-dpi').value),rotation:Number(el('wd-rotation').value),offsetX:Number(el('wd-x').value),offsetY:Number(el('wd-y').value),mediaConfirmed:el('wd-media').checked};
+      const cfg={layout:'buyeo-v2-30x250',transport:el('wd-transport').value,dpi:Number(el('wd-dpi').value),rotation:Number(el('wd-rotation').value),offsetX:Number(el('wd-x').value),offsetY:Number(el('wd-y').value),mediaConfirmed:el('wd-media').checked};
       root.WristbandLayout.validate(cfg);const testMode=el('wd-mode').value==='test';
       if(!testMode && cfg.transport!=='bridge')throw Error('실제 예약은 Windows 프린터 출력을 선택해 주세요.');
       if(cfg.transport==='bridge' && (!cfg.mediaConfirmed || el('wd-printer').value==='SIMULATOR'))throw Error('실제 프린터와 용지·절단 설정 확인이 필요합니다.');
       if(!/^[A-Za-z0-9_-]{1,40}$/.test(el('wd-station').value))throw Error('창구 ID는 영문·숫자·하이픈·밑줄을 사용해 주세요.');
-      localStorage.setItem('amk-desk-settings',JSON.stringify({stationId:el('wd-station').value,printerName:cfg.transport==='simulation'?'SIMULATOR':el('wd-printer').value,testMode,config:cfg}));
+      localStorage.setItem('amk-desk-settings-30x250',JSON.stringify({stationId:el('wd-station').value,printerName:cfg.transport==='simulation'?'SIMULATOR':el('wd-printer').value,testMode,config:cfg}));
       sessionStorage.setItem('amk-bridge-token',el('wd-token').value.trim());dirty=false;el('wd-ready').checked=false;message('설정이 저장됐습니다. 발권 시작을 체크하면 스캔할 수 있습니다.');
     });
     container.querySelectorAll('.wd-grid input,.wd-grid select,#wd-media').forEach(i=>i.addEventListener('change',()=>{dirty=true;el('wd-ready').checked=false;message('설정을 변경했습니다. 저장 후 발권 시작을 체크해 주세요.');}));

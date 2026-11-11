@@ -1,7 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import {webcrypto} from 'node:crypto';
 const ctx={crypto:webcrypto};vm.createContext(ctx);for(const f of ['wristband-engine','wristband-layout'])vm.runInContext(fs.readFileSync(new URL('../public/static/modules/'+f+'.js',import.meta.url),'utf8'),ctx);
 const storage=()=>{const m=new Map();return {getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)};};
-const config={layout:'buyeo-v1',transport:'bridge',dpi:203,rotation:0,offsetX:0,offsetY:0,mediaConfirmed:true};
+const config={layout:'buyeo-v2-30x250',transport:'bridge',dpi:203,rotation:0,offsetX:0,offsetY:0,mediaConfirmed:true};
 function fixture(){let job,printed=0,created=0;const state=storage();
  const api=async(path,body)=>{
    if(path==='/jobs'){created++;if(job)return {...structuredClone(job),duplicate:true};job={id:'job',stationId:'DESK-1',printerName:'XD5',config,items:[1,2,3].map(n=>({id:'item'+n,state:'queued',current:true,person:{sequence:n}}))};return structuredClone(job);}
@@ -23,6 +23,6 @@ test('결과 보고 유실 후 저장된 결과만 동기화하고 다시 인쇄
  broken=false;await engine.sync();assert.equal(f.printed,1);assert.equal(engine.job.items[0].state,'accepted');await engine.resume();assert.equal(f.printed,3);
 });
 test('정확한 밴드 크기·양끝 공백 클립·권종별 체크 위치·시험 표식',()=>{
- for(const type of ['adult','teen','child']){const p=ctx.WristbandLayout.commands({type,testMode:true,name:'시험',date:'2026-11-11',time:'14:00',reservationNo:'AMK-001',sequence:1,total:3},config);assert.equal(p.width,250);assert.equal(p.height,25);assert.equal(p.clip.x,25);assert.equal(p.clip.width,200);assert.ok(p.tick.x>25&&p.tick.x<225);assert.ok(p.text.some(t=>t.text.includes('탑승 불가')));}
+ for(const type of ['adult','teen','child']){const p=ctx.WristbandLayout.commands({type,testMode:true,name:'시험',date:'2026-11-11',time:'14:00',reservationNo:'AMK-001',sequence:1,total:3},config);assert.equal(p.width,250);assert.equal(p.height,30);assert.equal(p.clip.x,25);assert.equal(p.clip.width,200);assert.ok(p.tick.x>25&&p.tick.x<225);assert.ok(p.text.some(t=>t.text.includes('탑승 불가')));}
  assert.throws(()=>ctx.WristbandLayout.commands({type:'adult'},{...config,offsetX:26}));
 });
