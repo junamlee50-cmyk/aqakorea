@@ -37,7 +37,7 @@ else
 fi
 
 # 4. 필수 모듈 파일 존재 여부
-for f in core customer payment field admin stats seo ticket; do
+for f in core customer payment field admin stats seo ticket wristband-layout wristband-engine wristband-desk; do
   if [ ! -f "dist/static/modules/${f}.js" ]; then
     echo "❌ [모듈누락] dist/static/modules/${f}.js 없음"
     ERRORS=$((ERRORS+1))
