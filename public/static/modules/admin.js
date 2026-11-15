@@ -17,6 +17,15 @@ const AdminModule = (() => {
     mobileOpen: false,
   };
 
+  // 새 페이지 로드 직후 _adminState 가 비어 있으면 저장된 로그인 정보로 복원한다 (지역 기본값 오류 방지)
+  const _ensureUser = () => {
+    if (!_adminState.user) {
+      const su = Store.get('adminUser');
+      if (su && su.id) { _adminState.user = su; _adminState.loggedIn = true; if (!_adminState.selectedRegion) _adminState.selectedRegion = su.regionId || null; }
+    }
+    return _adminState.user;
+  };
+
   // ── 접속 로그 ──────────────────────────────────────────────
   const _addAccessLog = (userId, action) => {
     const logs = JSON.parse(sessionStorage.getItem('amk_access_logs') || '[]');
@@ -99,7 +108,12 @@ const AdminModule = (() => {
 
   // ── 관리자 레이아웃 렌더링 ─────────────────────────────────
   const renderAdminLayout = (section, contentHtml, title) => {
-    const user = _adminState.user || { name: '관리자', role: 'super', regionId: null };
+    // 새 페이지 이동·새로고침 직후에는 _adminState 가 비어 있으므로 저장된 로그인 정보로 복원 (기본값 super 로 그리지 않음)
+    if (!_adminState.user) {
+      const _su = Store.get('adminUser');
+      if (_su && _su.id) { _adminState.user = _su; _adminState.loggedIn = true; if (!_adminState.selectedRegion) _adminState.selectedRegion = _su.regionId || null; }
+    }
+    const user = _ensureUser() || { name: '관리자', role: 'super', regionId: null };
     const menus = getMenuItems(user.role, user.regionId);
     const collapsed = _adminState.sidebarCollapsed;
     const mobileOpen = _adminState.mobileOpen;
@@ -457,6 +471,22 @@ const AdminModule = (() => {
     } catch (e) { Utils.toast('❌ 복귀 중 오류가 발생했습니다', 'error'); }
   };
 
+  // 시험환경 전용 원클릭 로그인: 서버가 시험환경(AMK_SANDBOX + 시험 DB 표식)일 때만 200, 운영은 404 → false 반환(기존 동작 유지)
+  const devLogin = async (username) => {
+    try {
+      const res = await fetch('/api/admin/dev-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username }) });
+      if (res.status === 404) return false;
+      const j = await res.json();
+      if (!j.success) { Utils.toast('❌ ' + (j.error || '시험 로그인에 실패했습니다'), 'error'); return true; }
+      localStorage.removeItem('amk_imp');
+      _applySession(j.token, j.data, null);
+      Store.set('adminLoginTime', Date.now());
+      localStorage.setItem('amk_admin_login_time', String(Date.now()));
+      location.href = j.data.role === 'super' ? '/admin/dashboard' : (j.data.role === 'regional' ? '/admin/region-dashboard' : '/admin/dashboard');
+      return true;
+    } catch (e) { return false; }
+  };
+
   const logout = () => {
     const userName = _adminState.user?.name || 'unknown';
     _addAccessLog(_adminState.user?.id || 'unknown', '로그아웃');
@@ -759,7 +789,7 @@ const AdminModule = (() => {
 
   const regionDashboard = async (params) => {
     _adminState.currentSection = 'region-dashboard';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
 
     // 로그인 계정 regionId 우선 → URL 파라미터 → 선택값 → 기본값
     const regionId = (user.role === 'regional' && user.regionId)
@@ -1296,7 +1326,7 @@ const AdminModule = (() => {
 
   let _editingVehicleIdx = null;
   const addVehicle = () => {
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     _editingVehicleIdx = null;
     document.getElementById('vehicle-modal-title').textContent = '차량 추가';
     ['v-name','v-plate','v-capacity','v-memo'].forEach(id => { const el = document.getElementById(id); if(el) el.value = id==='v-capacity'?'45':''; });
@@ -1420,7 +1450,7 @@ const AdminModule = (() => {
 
   const schedulesPage = async () => {
     _adminState.currentSection = 'schedules';
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     // DB에서 지역 및 스케줄 로드
     const regRes = await API.get('/api/regions');
     const allRegions = (regRes.success && regRes.data) ? regRes.data : (window.REGIONS || []);
@@ -2461,7 +2491,7 @@ const AdminModule = (() => {
 
   const faresPage = async () => {
     _adminState.currentSection = 'fares';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super' || user.role === 'accountant';
 
     // 지역관리자는 자기 지역만, 슈퍼는 선택 가능
@@ -2907,7 +2937,7 @@ const AdminModule = (() => {
   const addFare = (regionId) => {
     _editingFareRegion = regionId;
     _editingFareIdx = null;
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super';
     const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
     const hasInstant = isSuper || instantPerm[regionId];
@@ -2972,7 +3002,7 @@ const AdminModule = (() => {
     if (!price) { Utils.toast('정가를 입력하세요', 'error'); return; }
     if (!reason) { Utils.toast('변경 사유를 입력하세요', 'error'); return; }
 
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super';
     const instantPerm = JSON.parse(localStorage.getItem('amk_instant_perm') || '{}');
     const hasInstant = isSuper || instantPerm[_editingFareRegion];
@@ -3059,7 +3089,7 @@ const AdminModule = (() => {
   const requestDeleteFare = async (regionId, idx) => {
     const fares = await _getFares(regionId + '?all=1');
     const f = fares[idx]; if (!f) return;
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super';
     const fareMode = window._fareChangeMode || 'approval';
 
@@ -3108,7 +3138,7 @@ const AdminModule = (() => {
 
   // 요금 승인/반려 (슈퍼관리자) - localStorage 공유로 실시간 반영
   const approvefare = async (approvalId, isApprove) => {
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     Utils.loading(true);
     const res = await API.put(`/api/fares/approvals/${approvalId}`, {
       status: isApprove ? 'approved' : 'rejected',
@@ -3136,7 +3166,7 @@ const AdminModule = (() => {
   // ── 문의 관리 페이지 ──────────────────────────────────────
   const inquiriesPage = async () => {
     _adminState.currentSection = 'inquiries';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super';
     const regionId = user.regionId || '';
     const url = isSuper ? '/api/inquiries' : `/api/inquiries?regionId=${regionId}`;
@@ -3253,7 +3283,7 @@ const AdminModule = (() => {
 
     const seatsPage = async () => {
     _adminState.currentSection = 'seats';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super';
     // 지역관리자는 본인 지역만, 슈퍼는 전체
     const allRegions = (window.REGIONS||[]).filter(r=>r.status==='active'||r.status==='open');
@@ -3544,7 +3574,7 @@ const AdminModule = (() => {
 
   // 실제 필터링 실행 함수 (검색 버튼 onclick)
   const filterReservations = async () => {
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const filters = {};
     if (user.role === 'regional' && user.regionId) filters.regionId = user.regionId;
     const fRegion = document.getElementById('res-filter-region')?.value || '';
@@ -3577,7 +3607,7 @@ const AdminModule = (() => {
 
   const reservationsPage = async () => {
     _adminState.currentSection = 'reservations';
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const filters = {};
     if (user.role === 'regional' && user.regionId) filters.regionId = user.regionId;
     const reservations = await _loadRealReservations(filters);
@@ -3894,7 +3924,7 @@ const AdminModule = (() => {
   const undoReservationIssuance = (id, dbId) => _reservationAction(id, dbId, 'undo');
 
   const exportReservations = () => {
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const allRes = _loadRealReservations();
     const pool = (user.role === 'regional' && user.regionId)
       ? allRes.filter(r => r.regionId === user.regionId)
@@ -4724,7 +4754,7 @@ const AdminModule = (() => {
 
   const _openNoticeModal = (title, notice = null, idx = null) => {
     _editingNoticeIdx = idx;
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const isSuper = user.role === ROLES.SUPER;
     // 모달 제목
     const titleEl = document.getElementById('notice-modal-title');
@@ -4760,7 +4790,7 @@ const AdminModule = (() => {
   const closeNoticeModal = () => document.getElementById('notice-modal').classList.add('hidden');
 
   const saveNotice = async () => {
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const isSuper = user.role === ROLES.SUPER;
     const title   = (document.getElementById('ntc-title')?.value || '').trim();
     const content = (document.getElementById('ntc-content')?.value || '').trim();
@@ -5589,7 +5619,7 @@ const AdminModule = (() => {
     if (!scheduleId || !date) return;
 
     // 예약 조회
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     let reservations = [];
     try {
       const r = await API.get(`/api/reservations?regionId=${user.regionId}&scheduleId=${scheduleId}&limit=200`);
@@ -5731,7 +5761,7 @@ const AdminModule = (() => {
     const roundNum = selOpt?.dataset?.round || '';
     const scheduleName = scheduleId && rawTime ? `${rawTime} (${roundNum}회차)` : '';
     const type = document.getElementById('sms-type')?.value || 'all';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
 
     let recipients = [];
     if (type === 'select') {
@@ -6295,7 +6325,7 @@ const AdminModule = (() => {
   };
 
   const filterSettlement = async () => {
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const fRegion = user.role === 'regional' ? user.regionId : (document.getElementById('stl-filter-region')?.value || '');
     const fMonth  = document.getElementById('stl-filter-month')?.value || new Date().toISOString().slice(0,7);
     const tbody = document.getElementById('stl-tbody');
@@ -6329,7 +6359,7 @@ const AdminModule = (() => {
 
   const settlementPage = async () => {
     _adminState.currentSection = 'settlement';
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const isRegional = user.role === 'regional';
     const allRegions = (window.REGIONS||[]).filter(r => r.status !== 'hidden');
     const RNAMES = {tongyeong:'통영',buyeo:'부여',hapcheon:'합천'};
@@ -6425,7 +6455,7 @@ const AdminModule = (() => {
     );
   };
   const exportSettlementCSV = async () => {
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const fRegion = user.role === 'regional' ? user.regionId : (document.getElementById('stl-filter-region')?.value || '');
     const fMonth  = document.getElementById('stl-filter-month')?.value || new Date().toISOString().slice(0,7);
     let url = `/api/reservations?limit=1000`;
@@ -6475,7 +6505,7 @@ const AdminModule = (() => {
   };
 
   const viewSettlement = async (date) => {
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
     const scheduleNames = {}; // scheduleId → 시간 매핑
     Utils.toast('정산 데이터 조회 중...', 'info');
@@ -6647,7 +6677,7 @@ const AdminModule = (() => {
     Utils.confirm(popupHtml, () => {}, { confirmText: '닫기', cancelText: null, title: `${date} 일일 정산 보고서`, size: '900px' });
   };
   const exportSettlement = () => {
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const REGION_NAMES = { tongyeong:'통영', buyeo:'부여', hapcheon:'합천' };
     const fRegion = user.role === 'regional' ? user.regionId : (document.getElementById('stl-filter-region')?.value || '');
     const month = document.getElementById('stl-filter-month')?.value || new Date().toISOString().slice(0,7);
@@ -6860,7 +6890,7 @@ const AdminModule = (() => {
   // ── 여행 가이드 관리 ─────────────────────────────────────
   const travelGuidesPage = async () => {
     _adminState.currentSection = 'travel-guides';
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const regRes = await API.get('/api/regions');
     const allRegions = regRes.data || [];
     const regions = user.role === 'regional' && user.regionId
@@ -7009,7 +7039,7 @@ const AdminModule = (() => {
   // ── 파트너(숙박/식당) 관리 ──────────────────────────────────
   const partnersPage = async () => {
     _adminState.currentSection = 'partners';
-    const user = _adminState.user || { role: 'super', regionId: null };
+    const user = _ensureUser() || { role: 'super', regionId: null };
     const regRes = await API.get('/api/regions');
     const allRegions = regRes.data || [];
     const regions = user.role === 'regional' && user.regionId
@@ -7245,7 +7275,7 @@ const backupPage = async () => {
   // 관광정보 관리 페이지
   const tourismManagePage = async () => {
     _adminState.currentSection = 'tourism';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super' || user.role === 'content';
     const userRegionId = user.regionId || null;
 
@@ -7466,7 +7496,7 @@ const backupPage = async () => {
 
   const addTourism = () => {
     _editingTourismId = null;
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     document.getElementById('tourism-modal-title').textContent = '관광정보 등록';
     ['tm-title','tm-desc','tm-address','tm-map','tm-phone','tm-hours','tm-tags','tm-image'].forEach(id=>{
       const el=document.getElementById(id); if(el) el.value='';
@@ -7497,7 +7527,7 @@ const backupPage = async () => {
 
   const saveTourism = () => {
     const get = (id) => document.getElementById(id)?.value || '';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const title = get('tm-title').trim();
     if (!title) { Utils.toast('제목을 입력하세요', 'error'); return; }
     const regionId = user.role === 'regional' ? (user.regionId||get('tm-region')) : get('tm-region');
@@ -7552,7 +7582,7 @@ const backupPage = async () => {
   // ── 통계 빠른 링크 ─────────────────────────────────────────
   const statsAdminPage = async () => {
     _adminState.currentSection = 'stats-admin';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const today = new Date().toISOString().slice(0,10);
     const thisMonth = today.slice(0,7);
     const content = `
@@ -7658,7 +7688,7 @@ const backupPage = async () => {
     const email = document.getElementById('report-daily-email')?.value;
     if (!date || !email) { Utils.toast('날짜와 이메일을 입력하세요.', 'error'); return; }
     const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     let url = `/api/reservations?limit=500&date=${date}`;
     if (user.role === 'regional' && user.regionId) url += `&regionId=${user.regionId}`;
     const res = await API.get(url);
@@ -7687,7 +7717,7 @@ const backupPage = async () => {
     const month = document.getElementById('report-monthly-month')?.value;
     const email = document.getElementById('report-monthly-email')?.value;
     if (!month || !email) { Utils.toast('월과 이메일을 입력하세요.', 'error'); return; }
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const RNAMES = {tongyeong:'통영', buyeo:'부여', hapcheon:'합천'};
     let url = `/api/reservations?limit=2000&month=${month}`;
     if (user.role === 'regional' && user.regionId) url += `&regionId=${user.regionId}`;
@@ -7756,7 +7786,7 @@ const backupPage = async () => {
   // ══════════════════════════════════════════════════════════
   const workLogPage = async () => {
     _adminState.currentSection = 'work-log';
-    const user = _adminState.user || {};
+    const user = _ensureUser() || {};
     const isSuper = user.role === 'super';
 
     // 상태: 선택한 지역/월
@@ -8091,7 +8121,7 @@ const backupPage = async () => {
             <div>
               <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px">지역 *</label>
               ${(()=>{
-                const u = _adminState.user || {};
+                const u = _ensureUser() || {};
                 const isSuper = u.role === 'super';
                 if (isSuper) {
                   return `<select id="staff-region" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px">
@@ -8638,7 +8668,7 @@ const backupPage = async () => {
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
     sendDailyReport, sendMonthlyReport, saveAutoReport, printSettlement,
-    addAdmin, resetPassword, changeMyPassword, deleteAdmin, openImpersonation, endImpersonation,
+    addAdmin, resetPassword, changeMyPassword, deleteAdmin, openImpersonation, endImpersonation, devLogin,
     saveSmsTemplates, resetSettings,
     switchRegionDashboard,
     setTourismFilter, addTourism, editTourism, saveTourism, toggleTourismVisible, deleteTourism,

@@ -490,15 +490,27 @@ const initPageComponents = () => {
       });
     });
   });
-  // 로그인 화면 역할 버튼 → 아이디만 채움 (비밀번호는 다루지 않음. 저장·자동완성은 브라우저 암호 관리자 몫)
-  document.querySelectorAll('.role-quick-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+  // 로그인 화면 역할 버튼
+  //  - 시험환경(서버가 허용한 경우만): 비밀번호 없이 즉시 해당 역할로 로그인
+  //  - 운영: 서버가 404 → 기존처럼 아이디만 채움 (비밀번호는 다루지 않음)
+  (async () => {
+    const btns = document.querySelectorAll('.role-quick-btn');
+    if (!btns.length) return;
+    let sandbox = false;
+    try { sandbox = (await fetch('/api/admin/dev-login/status')).status === 200; } catch (e) {}
+    const hint = document.querySelector('#role-quick');
+    if (sandbox && hint) {
+      const t = hint.previousElementSibling;
+      if (t) t.innerHTML = '<b style="color:#b45309">시험환경</b> · 버튼을 누르면 비밀번호 없이 바로 접속합니다';
+    }
+    btns.forEach(btn => btn.addEventListener('click', async () => {
+      if (sandbox && window.AdminModule && await AdminModule.devLogin(btn.dataset.u)) return;
       const idEl = document.getElementById('admin-id');
       const pwEl = document.getElementById('admin-pw');
       if (idEl) idEl.value = btn.dataset.u;
       if (pwEl) { pwEl.value = ''; pwEl.focus(); }
-    });
-  });
+    }));
+  })();
   // 숫자 카운터 애니메이션
   document.querySelectorAll('[data-count]').forEach(el => {
     const target = parseInt(el.dataset.count);
