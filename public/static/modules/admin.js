@@ -17,18 +17,6 @@ const AdminModule = (() => {
     mobileOpen: false,
   };
 
-  // ── 데모 계정 목록 ──────────────────────────────────────────
-  const DEMO_ACCOUNTS = [
-    { id:'admin',      pw:'admin1234',      name:'본사 슈퍼관리자', role:'super',      regionId:null },
-    { id:'tongyeong',  pw:'admin1234',  name:'통영지역관리자',  role:'regional',   regionId:'tongyeong', regionName:'통영해양관광' },
-    { id:'buyeo',      pw:'admin1234',      name:'부여지역관리자',  role:'regional',   regionId:'buyeo',      regionName:'부여수륙양용투어' },
-    { id:'hapcheon',   pw:'admin1234',   name:'합천지역관리자',  role:'regional',   regionId:'hapcheon' },
-    { id:'field01',    pw:'admin1234',      name:'현장매표소',      role:'staff',      regionId:'tongyeong' },
-    { id:'account',    pw:'admin1234',    name:'회계담당자',      role:'accountant', regionId:null },
-    { id:'content',    pw:'admin1234',       name:'콘텐츠담당자',    role:'content',    regionId:null },
-    { id:'partner',    pw:'admin1234',       name:'여행사파트너',    role:'partner',    regionId:null },
-  ];
-
   // ── 접속 로그 ──────────────────────────────────────────────
   const _addAccessLog = (userId, action) => {
     const logs = JSON.parse(sessionStorage.getItem('amk_access_logs') || '[]');
@@ -308,20 +296,6 @@ const AdminModule = (() => {
               </button>
             </div>
 
-          </div>
-          <!-- 테스트 계정 안내 (오픈 전까지 유지) -->
-          <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 text-xs">
-            <div class="font-semibold text-blue-700 mb-2"><i class="fas fa-info-circle mr-1"></i>테스트 계정</div>
-            <div class="space-y-1" id="demo-account-list">
-              ${DEMO_ACCOUNTS.map(a =>
-                `<div class="flex justify-between items-center cursor-pointer hover:bg-blue-100 px-2 py-1 rounded demo-account-row"
-                  data-id="${a.id}" data-pw="${a.pw}">
-                  <span class="text-blue-800 font-medium">${a.name}</span>
-                  <span class="text-gray-500 font-mono">${a.id} / ${a.pw}</span>
-                </div>`
-              ).join('')}
-            </div>
-            <div class="text-gray-400 mt-1">※ 클릭하면 자동 입력됩니다</div>
           </div>
           <p class="text-center text-gray-500 text-xs mt-3">
             <i class="fas fa-shield-alt mr-1"></i>보안 접속 · 무단 접근 시 법적 조치

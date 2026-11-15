@@ -143,18 +143,20 @@
       message('예약과 결제를 확인하고 있습니다…');const result=await engine.scan(scan,{...chosen,reviewRevision:preview.revision});
       const uncertain=result.job.items.some(i=>i.current && ['unknown','dispatching','failed'].includes(i.state));
       message(uncertain?'출력 확인이 필요하여 중단했습니다. Windows 대기열과 팔찌 실물을 확인한 뒤 재출력을 검토해 주세요.':result.duplicate?'이미 발권 작업이 있습니다. 자동 재출력하지 않았습니다. 아래 내역을 확인해 주세요.':'출력 요청을 처리했습니다. 아래 상태와 팔찌 실물을 확인해 주세요.',uncertain);el('wd-scan').select();
+      try{await showCurrentStatus(scan,true);}catch(e){}
       }finally{reviewing=false;}
     });};
     el('wd-ready').onchange=()=>{if(dirty){el('wd-ready').checked=false;message('변경한 설정부터 저장해 주세요.',true);return;}if(el('wd-ready').checked)el('wd-scan').focus();};
     el('wd-sync').onclick=()=>action(async()=>{await engine.sync();message('저장된 출력 결과를 서버에 반영했습니다.');});
-    el('wd-history').onclick=()=>action(async()=>{if(engine.busy)throw Error('발권 처리 중입니다.');const jobs=await api('/jobs?scan='+encodeURIComponent(el('wd-scan').value.trim()));if(!jobs.length)throw Error('발권 내역이 없습니다.');
+    const showCurrentStatus=async(scanText,quiet)=>{const jobs=await api('/jobs?scan='+encodeURIComponent(scanText));if(!jobs.length){if(quiet)return;throw Error('발권 내역이 없습니다.');}
       const cur=[];for(const j of jobs)for(const i of j.items)if(i.current)cur.push({j,i});cur.sort((x,y)=>x.i.person.sequence-y.i.person.sequence);
-      const first=(cur[0]&&cur[0].j)||jobs[0];engine.job=first;renderJob(first);message('현재 유효한 탑승자별 출력 상태를 맨 위에 표시했습니다. 이전 작업은 아래 이력 버튼으로 볼 수 있습니다.');
+      const first=(cur[0]&&cur[0].j)||jobs[0];engine.job=first;renderJob(first);if(!quiet)message('현재 유효한 탑승자별 출력 상태를 맨 위에 표시했습니다. 이전 작업은 아래 이력 버튼으로 볼 수 있습니다.');
       const box=document.createElement('div');box.className='wd-card';const sm=cur.map(({j,i})=>`<tr><td>${i.person.sequence}/${i.person.total}</td><td>${esc(root.WristbandLayout.labels[i.person.type])} ${esc(i.person.name)}</td><td>${esc(i.state==='accepted'&&i.confirmedAt?'실물 확인 완료':states[i.state]||i.state)}</td><td>${esc(j.stationId)} / ${esc(j.createdAt.slice(11,19))}</td><td><button type="button" data-showjob="${esc(j.id)}">해당 작업 보기</button></td></tr>`).join('');
       box.innerHTML='<h2>현재 유효한 출력 상태 (탑승자별)</h2><div class="wd-scroll"><table><thead><tr><th>순번</th><th>권종 / 성명</th><th>상태</th><th>작업(창구/시각)</th><th>조치</th></tr></thead><tbody>'+(sm||'<tr><td colspan="5">현재 유효한 출력 항목이 없습니다.</td></tr>')+'</tbody></table></div><p class="wd-help">이전 작업의 "새 출력 작업으로 대체됨" 항목은 과거 이력입니다. 재출력해도 QR 없는 기존 팔찌는 자동으로 무효화되지 않으므로 반드시 회수·폐기하세요.</p>';
       box.querySelectorAll('[data-showjob]').forEach(bt=>bt.onclick=()=>{const j=jobs.find(x=>x.id===bt.dataset.showjob);if(j&&!engine.busy){engine.job=j;renderJob(j);el('wd-result').prepend(box);}});
       el('wd-result').prepend(box);
-      const list=document.createElement('div');list.className='wd-toolbar';const lt=document.createElement('strong');lt.textContent='작업 이력: ';list.appendChild(lt);for(const j of jobs){const b=document.createElement('button');b.type='button';b.textContent=`${j.stationId} / ${j.createdAt.slice(11,19)} / ${j.items.length}명${j.items.some(i=>i.current)?'':' (모두 대체됨)'}`;b.onclick=()=>{if(!engine.busy){engine.job=j;renderJob(j);el('wd-result').prepend(box);el('wd-result').appendChild(list);}};list.appendChild(b);}el('wd-result').appendChild(list);});
+      const list=document.createElement('div');list.className='wd-toolbar';const lt=document.createElement('strong');lt.textContent='작업 이력: ';list.appendChild(lt);for(const j of jobs){const b=document.createElement('button');b.type='button';b.textContent=`${j.stationId} / ${j.createdAt.slice(11,19)} / ${j.items.length}명${j.items.some(i=>i.current)?'':' (모두 대체됨)'}`;b.onclick=()=>{if(!engine.busy){engine.job=j;renderJob(j);el('wd-result').prepend(box);el('wd-result').appendChild(list);}};list.appendChild(b);}el('wd-result').appendChild(list);};
+    el('wd-history').onclick=()=>action(async()=>{if(engine.busy)throw Error('발권 처리 중입니다.');await showCurrentStatus(el('wd-scan').value.trim(),false);});
     if(demo())action(async()=>{const samples=await api('/samples');el('wd-samples').innerHTML='<strong>시험 예약</strong>';for(const p of samples){const b=document.createElement('button');b.type='button';b.textContent=p.label;b.onclick=()=>{el('wd-scan').value=p.scan;el('wd-scan').focus();};el('wd-samples').appendChild(b);}message('시험 예약 버튼으로 번호를 채우거나, 같은 값을 담은 QR을 스캔해 주세요.');});
   }
   root.WristbandDesk={page,mount};
