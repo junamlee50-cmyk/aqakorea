@@ -490,6 +490,15 @@ const initPageComponents = () => {
       });
     });
   });
+  // 로그인 화면 역할 버튼 → 아이디만 채움 (비밀번호는 다루지 않음. 저장·자동완성은 브라우저 암호 관리자 몫)
+  document.querySelectorAll('.role-quick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idEl = document.getElementById('admin-id');
+      const pwEl = document.getElementById('admin-pw');
+      if (idEl) idEl.value = btn.dataset.u;
+      if (pwEl) { pwEl.value = ''; pwEl.focus(); }
+    });
+  });
   // 숫자 카운터 애니메이션
   document.querySelectorAll('[data-count]').forEach(el => {
     const target = parseInt(el.dataset.count);

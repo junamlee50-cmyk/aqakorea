@@ -415,18 +415,18 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/customer.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/payment.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/field.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/admin.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/stats.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/seo.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/ticket.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/wristband-layout.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/wristband-engine.js?v=9f9c1858a1a6"></script>
-<script src="/static/modules/wristband-desk.js?v=9f9c1858a1a6"></script>
-<script src="/static/app.js?v=9f9c1858a1a6"></script>
+<script src="/static/modules/core.js?v=87488085d83d"></script>
+<script src="/static/modules/customer.js?v=87488085d83d"></script>
+<script src="/static/modules/payment.js?v=87488085d83d"></script>
+<script src="/static/modules/field.js?v=87488085d83d"></script>
+<script src="/static/modules/admin.js?v=87488085d83d"></script>
+<script src="/static/modules/stats.js?v=87488085d83d"></script>
+<script src="/static/modules/seo.js?v=87488085d83d"></script>
+<script src="/static/modules/ticket.js?v=87488085d83d"></script>
+<script src="/static/modules/wristband-layout.js?v=87488085d83d"></script>
+<script src="/static/modules/wristband-engine.js?v=87488085d83d"></script>
+<script src="/static/modules/wristband-desk.js?v=87488085d83d"></script>
+<script src="/static/app.js?v=87488085d83d"></script>
 <script>
 // PWA Service Worker 등록 - 새 버전은 안내 후 적용 (발권 중 강제 새로고침 금지)
 if ('serviceWorker' in navigator) {

@@ -176,6 +176,12 @@ const AdminModule = (() => {
 
           <!-- 로그아웃 -->
           <div class="border-t border-gray-700 p-2 flex-shrink-0">
+            <button onclick="AdminModule.changeMyPassword()"
+              class="w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              title="내 비밀번호 변경">
+              <i class="fas fa-key flex-shrink-0 ${collapsed ? 'text-lg' : 'w-5 text-center text-sm'}"></i>
+              ${collapsed ? '' : `<span class="text-sm whitespace-nowrap">내 비밀번호 변경</span>`}
+            </button>
             <button onclick="AdminModule.logout()"
               class="w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-all"
               title="로그아웃">
@@ -271,30 +277,40 @@ const AdminModule = (() => {
               <i class="fas fa-exclamation-triangle"></i>
               <span>로그인 실패 ${failCount}회. ${10 - failCount}회 더 실패 시 잠금(1분)됩니다.</span>
             </div>` : ''}
-            <div class="space-y-4">
+            <div class="mb-4">
+              <div class="text-xs text-gray-500 mb-2">자주 쓰는 계정 선택 <span class="text-gray-400">(아이디만 채워집니다)</span></div>
+              <div class="grid grid-cols-3 gap-2" id="role-quick">
+                <button type="button" data-u="admin" class="role-quick-btn border border-gray-300 rounded-lg py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:border-blue-400">슈퍼관리자</button>
+                <button type="button" data-u="buyeo" class="role-quick-btn border border-gray-300 rounded-lg py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:border-blue-400">부여관리자</button>
+                <button type="button" data-u="tongyeong" class="role-quick-btn border border-gray-300 rounded-lg py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:border-blue-400">통영관리자</button>
+              </div>
+            </div>
+            <form id="admin-login-form" method="post" action="/admin/login" autocomplete="on" class="space-y-4"
+              onsubmit="event.preventDefault(); AdminModule.doLogin(); return false;">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">아이디</label>
-                <input id="admin-id" type="text" placeholder="관리자 아이디" ${isLocked ? 'disabled' : ''}
-                  class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm ${isLocked ? 'bg-gray-100' : ''}"
-                  onkeypress="if(event.key==='Enter') AdminModule.doLogin()">
+                <label for="admin-id" class="block text-sm font-medium text-gray-700 mb-1">아이디</label>
+                <input id="admin-id" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
+                  placeholder="관리자 아이디" ${isLocked ? 'disabled' : ''}
+                  class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm ${isLocked ? 'bg-gray-100' : ''}">
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
+                <label for="admin-pw" class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
                 <div class="relative">
-                  <input id="admin-pw" type="password" placeholder="비밀번호" ${isLocked ? 'disabled' : ''}
-                    class="w-full border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm ${isLocked ? 'bg-gray-100' : ''}"
-                    onkeypress="if(event.key==='Enter') AdminModule.doLogin()">
+                  <input id="admin-pw" name="password" type="password" autocomplete="current-password"
+                    placeholder="비밀번호" ${isLocked ? 'disabled' : ''}
+                    class="w-full border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm ${isLocked ? 'bg-gray-100' : ''}">
                   <button type="button" onclick="(function(){const el=document.getElementById('admin-pw');el.type=el.type==='password'?'text':'password';})()"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" aria-label="비밀번호 표시 전환">
                     <i class="fas fa-eye text-sm"></i>
                   </button>
                 </div>
               </div>
-              <button onclick="AdminModule.doLogin()" ${isLocked ? 'disabled' : ''}
+              <button type="submit" ${isLocked ? 'disabled' : ''}
                 class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                 <i class="fas fa-sign-in-alt"></i>로그인
               </button>
-            </div>
+              <p class="text-xs text-gray-400">비밀번호는 브라우저의 암호 관리자에 직접 저장해야 자동 입력됩니다. 이 화면은 비밀번호를 저장하거나 채우지 않습니다.</p>
+            </form>
 
           </div>
           <p class="text-center text-gray-500 text-xs mt-3">
@@ -6615,7 +6631,8 @@ const AdminModule = (() => {
     const aRes = await API.get('/api/admin/users');
     const rawAdmins = (aRes.success && aRes.data) ? aRes.data : (window.ADMIN_USERS || []);
     // region_id → regionId 정규화
-    const admins = rawAdmins.map(a => ({ ...a, regionId: a.regionId || a.region_id || null, id: a.username || a.id }));
+    const admins = rawAdmins.map(a => ({ ...a, regionId: a.regionId || a.region_id || null, dbId: a.id, id: a.username || a.id }));
+    _adminState.adminList = admins; // 비밀번호 변경은 dbId(실제 DB ID)로 호출
 
     const rows = admins.map((a, i) => `
       <tr class="hover:bg-gray-50">
@@ -6627,7 +6644,7 @@ const AdminModule = (() => {
         <td class="px-4 py-3 text-sm text-center">${a.regionId ? `${a.regionId}지역` : '본사'}</td>
         <td class="px-4 py-3 text-sm text-center text-gray-500">${a.lastLogin||'-'}</td>
         <td class="px-4 py-3 text-center">
-          <button onclick="AdminModule.resetPassword(${i})" class="text-orange-500 hover:underline text-xs mr-2">비번 초기화</button>
+          <button onclick="AdminModule.resetPassword(${i})" class="text-orange-500 hover:underline text-xs mr-2">비밀번호 설정</button>
           <button onclick="AdminModule.deleteAdmin(${i})" class="text-red-500 hover:underline text-xs">삭제</button>
         </td>
       </tr>
@@ -6674,7 +6691,56 @@ const AdminModule = (() => {
     return renderAdminLayout('admins', content, '관리자 계정 관리');
   };
   const addAdmin = () => Utils.toast('관리자 추가 모달 (구현 중)', 'info');
-  const resetPassword = (idx) => Utils.confirm('비밀번호를 초기화하시겠습니까?', () => Utils.toast('비밀번호가 초기화되었습니다.', 'success'));
+  // ── 비밀번호 변경 (서버 저장 성공 후에만 완료 안내. 입력값은 화면·로그·저장소에 남기지 않음) ──
+  const _pwForm = (title, intro, withCurrent, onSubmit) => {
+    Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold text-lg">${title}</h3></div>
+      <form id="pw-form" class="modal-body space-y-3 pt-2" autocomplete="off" onsubmit="return false">
+        <p class="text-xs text-gray-500">${intro}</p>
+        ${withCurrent ? `<div><label class="text-xs text-gray-500 font-medium block mb-1">현재 비밀번호</label>
+          <input id="pw-current" type="password" autocomplete="current-password" class="w-full border rounded-lg px-3 py-2 text-sm"></div>` : ''}
+        <div><label class="text-xs text-gray-500 font-medium block mb-1">새 비밀번호 (10자 이상, 영문+숫자)</label>
+          <input id="pw-new" type="password" autocomplete="new-password" class="w-full border rounded-lg px-3 py-2 text-sm"></div>
+        <div><label class="text-xs text-gray-500 font-medium block mb-1">새 비밀번호 확인</label>
+          <input id="pw-new2" type="password" autocomplete="new-password" class="w-full border rounded-lg px-3 py-2 text-sm"></div>
+        <p id="pw-err" class="text-xs text-red-600 hidden"></p>
+        <div class="flex gap-2 pt-1">
+          <button type="button" onclick="Utils.closeModal()" class="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50">취소</button>
+          <button type="button" id="pw-submit" class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-bold hover:bg-blue-700">변경</button>
+        </div>
+      </form>`);
+    const $ = id => document.getElementById(id);
+    const fail = m => { const e = $('pw-err'); e.textContent = m; e.classList.remove('hidden'); };
+    $('pw-submit').onclick = async () => {
+      const cur = withCurrent ? $('pw-current').value : null, a = $('pw-new').value, b = $('pw-new2').value;
+      if (withCurrent && !cur) return fail('현재 비밀번호를 입력하세요.');
+      if (a !== b) return fail('새 비밀번호와 확인 값이 다릅니다.');
+      if (a.length < 10 || !/[A-Za-z]/.test(a) || !/[0-9]/.test(a)) return fail('새 비밀번호는 10자 이상이며 영문과 숫자를 모두 포함해야 합니다.');
+      const btn = $('pw-submit'); btn.disabled = true; btn.textContent = '저장 중…';
+      try { await onSubmit(cur, a, fail); }
+      finally { if ($('pw-submit')) { $('pw-submit').disabled = false; $('pw-submit').textContent = '변경'; } }
+    };
+  };
+
+  const changeMyPassword = () => _pwForm('내 비밀번호 변경', '변경하면 모든 기기에서 로그아웃되며 새 비밀번호로 다시 로그인해야 합니다.', true, async (cur, nw, fail) => {
+    const res = await API.post('/api/admin/password/self', { currentPassword: cur, newPassword: nw });
+    if (!res || !res.success) return fail((res && res.error) || '서버에 저장하지 못했습니다. 비밀번호는 변경되지 않았습니다.');
+    Utils.closeModal();
+    Utils.toast('비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.', 'success');
+    setTimeout(() => logout(), 1200);
+  });
+
+  const resetPassword = (idx) => {
+    const t = (_adminState.adminList || [])[idx];
+    if (!t || !t.dbId) { Utils.toast('대상 계정을 확인할 수 없습니다.', 'error'); return; }
+    if ((_adminState.user || Store.get('adminUser') || {}).role !== 'super') { Utils.toast('최고관리자만 다른 계정의 비밀번호를 설정할 수 있습니다.', 'error'); return; }
+    _pwForm(`${t.name || t.id} 비밀번호 설정`, `계정 ${t.id} 의 비밀번호를 새로 설정합니다. 해당 계정의 기존 로그인은 모두 종료되며, 다른 계정은 영향이 없습니다. 새 비밀번호는 본인에게 안전하게 따로 전달하세요.`, false, async (_c, nw, fail) => {
+      const res = await API.post('/api/admin/password/reset', { targetId: t.dbId, newPassword: nw });
+      if (!res || !res.success) return fail((res && res.error) || '서버에 저장하지 못했습니다. 비밀번호는 변경되지 않았습니다.');
+      Utils.closeModal();
+      Utils.toast(`${t.id} 계정의 비밀번호를 변경했습니다.`, 'success');
+    });
+  };
   const deleteAdmin = (idx) => Utils.confirm('관리자를 삭제하시겠습니까?', () => Utils.toast('삭제되었습니다.', 'success'));
 
   // ── 시스템 설정 ────────────────────────────────────────────
@@ -8514,7 +8580,7 @@ const backupPage = async () => {
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
     sendDailyReport, sendMonthlyReport, saveAutoReport, printSettlement,
-    addAdmin, resetPassword, deleteAdmin,
+    addAdmin, resetPassword, changeMyPassword, deleteAdmin,
     saveSmsTemplates, resetSettings,
     switchRegionDashboard,
     setTourismFilter, addTourism, editTourism, saveTourism, toggleTourismVisible, deleteTourism,
