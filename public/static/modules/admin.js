@@ -176,6 +176,8 @@ const AdminModule = (() => {
 
           <!-- 로그아웃 -->
           <div class="border-t border-gray-700 p-2 flex-shrink-0">
+            ${_impState() ? `<button onclick="AdminModule.endImpersonation()" class="w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-amber-300 hover:bg-gray-700" title="최고관리자로 돌아가기"><i class="fas fa-undo flex-shrink-0"></i>${collapsed ? '' : '<span class="text-sm whitespace-nowrap">최고관리자로 돌아가기</span>'}</button>` : ((_adminState.user || Store.get('adminUser') || {}).role === 'super' ? `<button onclick="AdminModule.openImpersonation()" class="w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700" title="역할별 시험"><i class="fas fa-user-secret flex-shrink-0"></i>${collapsed ? '' : '<span class="text-sm whitespace-nowrap">역할별 시험</span>'}</button>` : '')}
+            ${_impBannerHtml()}
             <button onclick="AdminModule.changeMyPassword()"
               class="w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
               title="내 비밀번호 변경">
@@ -400,6 +402,61 @@ const AdminModule = (() => {
     }
   };
 
+  // ── 역할 시험 전환 (서버가 대상 계정 권한의 토큰을 발급; 비밀번호 사용 없음) ──
+  const _impState = () => { try { const v = JSON.parse(localStorage.getItem('amk_imp') || 'null'); if (v && v.exp > Date.now()) return v; if (v) localStorage.removeItem('amk_imp'); } catch (e) {} return null; };
+  const _impBannerHtml = () => {
+    const i = _impState(); if (!i) return '';
+    const u = _adminState.user || Store.get('adminUser') || {};
+    const t = new Date(i.exp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    return `<div id="imp-banner" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;padding:6px 12px;font-size:13px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap">
+      <b>⚠ 시험 전환 중</b><span>현재 역할: ${Utils.escapeHtml ? Utils.escapeHtml(u.name || '') : (u.name || '')} (${u.role || ''}${u.regionId ? ' / ' + u.regionId : ''})</span><span>원래 로그인: ${i.byName}</span><span>${t}까지 유효</span>
+      <button onclick="AdminModule.endImpersonation()" style="background:#fff;color:#92400e;border-radius:6px;padding:2px 10px;font-weight:600">최고관리자로 돌아가기</button></div>`;
+  };
+  const _applySession = (token, d, extra) => {
+    const user = { id: d.username, name: d.name, role: d.role, regionId: d.regionId || null, regionName: d.regionId || '' };
+    _adminState.user = user; _adminState.loggedIn = true; _adminState.selectedRegion = d.regionId || null;
+    Store.set('adminUser', user);
+    localStorage.setItem('amk_admin_user', JSON.stringify(user));
+    localStorage.setItem('amk_admin_token', token); window._adminToken = token; window._adminUser = user;
+    if (extra) localStorage.setItem('amk_imp', JSON.stringify(extra)); else localStorage.removeItem('amk_imp');
+  };
+  const openImpersonation = async () => {
+    const r = await API.get('/api/admin/impersonate/targets');
+    if (!r || !r.success) { Utils.toast('❌ ' + ((r && r.error) || '목록을 불러오지 못했습니다'), 'error'); return; }
+    const rows = r.data;
+    const pick = rows.filter(x => ['buyeo', 'tongyeong'].includes(x.username)).concat(rows.filter(x => !['buyeo', 'tongyeong'].includes(x.username)));
+    const label = { buyeo: '부여관리자로 시험', tongyeong: '통영관리자로 시험' };
+    const m = document.createElement('div'); m.id = 'imp-modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;display:flex;align-items:center;justify-content:center';
+    m.innerHTML = `<div style="background:#fff;border-radius:12px;padding:20px;max-width:420px;width:92%">
+      <h3 style="font-weight:700;margin-bottom:6px">역할별 시험</h3>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:12px">비밀번호 없이 해당 계정의 권한·담당 지역으로 30분간 시험합니다. 시작·종료는 기록됩니다. 시험 중에는 계정관리·비밀번호 변경이 막힙니다.</p>
+      ${pick.map(x => `<button data-u="${x.username}" class="imp-go" style="display:block;width:100%;text-align:left;padding:10px;margin-bottom:6px;border:1px solid #d1d5db;border-radius:8px">${label[x.username] || (x.name + '(' + x.username + ')로 시험')} <small style="color:#6b7280">· ${x.role}${x.regionId ? ' / ' + x.regionId : ''}</small></button>`).join('')}
+      <button id="imp-cancel" style="margin-top:6px;padding:6px 12px;border-radius:8px;background:#e5e7eb">닫기</button></div>`;
+    document.body.appendChild(m);
+    m.querySelector('#imp-cancel').onclick = () => m.remove();
+    m.querySelectorAll('.imp-go').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      const orig = _adminState.user || Store.get('adminUser') || {};
+      try {
+        const res = await fetch('/api/admin/impersonate/start', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (window._adminToken || localStorage.getItem('amk_admin_token')) }, body: JSON.stringify({ targetUsername: b.dataset.u }) }).then(x => x.json());
+        if (!res.success) { Utils.toast('❌ ' + (res.error || '전환하지 못했습니다'), 'error'); b.disabled = false; return; }
+        _applySession(res.token, res.data, { by: res.data.impersonatedBy.id, byName: orig.name || res.data.impersonatedBy.name, exp: Date.now() + res.expiresInMinutes * 60000 });
+        m.remove(); location.href = res.data.role === 'regional' ? '/admin/region-dashboard' : '/admin/dashboard';
+      } catch (e) { Utils.toast('❌ 전환 중 오류가 발생했습니다', 'error'); b.disabled = false; }
+    });
+  };
+  const endImpersonation = async () => {
+    try {
+      const res = await fetch('/api/admin/impersonate/end', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (window._adminToken || localStorage.getItem('amk_admin_token')) }, body: '{}' }).then(x => x.json());
+      if (!res.success) {
+        localStorage.removeItem('amk_imp'); Utils.toast('❌ ' + (res.error || '복귀하지 못했습니다') + ' — 다시 로그인해 주세요', 'error'); logout(); return;
+      }
+      _applySession(res.token, res.data, null);
+      location.href = '/admin/dashboard';
+    } catch (e) { Utils.toast('❌ 복귀 중 오류가 발생했습니다', 'error'); }
+  };
+
   const logout = () => {
     const userName = _adminState.user?.name || 'unknown';
     _addAccessLog(_adminState.user?.id || 'unknown', '로그아웃');
@@ -411,6 +468,7 @@ const AdminModule = (() => {
       localStorage.removeItem('amk_admin_user');
       localStorage.removeItem('amk_admin_token');
       localStorage.removeItem('amk_admin_login_time');
+      localStorage.removeItem('amk_imp');
       window._adminToken = null;
     } catch(e) {}
     Store.set('adminLoginTime', null);
@@ -8580,7 +8638,7 @@ const backupPage = async () => {
     showAddRegionModal, editRegion, suspendRegion, activateRegion, deleteRegion, saveNewRegion, _autoGenRegionCode, _saveEditRegion,
     closeDay, viewSettlement, exportSettlement, exportSettlementCSV, filterSettlement,
     sendDailyReport, sendMonthlyReport, saveAutoReport, printSettlement,
-    addAdmin, resetPassword, changeMyPassword, deleteAdmin,
+    addAdmin, resetPassword, changeMyPassword, deleteAdmin, openImpersonation, endImpersonation,
     saveSmsTemplates, resetSettings,
     switchRegionDashboard,
     setTourismFilter, addTourism, editTourism, saveTourism, toggleTourismVisible, deleteTourism,
