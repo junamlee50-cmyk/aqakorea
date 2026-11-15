@@ -297,17 +297,18 @@
         }
       }
     } catch(e) {}
-    // 시험환경 표시: 서버가 시험환경일 때만 관리자 화면 위쪽에 항상 표시
+    // 시험환경 표시: 시험 쿠키가 있고 서버가 시험환경일 때만, 모든 화면 위쪽에 항상 표시
     try {
-      if (window.location.pathname.startsWith('/admin')) {
+      if (window.AMK_SANDBOX_ENV && window.AMK_SANDBOX_ENV.active) {
         fetch('/api/admin/dev-login/status').then(r => {
           if (r.status !== 200 || document.getElementById('amk-sandbox-bar')) return;
           const d = document.createElement('div');
           d.id = 'amk-sandbox-bar';
-          d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:3px 8px;pointer-events:none';
-          d.textContent = '⚠ 시험환경 — 실제 예약·결제·고객 문자와 분리된 시험 데이터입니다';
+          d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:3px 8px';
+          d.innerHTML = '⚠ 시험환경 — 실제 예약·결제·고객 문자와 분리된 시험 데이터입니다 &nbsp;<a href="#" id="amk-sbx-leave" style="color:#fff;text-decoration:underline">운영 화면으로 돌아가기</a>';
           document.body.appendChild(d);
           document.body.style.paddingTop = '22px';
+          document.getElementById('amk-sbx-leave').onclick = (ev) => { ev.preventDefault(); window.AMK_SANDBOX_ENV.leave(); location.href = '/admin/login'; };
         }).catch(() => {});
       }
     } catch(e) {}

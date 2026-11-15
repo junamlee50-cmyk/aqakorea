@@ -14,7 +14,7 @@
   const token=()=>sessionStorage.getItem('amk-bridge-token')||localStorage.getItem(REMEMBER_KEY)||'';
   const remembered=()=>!!localStorage.getItem(REMEMBER_KEY);
   // 연결 기억 저장/삭제: 창구 설정(amk-desk-settings-30x250)·미반영 출력 결과·인쇄 저널은 건드리지 않는다.
-  const saveToken=(t,remember)=>{sessionStorage.setItem('amk-bridge-token',t);if(remember)localStorage.setItem(REMEMBER_KEY,t);else localStorage.removeItem(REMEMBER_KEY);};
+  const saveToken=(t,remember)=>{t=String(t||'').trim();if(!t)return;sessionStorage.setItem('amk-bridge-token',t);if(remember)localStorage.setItem(REMEMBER_KEY,t);else localStorage.removeItem(REMEMBER_KEY);};
   const forgetToken=()=>{localStorage.removeItem(REMEMBER_KEY);sessionStorage.removeItem('amk-bridge-token');};
   async function bridgeCall(path,body){
     return fetchJSON('http://127.0.0.1:17864'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-AMK-Token':token()},...(body?{body:JSON.stringify(body)}:{})});
@@ -102,7 +102,7 @@
     el('wd-station').value=s.stationId;el('wd-mode').value=demo()?'test':s.testMode?'test':'real';
     el('wd-transport').value=s.config.transport;el('wd-token').value=token();el('wd-dpi').value=s.config.dpi;el('wd-rotation').value=s.config.rotation;
     el('wd-x').value=s.config.offsetX;el('wd-y').value=s.config.offsetY;el('wd-media').checked=s.config.mediaConfirmed;
-    if(s.printerName!=='SIMULATOR'){const option=new Option(s.printerName,s.printerName);el('wd-printer').add(option);el('wd-printer').value=s.printerName;}
+    const _real=s.printerName!=='SIMULATOR'?s.printerName:(s.realPrinterName||'');if(_real){const option=new Option(_real,_real);el('wd-printer').add(option);el('wd-printer').value=_real;}
     const updateNote=()=>{const n=el('wd-transport-note');if(!n)return;n.textContent=el('wd-transport').value==='simulation'?'현재 "모의 출력"입니다. 실제 프린터로는 인쇄되지 않으며 용지도 쓰지 않습니다. 선택한 프린터는 "Windows 프린터 출력"을 고를 때만 사용됩니다.':'"Windows 프린터 출력"입니다. 선택한 프린터로 실제 인쇄됩니다.';};
     el('wd-printer').onchange=()=>{dirty=true;setMsg('프린터 선택이 바뀌었습니다. "창구 설정 저장"을 눌러야 적용됩니다.');};
     el('wd-transport').onchange=()=>{dirty=true;updateNote();};updateNote();
@@ -112,13 +112,20 @@
     el('wd-forget').onclick=()=>{forgetToken();el('wd-token').value='';el('wd-remember').checked=false;rememberMsg('이 PC의 연결 기억을 삭제했습니다. 창구 설정·인쇄 기록·미반영 출력 결과는 그대로 남아 있습니다. 다시 사용하려면 인증 코드를 입력하세요.');};
     el('wd-remember').onchange=()=>{if(!el('wd-remember').checked&&remembered()){localStorage.removeItem(REMEMBER_KEY);rememberMsg('연결 기억을 해제했습니다. 이 탭을 닫으면 인증 코드를 다시 입력해야 합니다.');}};
     // 기억된 코드가 있으면 복원 후 연결 프로그램에 인증 요청을 보내 유효성 확인
-    if(!demo()&&remembered()&&!sessionStorage.getItem('amk-bridge-token')){
-      el('wd-token').value=localStorage.getItem(REMEMBER_KEY)||'';rememberMsg('기억된 연결 정보를 확인하는 중...');
-      bridgeCall('/api/printers').then(d=>{connection=d;rememberMsg('기억된 인증 코드로 연결 프로그램 인증이 확인됐습니다. (프린터 '+d.printers.length+'대 조회 가능 · 아직 실제 출력은 하지 않았습니다)');})
+    if(!demo()&&remembered()){
+      el('wd-token').value=token();rememberMsg('기억된 연결 정보를 확인하는 중...');
+      bridgeCall('/api/printers').then(d=>{connection=d;fillPrinterList();rememberMsg('기억된 인증 코드로 연결되어 프린터 '+d.printers.length+'대를 불러왔습니다. 이전에 선택한 프린터를 복원했습니다. (아직 실제 출력은 하지 않았습니다)');})
       .catch(e=>{const m=String(e.message||e);
         if(/401|403|인증|token/i.test(m))rememberMsg('저장된 인증 코드가 더 이상 맞지 않습니다. 연결 프로그램을 다시 시작해 새 인증 코드를 입력해 주세요.',true);
         else rememberMsg('연결 프로그램에 연결하지 못했습니다. 연결 프로그램(START.cmd)을 실행하세요. 실행 중이라면 브라우저의 로컬 네트워크 접근 허용을 확인해 주세요.',true);});
     }
+    const fillPrinterList=()=>{
+      const cur=el('wd-printer').value;
+      el('wd-printer').replaceChildren(new Option('모의 프린터','SIMULATOR'));
+      for(const p of connection.printers)el('wd-printer').add(new Option(p.name+(p.available?'':' (오프라인)'),p.name));
+      const st=settings();const saved=st.printerName!=='SIMULATOR'?st.printerName:(st.realPrinterName||'');
+      if(connection.printers.some(p=>p.name===saved))el('wd-printer').value=saved;else if(connection.printers.some(p=>p.name===cur))el('wd-printer').value=cur;
+    };
     el('wd-connect').onclick=()=>settingsAction(async()=>{
       const pm=el('wd-printer-msg'),btn=el('wd-connect');
       if(!el('wd-token').value.trim()){pm.textContent='연결 프로그램의 인증 코드를 먼저 입력해 주세요. (검은 실행 창의 "인증 코드:" 값)';pm.className='wd-alert error';return;}
@@ -128,11 +135,7 @@
         try{connection=await bridgeCall('/api/printers');}
         catch(e){const m=String(e.message||e);pm.className='wd-alert error';
           pm.textContent=/401|403|인증|token/i.test(m)?'인증 코드가 맞지 않습니다. 검은 실행 창의 최신 인증 코드를 다시 붙여넣어 주세요.':(/Failed to fetch|NetworkError|Load failed|JSON|Unexpected end|응답/i.test(m)?'연결 프로그램에 연결하지 못했습니다. 검은 실행 창이 켜져 있는지, 브라우저가 이 사이트의 로컬 네트워크 접근을 막지 않았는지 확인해 주세요.':'목록 조회 실패: '+m);return;}
-        const cur=el('wd-printer').value;
-        el('wd-printer').replaceChildren(new Option('모의 프린터','SIMULATOR'));
-        for(const p of connection.printers)el('wd-printer').add(new Option(p.name+(p.available?'':' (오프라인)'),p.name));
-        const saved=settings().printerName;
-        if(connection.printers.some(p=>p.name===saved))el('wd-printer').value=saved;else if(connection.printers.some(p=>p.name===cur))el('wd-printer').value=cur;
+        fillPrinterList();
         dirty=true;
         pm.className='wd-alert';pm.textContent=connection.printers.length?'프린터 '+connection.printers.length+'대를 불러왔습니다. 옆의 프린터 목록에서 사용할 기기를 선택한 뒤 "창구 설정 저장"을 눌러 주세요. (아직 저장 전입니다)':'연결 프로그램은 정상이지만 Windows에 설치된 프린터가 없습니다.';
         el('wd-printer').focus({preventScroll:true});
@@ -148,7 +151,7 @@
       if(!testMode && cfg.transport!=='bridge')throw Error('실제 예약은 Windows 프린터 출력을 선택해 주세요.');
       if(cfg.transport==='bridge' && (!cfg.mediaConfirmed || el('wd-printer').value==='SIMULATOR'))throw Error('실제 프린터와 용지·뜯어내기 설정 확인이 필요합니다.');
       if(!/^[A-Za-z0-9_-]{1,40}$/.test(el('wd-station').value))throw Error('창구 ID는 영문·숫자·하이픈·밑줄을 사용해 주세요.');
-      localStorage.setItem('amk-desk-settings-30x250',JSON.stringify({stationId:el('wd-station').value,printerName:cfg.transport==='simulation'?'SIMULATOR':el('wd-printer').value,testMode,config:cfg}));
+      localStorage.setItem('amk-desk-settings-30x250',JSON.stringify({stationId:el('wd-station').value,printerName:cfg.transport==='simulation'?'SIMULATOR':el('wd-printer').value,realPrinterName:el('wd-printer').value!=='SIMULATOR'?el('wd-printer').value:(settings().realPrinterName||''),testMode,config:cfg}));
       saveToken(el('wd-token').value.trim(),el('wd-remember').checked);dirty=false;el('wd-ready').checked=false;setMsg('설정이 저장됐습니다. 저장된 프린터: '+(cfg.transport==='simulation'?'모의 프린터(실제 인쇄 없음)':el('wd-printer').value)+'. 아래에서 발권 시작을 체크하면 스캔할 수 있습니다.');updateNote();
     });
     container.querySelectorAll('.wd-grid input,.wd-grid select,#wd-media').forEach(i=>i.addEventListener('change',()=>{dirty=true;el('wd-ready').checked=false;message('설정을 변경했습니다. 저장 후 발권 시작을 체크해 주세요.');}));

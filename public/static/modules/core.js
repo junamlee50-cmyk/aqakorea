@@ -490,28 +490,32 @@ const initPageComponents = () => {
       });
     });
   });
-  // 로그인 화면 역할 버튼 → '시험환경 바로 접속'
-  //  - 운영 화면: 같은 탭에서 시험환경 로그인 주소로 역할만 전달 (비밀번호·토큰은 전달하지 않음)
-  //  - 시험환경 화면: 서버(시험 서버)가 세션을 발급하고 대시보드로 이동. ?auto=역할 이면 버튼을 다시 누르지 않아도 자동 진행
-  //  - 운영 서버의 비밀번호 없는 로그인(/api/admin/dev-login)은 서버 설정으로 404 차단 유지
+  // 로그인 화면 역할 버튼 → '시험환경 바로 접속' (같은 HTTPS 사이트 안에서 동작)
+  //  - 버튼: 시험 쿠키(amk_env=sbx)를 켜고 같은 탭을 다시 열면, 서버(Caddy)가 /api 를 별도 시험 서버·시험 DB로 보낸다.
+  //  - 시험 서버가 세션을 발급하고 대시보드로 이동. 로그인 정보는 'sbx:' 키로 분리되어 운영 로그인 정보를 덮어쓰지 않는다.
+  //  - 운영 서버의 비밀번호 없는 로그인은 서버 설정(AMK_SANDBOX 없음)으로 404 차단 상태 유지.
   (async () => {
-    const SANDBOX_LOGIN = 'http://hniiymju.gensparkclaw.com:8080/admin/login';
     const ROLES = ['admin', 'buyeo', 'tongyeong'];
     const btns = document.querySelectorAll('.role-quick-btn');
     if (!btns.length) return;
+    const env = window.AMK_SANDBOX_ENV || { active: false, enter() {}, leave() {} };
     let sandbox = false;
-    try { sandbox = (await fetch('/api/admin/dev-login/status')).status === 200; } catch (e) {}
+    try { sandbox = env.active && (await fetch('/api/admin/dev-login/status')).status === 200; } catch (e) {}
     const hint = document.querySelector('#role-quick');
     if (hint && hint.previousElementSibling) hint.previousElementSibling.innerHTML = '<b style="color:#b45309">시험환경 바로 접속</b> · 누르면 비밀번호 없이 시험환경의 해당 역할로 들어갑니다 (실제 예약·계정과 분리)';
     const go = async (u) => {
       if (!ROLES.includes(u)) return;
       if (sandbox) { await AdminModule.devLogin(u); return; }
-      location.href = SANDBOX_LOGIN + '?auto=' + encodeURIComponent(u);
+      env.enter();
+      location.href = '/admin/login?auto=' + encodeURIComponent(u);
     };
     btns.forEach(btn => btn.addEventListener('click', () => go(btn.dataset.u)));
     if (sandbox) {
       const auto = new URLSearchParams(location.search).get('auto');
       if (auto && ROLES.includes(auto)) go(auto);
+    } else if (env.active) {
+      // 시험 쿠키는 있으나 시험 서버가 응답하지 않는 경우: 운영 로그인 화면이 막히지 않도록 해제
+      env.leave();
     }
   })();
   // 숫자 카운터 애니메이션
