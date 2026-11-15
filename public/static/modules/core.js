@@ -490,26 +490,29 @@ const initPageComponents = () => {
       });
     });
   });
-  // 로그인 화면 역할 버튼
-  //  - 시험환경(서버가 허용한 경우만): 비밀번호 없이 즉시 해당 역할로 로그인
-  //  - 운영: 서버가 404 → 기존처럼 아이디만 채움 (비밀번호는 다루지 않음)
+  // 로그인 화면 역할 버튼 → '시험환경 바로 접속'
+  //  - 운영 화면: 같은 탭에서 시험환경 로그인 주소로 역할만 전달 (비밀번호·토큰은 전달하지 않음)
+  //  - 시험환경 화면: 서버(시험 서버)가 세션을 발급하고 대시보드로 이동. ?auto=역할 이면 버튼을 다시 누르지 않아도 자동 진행
+  //  - 운영 서버의 비밀번호 없는 로그인(/api/admin/dev-login)은 서버 설정으로 404 차단 유지
   (async () => {
+    const SANDBOX_LOGIN = 'http://hniiymju.gensparkclaw.com:8080/admin/login';
+    const ROLES = ['admin', 'buyeo', 'tongyeong'];
     const btns = document.querySelectorAll('.role-quick-btn');
     if (!btns.length) return;
     let sandbox = false;
     try { sandbox = (await fetch('/api/admin/dev-login/status')).status === 200; } catch (e) {}
     const hint = document.querySelector('#role-quick');
-    if (sandbox && hint) {
-      const t = hint.previousElementSibling;
-      if (t) t.innerHTML = '<b style="color:#b45309">시험환경</b> · 버튼을 누르면 비밀번호 없이 바로 접속합니다';
+    if (hint && hint.previousElementSibling) hint.previousElementSibling.innerHTML = '<b style="color:#b45309">시험환경 바로 접속</b> · 누르면 비밀번호 없이 시험환경의 해당 역할로 들어갑니다 (실제 예약·계정과 분리)';
+    const go = async (u) => {
+      if (!ROLES.includes(u)) return;
+      if (sandbox) { await AdminModule.devLogin(u); return; }
+      location.href = SANDBOX_LOGIN + '?auto=' + encodeURIComponent(u);
+    };
+    btns.forEach(btn => btn.addEventListener('click', () => go(btn.dataset.u)));
+    if (sandbox) {
+      const auto = new URLSearchParams(location.search).get('auto');
+      if (auto && ROLES.includes(auto)) go(auto);
     }
-    btns.forEach(btn => btn.addEventListener('click', async () => {
-      if (sandbox && window.AdminModule && await AdminModule.devLogin(btn.dataset.u)) return;
-      const idEl = document.getElementById('admin-id');
-      const pwEl = document.getElementById('admin-pw');
-      if (idEl) idEl.value = btn.dataset.u;
-      if (pwEl) { pwEl.value = ''; pwEl.focus(); }
-    }));
   })();
   // 숫자 카운터 애니메이션
   document.querySelectorAll('[data-count]').forEach(el => {

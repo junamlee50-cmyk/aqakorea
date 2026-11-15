@@ -297,6 +297,20 @@
         }
       }
     } catch(e) {}
+    // 시험환경 표시: 서버가 시험환경일 때만 관리자 화면 위쪽에 항상 표시
+    try {
+      if (window.location.pathname.startsWith('/admin')) {
+        fetch('/api/admin/dev-login/status').then(r => {
+          if (r.status !== 200 || document.getElementById('amk-sandbox-bar')) return;
+          const d = document.createElement('div');
+          d.id = 'amk-sandbox-bar';
+          d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:3px 8px;pointer-events:none';
+          d.textContent = '⚠ 시험환경 — 실제 예약·결제·고객 문자와 분리된 시험 데이터입니다';
+          document.body.appendChild(d);
+          document.body.style.paddingTop = '22px';
+        }).catch(() => {});
+      }
+    } catch(e) {}
     if (_initialized) return;
     _initialized = true;
 
