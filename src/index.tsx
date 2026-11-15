@@ -415,18 +415,18 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/customer.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/payment.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/field.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/admin.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/stats.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/seo.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/ticket.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/wristband-layout.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/wristband-engine.js?v=3d3cc0a4acc5"></script>
-<script src="/static/modules/wristband-desk.js?v=3d3cc0a4acc5"></script>
-<script src="/static/app.js?v=3d3cc0a4acc5"></script>
+<script src="/static/modules/core.js?v=daf0342f3432"></script>
+<script src="/static/modules/customer.js?v=daf0342f3432"></script>
+<script src="/static/modules/payment.js?v=daf0342f3432"></script>
+<script src="/static/modules/field.js?v=daf0342f3432"></script>
+<script src="/static/modules/admin.js?v=daf0342f3432"></script>
+<script src="/static/modules/stats.js?v=daf0342f3432"></script>
+<script src="/static/modules/seo.js?v=daf0342f3432"></script>
+<script src="/static/modules/ticket.js?v=daf0342f3432"></script>
+<script src="/static/modules/wristband-layout.js?v=daf0342f3432"></script>
+<script src="/static/modules/wristband-engine.js?v=daf0342f3432"></script>
+<script src="/static/modules/wristband-desk.js?v=daf0342f3432"></script>
+<script src="/static/app.js?v=daf0342f3432"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {
@@ -769,15 +769,18 @@ app.get('/content', (c) => {
   return c.html(buildPage(meta, { page: 'content-list' }))
 })
 
-// 현장매표소 (noindex)
-app.get('/field', (c) => {
-  const meta = buildMeta({
-    title: '현장매표소 | 아쿠아모빌리티코리아',
-    description: '현장 QR 체크인, 손목밴드 발급, 현장 판매 대시보드',
-    noindex: true,
+// 현장매표소 (noindex). History API 경로는 직접 접속/새로고침에도 앱 문서를 제공한다.
+// 등록된 화면만 허용하며 발권 인증은 클라이언트 가드와 서버 API에서 각각 검사한다.
+for (const fieldPath of ['/field', '/field/dashboard', '/field/issuance']) {
+  app.get(fieldPath, (c) => {
+    const meta = buildMeta({
+      title: '현장매표소 | 아쿠아모빌리티코리아',
+      description: '현장 QR 체크인, 손목밴드 발급, 현장 판매 대시보드',
+      noindex: true,
+    })
+    return c.html(buildPage(meta, { page: 'field' }))
   })
-  return c.html(buildPage(meta, { page: 'field' }))
-})
+}
 
 // 통계/보고서 (noindex)
 app.get('/stats', (c) => {

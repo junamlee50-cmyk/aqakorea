@@ -257,15 +257,15 @@
 
   // ── 초기 페이지 결정 ───────────────────────────────────────
   const getInitialPage = () => {
-    const path = window.location.pathname;
+    const path = window.location.pathname + window.location.search;
 
     // 서버에서 주입된 페이지 타입이 있으면 우선
     if (PAGE.page) {
       switch (PAGE.page) {
         case 'home':        return '/';
         case 'reservation': return `/reservation/${PAGE.regionId || ''}`;
-        case 'admin':       return '/admin/dashboard';
-        case 'field':       return '/field';
+        case 'admin':       return path;
+        case 'field':       return path;
         case 'faq':         return '/faq';
         default:            return path;
       }
