@@ -1,7 +1,7 @@
 (function(root){
   'use strict';
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const states={queued:'미전송',dispatching:'전송 중 · 결과 확인 필요',accepted:'인쇄 대기열 전송 완료',simulated:'모의 출력 완료',failed:'전송 실패',unknown:'결과 확인 필요'};
+  const states={queued:'미전송',dispatching:'전송 중 · 결과 확인 필요',accepted:'인쇄 대기열 전송 · 실물 확인 전',simulated:'모의 출력 완료',failed:'전송 실패',unknown:'결과 확인 필요',voided:'발권 되돌림 · 자동 재출력 안 함'};
   const defaults={stationId:'DESK-1',printerName:'SIMULATOR',testMode:true,config:{layout:'buyeo-v2-30x250',transport:'simulation',dpi:203,rotation:0,offsetX:0,offsetY:0,mediaConfirmed:false}};
   let engine,container,connection;
   async function fetchJSON(url,options={}){
@@ -31,7 +31,8 @@
     const s=settings(), compatible=job.config.layout==='buyeo-v2-30x250', own=compatible && job.stationId===s.stationId && job.printerName===s.printerName;
     el('wd-result').innerHTML=`<h2>${esc(job.items[0]?.person.reservationNo)} · ${job.testMode?'시험':'실제'} 발권</h2>
       <p>${esc(job.stationId)} / ${esc(job.printerName)} · 인쇄 대기열 전송은 실물 출력 확인과 다릅니다.</p>
-      <div class="wd-scroll"><table><thead><tr><th>순번</th><th>권종 / 성명</th><th>상태</th><th>조치</th></tr></thead><tbody>${job.items.map((i,n)=>`<tr><td>${i.person.sequence}/${i.person.total}</td><td>${esc(root.WristbandLayout.labels[i.person.type])} ${esc(i.person.name)}</td><td>${i.current?esc(states[i.state]||i.state):'새 출력 작업으로 대체됨'}</td><td>${i.current && (i.state!=='queued'||!compatible)?`<button type="button" data-reprint="${n}">재출력 검토</button>`:''}</td></tr>`).join('')}</tbody></table></div>
+      <div class="wd-scroll"><table><thead><tr><th>순번</th><th>권종 / 성명</th><th>상태</th><th>조치</th></tr></thead><tbody>${job.items.map((i,n)=>`<tr><td>${i.person.sequence}/${i.person.total}</td><td>${esc(root.WristbandLayout.labels[i.person.type])} ${esc(i.person.name)}</td><td>${i.current?esc(i.state==='accepted'&&i.confirmedAt?'실물 확인 완료':states[i.state]||i.state):'새 출력 작업으로 대체됨'}</td><td>${i.current && (i.state!=='queued'||!compatible)?`<button type="button" data-reprint="${n}">재출력 검토</button>`:''}</td></tr>`).join('')}</tbody></table></div>
+      ${job.readyToConfirm&&!job.physicalConfirmed?'<button id="wd-confirm" type="button">실물 확인 · 발권완료 처리</button><p>예약 인원 전원의 팔찌가 정확히 출력됐는지 확인한 뒤 누르세요.</p>':''}
       ${job.items.some(i=>i.current&&i.state==='queued')?`<button id="wd-resume" ${own?'':'disabled'}>미전송 인원 이어서 출력</button>`:''}
       ${own?'':'<p>이 작업을 시작한 창구와 프린터 설정으로 돌아가면 미전송분을 이어서 출력할 수 있습니다.</p>'}
       <p>가변 정보 미리보기 · 양끝 25mm는 인쇄하지 않습니다.</p><div id="wd-preview" class="wd-preview"></div>`;
@@ -39,6 +40,10 @@
     for(const i of (compatible?job.items.slice(0,6):[])){
       const c=root.WristbandLayout.render(i.person,job.config);c.setAttribute('aria-label','250×30mm 검정 가변 정보');el('wd-preview').appendChild(c);
     }
+    el('wd-confirm')?.addEventListener('click',()=>action(async()=>{
+      if(!confirm('예약 인원 전원의 팔찌가 실제로 출력되었고 날짜·회차·권종·수량이 맞습니까?\n확인하면 발권완료로 처리합니다.'))return;
+      await engine.confirmOutput();message('팔찌 실물을 확인하여 발권완료로 처리했습니다.');
+    }));
     el('wd-resume')?.addEventListener('click',()=>action(async()=>{if(!el('wd-ready').checked)throw Error('발권 시작을 체크해 주세요.');const current=settings();if(current.stationId!==engine.job.stationId || current.printerName!==engine.job.printerName)throw Error('창구와 프린터 설정이 다릅니다.');await engine.resume();message('미전송 인원을 처리했습니다. 실물을 확인해 주세요.');}));
     el('wd-result').querySelectorAll('[data-reprint]').forEach(b=>b.addEventListener('click',()=>action(async()=>{
       if(!el('wd-ready').checked)throw Error('발권 시작을 체크해 주세요.');
@@ -62,12 +67,13 @@
       <label>급지 방향<select id="wd-rotation"><option value="0">기본 방향</option><option value="180">반대 방향 (180°)</option></select></label>
       <label>길이 방향 보정 (mm)<input id="wd-x" type="number" min="-5" max="5" step="0.1"></label>
       <label>폭 방향 보정 (mm)<input id="wd-y" type="number" min="-3" max="3" step="0.1"></label></div>
-      <label class="wd-check"><input id="wd-media" type="checkbox">드라이버의 30×250mm 용지·배율 100%·페이지마다 절단 설정을 확인했습니다.</label>
+      <label class="wd-check"><input id="wd-media" type="checkbox">실제 밴드를 넣고 30×250mm·배율 100%·감열 인쇄·뜯어내기 설정을 확인했습니다.</label>
       <p class="wd-help">부여 선인쇄 양식에 맞춘 검정 정보만 출력합니다. 다른 지역이나 다른 디자인의 밴드는 양식을 먼저 맞춰야 합니다.</p>
       <button id="wd-save" type="button">창구 설정 저장</button></section>
       <section class="wd-card"><h2>2. 예약 QR 스캔</h2>
-      <label class="wd-check"><input id="wd-ready" type="checkbox">발권 시작 · 새 예약을 스캔하면 인원별로 자동 출력</label>
-      <form id="wd-form"><label for="wd-scan">예약 QR 또는 예약번호</label><div class="wd-scan-row"><input id="wd-scan" autocomplete="off" placeholder="여기를 선택한 뒤 스캐너로 QR을 읽어 주세요"><button type="submit">조회·발권</button></div></form>
+      <label class="wd-check"><input id="wd-ready" type="checkbox">발권 시작</label>
+      <label class="wd-check"><input id="wd-auto" type="checkbox">QR 스캔 즉시 출력 (켜면 예약 확인창을 생략합니다)</label>
+      <form id="wd-form"><label for="wd-scan">예약 QR 또는 예약번호</label><div class="wd-scan-row"><input id="wd-scan" autocomplete="off" placeholder="여기를 선택한 뒤 스캐너로 QR을 읽어 주세요"><button type="submit">예약 확인 · 출력</button></div></form>
       <div class="wd-toolbar"><button id="wd-history" type="button">입력한 예약의 발권 내역</button><button id="wd-sync" type="button">미반영 결과 동기화</button></div>
       ${demo()?'<div id="wd-samples" class="wd-samples"></div>':''}<p>같은 예약을 다시 스캔하면 내역만 표시합니다. 결과가 불확실한 경우 자동으로 재출력하지 않습니다.</p>
       <div id="wd-message" class="wd-alert" role="status">설정을 저장하고 발권 시작을 체크해 주세요.</div></section>
@@ -77,7 +83,9 @@
   function mount(){
     container=document.getElementById('wristband-desk');if(!container)return;
     const fragment=new URLSearchParams(location.hash.slice(1));if(demo() && fragment.get('token')){sessionStorage.setItem('amk-bridge-token',fragment.get('token'));history.replaceState(null,'',location.pathname);}
-    const s=settings();let dirty=false;
+    const s=settings();let dirty=false,reviewing=false;
+    const prefill=new URLSearchParams(location.search).get('reservation');
+    if(prefill)el('wd-scan').value=prefill;
     el('wd-station').value=s.stationId;el('wd-mode').value=demo()?'test':s.testMode?'test':'real';
     el('wd-transport').value=s.config.transport;el('wd-token').value=token();el('wd-dpi').value=s.config.dpi;el('wd-rotation').value=s.config.rotation;
     el('wd-x').value=s.config.offsetX;el('wd-y').value=s.config.offsetY;el('wd-media').checked=s.config.mediaConfirmed;
@@ -89,18 +97,25 @@
       const cfg={layout:'buyeo-v2-30x250',transport:el('wd-transport').value,dpi:Number(el('wd-dpi').value),rotation:Number(el('wd-rotation').value),offsetX:Number(el('wd-x').value),offsetY:Number(el('wd-y').value),mediaConfirmed:el('wd-media').checked};
       root.WristbandLayout.validate(cfg);const testMode=el('wd-mode').value==='test';
       if(!testMode && cfg.transport!=='bridge')throw Error('실제 예약은 Windows 프린터 출력을 선택해 주세요.');
-      if(cfg.transport==='bridge' && (!cfg.mediaConfirmed || el('wd-printer').value==='SIMULATOR'))throw Error('실제 프린터와 용지·절단 설정 확인이 필요합니다.');
+      if(cfg.transport==='bridge' && (!cfg.mediaConfirmed || el('wd-printer').value==='SIMULATOR'))throw Error('실제 프린터와 용지·뜯어내기 설정 확인이 필요합니다.');
       if(!/^[A-Za-z0-9_-]{1,40}$/.test(el('wd-station').value))throw Error('창구 ID는 영문·숫자·하이픈·밑줄을 사용해 주세요.');
       localStorage.setItem('amk-desk-settings-30x250',JSON.stringify({stationId:el('wd-station').value,printerName:cfg.transport==='simulation'?'SIMULATOR':el('wd-printer').value,testMode,config:cfg}));
       sessionStorage.setItem('amk-bridge-token',el('wd-token').value.trim());dirty=false;el('wd-ready').checked=false;message('설정이 저장됐습니다. 발권 시작을 체크하면 스캔할 수 있습니다.');
     });
     container.querySelectorAll('.wd-grid input,.wd-grid select,#wd-media').forEach(i=>i.addEventListener('change',()=>{dirty=true;el('wd-ready').checked=false;message('설정을 변경했습니다. 저장 후 발권 시작을 체크해 주세요.');}));
-    el('wd-form').onsubmit=e=>{e.preventDefault();action(async()=>{
+    el('wd-form').onsubmit=e=>{e.preventDefault();if(reviewing||engine.busy)return;reviewing=true;action(async()=>{
+      try{
       if(!el('wd-ready').checked)throw Error('설정을 저장하고 발권 시작을 체크해 주세요.');
       const scan=el('wd-scan').value.trim();if(!scan)throw Error('QR 또는 예약번호를 입력해 주세요.');
-      message('예약과 결제를 확인하고 있습니다…');const result=await engine.scan(scan,settings());
+      const chosen=settings();
+      if(chosen.config.transport==='bridge')await bridge.preflight(chosen.printerName);
+      const preview=await api('/preview?scan='+encodeURIComponent(scan)+'&testMode='+chosen.testMode);
+      if(!el('wd-auto').checked && !confirm(`${preview.reservationNo}\n${preview.name} · ${preview.date} ${preview.time}\n${preview.pax}명 / ${chosen.printerName}\n\n이 예약의 팔찌를 출력하시겠습니까?`)){message('출력을 시작하지 않았습니다. 예약·결제 상태는 그대로입니다.');return;}
+      if(dirty||!el('wd-ready').checked||JSON.stringify(chosen)!==JSON.stringify(settings()))throw Error('설정이 변경됐습니다. 다시 확인해 주세요.');
+      message('예약과 결제를 확인하고 있습니다…');const result=await engine.scan(scan,{...chosen,reviewRevision:preview.revision});
       const uncertain=result.job.items.some(i=>i.current && ['unknown','dispatching','failed'].includes(i.state));
       message(uncertain?'출력 확인이 필요하여 중단했습니다. Windows 대기열과 팔찌 실물을 확인한 뒤 재출력을 검토해 주세요.':result.duplicate?'이미 발권 작업이 있습니다. 자동 재출력하지 않았습니다. 아래 내역을 확인해 주세요.':'출력 요청을 처리했습니다. 아래 상태와 팔찌 실물을 확인해 주세요.',uncertain);el('wd-scan').select();
+      }finally{reviewing=false;}
     });};
     el('wd-ready').onchange=()=>{if(dirty){el('wd-ready').checked=false;message('변경한 설정부터 저장해 주세요.',true);return;}if(el('wd-ready').checked)el('wd-scan').focus();};
     el('wd-sync').onclick=()=>action(async()=>{await engine.sync();message('저장된 출력 결과를 서버에 반영했습니다.');});

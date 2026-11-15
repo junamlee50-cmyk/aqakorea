@@ -98,3 +98,17 @@ test('submission rechecks seats, handles failure, and prevents double submit', a
     if(ctx.calls){assert.equal(ctx.submitted.isTest,true);assert.equal(ctx.submitted.paymentMethod,'test');assert.match(ctx.submitted.name,/^\[테스트\]/);}
   }
 });
+
+test('관리자 QR 화면은 해당 예약 상세로 복귀하고 팔찌 전용 화면으로 이동', async()=>{
+  const {ctx,run}=setup();ctx.location.search='?from=admin';
+  run("Store.set('adminUser',{role:'regional'}); API.get=async()=>({success:true,data:{reservationNo:'BYO-001',status:'confirmed',paymentStatus:'paid'}});");
+  const html=await run("TicketPage.show('BYO-001')");
+  assert.match(html,/\/admin\/reservations\?detail=BYO-001/);assert.match(html,/\/field\/issuance\?reservation=BYO-001/);
+  assert.doesNotMatch(html,/window\.print|<canvas/);assert.match(html,/<div id="ticket-qr-canvas"/);
+});
+test('고객 링크는 프린터 출력 기능을 노출하지 않고 미결제를 확정으로 안내하지 않음',async()=>{
+  const {ctx,run}=setup();ctx.location.search='?from=admin';
+  run("API.get=async()=>({success:true,data:{reservationNo:'BYO-001',status:'confirmed',paymentStatus:'pending'}});");
+  const html=await run("TicketPage.show('BYO-001')");
+  assert.match(html,/예약접수 · 결제 대기/);assert.doesNotMatch(html,/window\.print|팔찌 발권·출력|\/admin\/reservations/);
+});

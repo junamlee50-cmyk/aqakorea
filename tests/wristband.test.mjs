@@ -15,6 +15,11 @@ function fixture(){let job,printed=0,created=0;const state=storage();
 }
 test('한 예약 3명 출력 후 재스캔은 추가 출력하지 않음',async()=>{const f=fixture();await f.engine.scan('AMK-001',{});assert.equal(f.printed,3);assert.equal((await f.engine.scan('AMK-001',{})).duplicate,true);assert.equal(f.printed,3);});
 test('스캐너 Enter 연타는 동시 발권 요청을 차단',async()=>{const f=fixture(),p=f.engine.scan('AMK-001',{});await assert.rejects(()=>f.engine.scan('AMK-001',{}),/처리/);await p;assert.equal(f.created,1);});
+test('프린터 연결 실패는 서버 발권 작업 생성 전 차단',async()=>{
+  const f=fixture();f.bridge.preflight=async()=>{throw Error('프린터 미연결');};
+  await assert.rejects(()=>f.engine.scan('AMK-001',{config,printerName:'ZDesigner ZD230-203dpi ZPL'}),/미연결/);
+  assert.equal(f.created,0);assert.equal(f.printed,0);
+});
 test('두 번째 인원 응답 유실은 unknown에서 멈추고 세 번째를 보내지 않음',async()=>{const f=fixture();let calls=0;f.bridge.print=async()=>{if(++calls===2)throw Error('network');return {state:'accepted'};};await f.engine.scan('AMK-001',{});assert.equal(calls,2);assert.equal(f.engine.job.items[1].state,'unknown');assert.equal(f.engine.job.items[2].state,'queued');await f.engine.scan('AMK-001',{});assert.equal(calls,2);});
 test('잘못된 프린터는 dispatch 전 중단',async()=>{const f=fixture();f.bridge.preflight=async()=>{throw Error('offline');};await assert.rejects(()=>f.engine.scan('AMK-001',{}),/offline/);assert.equal(f.engine.job.items[0].state,'queued');assert.equal(f.printed,0);});
 test('결과 보고 유실 후 저장된 결과만 동기화하고 다시 인쇄하지 않음',async()=>{

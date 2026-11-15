@@ -2011,7 +2011,7 @@ ${Footer.render()}`;
           <div class="border border-dashed border-gray-300 rounded-xl p-4 mb-4 text-center">
             <p class="text-xs text-gray-400 mb-2">QR 탑승권 (현장 스캔용)</p>
             <div class="flex justify-center">
-              <canvas id="auto-qr-canvas" style="border-radius:8px;border:2px solid #e2e8f0;max-width:160px"></canvas>
+              <div id="auto-qr-canvas" style="padding:12px;background:white;border-radius:8px"></div>
             </div>
             <p class="font-mono text-xs text-gray-400 mt-2">${found.id}</p>
           </div>` : ''}
@@ -2655,7 +2655,7 @@ ${Footer.render()}`;
         <!-- QR 코드 영역 -->
         <div class="flex flex-col items-center py-6 px-5 bg-gray-50">
           <div class="bg-white rounded-xl p-3 shadow-md mb-3">
-            <canvas id="ticket-qr-canvas" width="180" height="180"></canvas>
+            <div id="ticket-qr-canvas" style="padding:16px;background:white"></div>
           </div>
           <span class="px-3 py-1 rounded-full text-xs font-bold ${badge.cls}">${badge.label}</span>
           <p class="text-xs text-gray-400 mt-2">현장 직원에게 이 QR을 제시해 주세요</p>
@@ -2717,18 +2717,7 @@ ${Footer.render()}`;
         } else if (typeof QRCode !== 'undefined') {
           new QRCode(canvas, { text: qrData, width: 180, height: 180 });
         } else {
-          // fallback: 텍스트 표시
-          const ctx = canvas.getContext('2d');
-          ctx.fillStyle = '#f9fafb';
-          ctx.fillRect(0, 0, 180, 180);
-          ctx.fillStyle = '#374151';
-          ctx.font = '11px monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText('QR 생성 라이브러리', 90, 80);
-          ctx.fillText('미로드 상태', 90, 100);
-          ctx.font = 'bold 10px monospace';
-          ctx.fillStyle = '#1d4ed8';
-          ctx.fillText(f.id, 90, 125);
+          canvas.textContent = 'QR을 표시하지 못했습니다. 새로고침하거나 예약번호로 조회해 주세요.';
         }
       } catch(e) {
         console.warn('QR 생성 오류:', e);

@@ -7,6 +7,8 @@
       if(this.busy)throw Error('앞선 발권을 처리하고 있습니다. 잠시 기다려 주세요.');
       this.busy=true;
       try{
+        // 연결되지 않은 프린터로는 발권 작업도 만들지 않는다.
+        if(settings.config?.transport==='bridge')await this.bridge.preflight(settings.printerName);
         // 서버 응답 유실 후에도 동일 키로 조회되도록 전송 전에 저장한다.
         const signature=JSON.stringify({scan:scan.trim(),...settings});
         let request=JSON.parse(this.storage.getItem('amk-issue-request')||'null');
@@ -47,9 +49,17 @@
       if(p){this.job=await this.api(`/jobs/${p.jobId}/items/${p.itemId}/result`,p.result);this.storage.removeItem('amk-issue-pending-result');this.changed(this.job);}
       return this.job;
     }
+    async confirmOutput(){
+      if(this.busy)throw Error('발권 처리 중입니다.');this.busy=true;
+      try{
+        this.job=await this.api(`/jobs/${this.job.id}/confirm`,{revision:this.job.confirmationRevision,physicalVerified:true});
+        this.changed(this.job);return this.job;
+      }finally{this.busy=false;}
+    }
     async reprint(itemId,settings,reason){
       if(this.busy)throw Error('발권 처리 중입니다.');this.busy=true;
       try{
+        if(settings.config?.transport==='bridge')await this.bridge.preflight(settings.printerName);
         const keyName='amk-reprint-request';
         const signature=JSON.stringify({jobId:this.job.id,itemId,settings,reason});
         let pending=JSON.parse(this.storage.getItem(keyName)||'null');

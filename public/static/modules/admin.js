@@ -3393,8 +3393,8 @@ const AdminModule = (() => {
       refunded:  'fas fa-undo text-gray-400',
       pending:   'fas fa-clock text-yellow-500',
     };
-    const payColors = { paid:'bg-green-100 text-green-700', unpaid:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', refunded:'bg-gray-100 text-gray-600' };
-    const payLabels = { paid:'결제완료', unpaid:'미결제', pending:'결제대기', refunded:'환불' };
+    const payColors = { paid:'bg-green-100 text-green-700', unpaid:'bg-red-100 text-red-700', pending:'bg-yellow-100 text-yellow-700', cancel_pending:'bg-orange-100 text-orange-700', refunded:'bg-gray-100 text-gray-600' };
+    const payLabels = { paid:'결제완료', unpaid:'미결제', pending:'결제대기', cancel_pending:'환불대기', refunded:'환불' };
     if (!list.length) return '<tr><td colspan="11" class="text-center py-8 text-gray-400"><i class="fas fa-search mr-2"></i>검색 결과가 없습니다.</td></tr>';
     return list.slice(0, 50).map(r => `
       <tr class="hover:bg-gray-50" id="res-row-${r.id}">
@@ -3428,11 +3428,13 @@ const AdminModule = (() => {
           <div class="flex gap-1 justify-center flex-wrap">
             <button onclick="AdminModule.viewReservation('${r.id}')" class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded hover:bg-blue-100">상세</button>
             ${r.status === 'confirmed'
-              ? `<button onclick="AdminModule.issueWristbandFromReservation('${r._dbId||r.id}','${r.id}')" class="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded hover:bg-green-100">🎫 발권</button>`
+              ? `<button onclick="AdminModule.issueWristbandFromReservation('${r._dbId||r.id}','${r.id}')" class="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded hover:bg-green-100">🎫 발권·출력</button>`
               : ''}
-            ${r.status !== 'cancelled' && r.status !== 'boarded'
-              ? `<button onclick="AdminModule.cancelReservation('${r.id}','${r._dbId||r.id}')" class="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded hover:bg-red-100">취소</button>`
-              : `<span class="text-xs text-gray-400">${r.status==='boarded'?'탑승완료':r.isRefunded?'환불완료':'환불전'}</span>`}
+            ${r.status === 'checkedin'
+              ? `<button onclick="AdminModule.issueWristbandFromReservation('${r._dbId||r.id}','${r.id}')" class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded">출력 내역</button><button onclick="AdminModule.undoReservationIssuance('${r.id}','${r._dbId||r.id}')" class="text-xs bg-yellow-50 text-yellow-800 px-2 py-0.5 rounded">발권 되돌리기</button>` : ''}
+            ${['confirmed','payment_done','pending'].includes(r.status)
+              ? `<button onclick="AdminModule.cancelReservation('${r.id}','${r._dbId||r.id}')" class="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded hover:bg-red-100">예약 취소</button>`
+              : r.status==='checkedin' ? '' : `<span class="text-xs text-gray-500">${r.status==='boarded'?'탑승완료':r.isRefunded?'환불완료':r.paymentStatus==='cancel_pending'?'환불대기':'취소 · 환불상태 확인'}</span>`}
           </div>
         </td>
       </tr>
@@ -3635,6 +3637,10 @@ const AdminModule = (() => {
         </div>
       </div>
     `;
+    const detail = new URLSearchParams(location.search).get('detail');
+    if (detail) setTimeout(() => {
+      if (location.pathname === '/admin/reservations' && document.getElementById('res-tbody')) viewReservation(detail);
+    }, 0);
     return renderAdminLayout('reservations', content, '예약 관리');
   };
 
@@ -3693,6 +3699,15 @@ const AdminModule = (() => {
         </div>`
       : '<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px;font-size:12px;color:#9ca3af;text-align:center;">탑승자 정보 미입력 (구형 예약)</div>';
 
+    let notificationHtml = '<div style="color:#64748b;font-size:12px;">알림 발송 상태를 확인할 수 없습니다.</div>';
+    try {
+      const notice = await API.get('/api/reservation-notifications/' + encodeURIComponent(r._dbId || r.id));
+      if (notice.success) {
+        const labels = {queued:'발송 대기',blocked:'설정 필요',sending:'요청 중',accepted:'요청 접수 · 도착 미확인',failed:'발송 실패',unknown:'결과 확인 필요',skipped:'발송 제외'};
+        const safe = x => String(x || '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        notificationHtml = notice.data.length ? notice.data.map(n => `<div>${n.channel==='sms'?'문자':'카카오 알림톡'} · ${n.event==='confirmed'?'예약확정':'예약접수'}: <b>${labels[n.state]||safe(n.state)}</b>${n.detail ? ' ('+safe(n.detail)+')' : ''}</div>`).join('') : '발송 이력 없음 (시험 예약은 실제 발송 제외)';
+      }
+    } catch (_) {}
     Utils.confirm(
       `<div style="text-align:left;font-size:14px;color:#111827;">
         <div style="font-weight:700;font-size:15px;margin-bottom:8px;font-family:monospace;color:#1e40af;">${r.id}</div>
@@ -3750,10 +3765,13 @@ const AdminModule = (() => {
           </span>
         </div>
         ${passengersHtml}
+        <div style="margin-top:10px;padding:10px;background:#f8fafc;font-size:12px;"><b>예약 알림 발송</b>${notificationHtml}</div>
         <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;gap:8px;">
-          <a href="/ticket/${r.id}" target="_blank"
+          ${['confirmed','payment_done','checkedin'].includes(r.status) ? `<button onclick="AdminModule.issueWristbandFromReservation('${r._dbId}','${r.id}')"
+            style="flex:1;background:#173f95;color:white;padding:10px;border-radius:8px;font-weight:700;">팔찌 발권·출력</button>` : ''}
+          <a href="/ticket/${encodeURIComponent(r.id)}?from=admin"
             style="flex:1;text-align:center;background:#eff6ff;color:#2563eb;padding:8px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;">
-            🎫 탑승권 QR 보기
+            고객 QR 탑승권 보기
           </a>
         </div>
       </div>`,
@@ -3762,84 +3780,58 @@ const AdminModule = (() => {
     );
   };
 
-  // ── 예약에서 직접 발권 ──────────────────────────────────
-  const issueWristbandFromReservation = async (dbId, displayId) => {
-    // 예약 정보 조회
-    Utils.loading(true);
-    const res = await API.get(`/api/reservations/ticket/${displayId}`);
-    Utils.loading(false);
-    if (!res.success) { Utils.toast('예약 정보 조회 실패', 'error'); return; }
-    const r = res.data;
-    const typeLabel = { adult:'성인', child:'소아', infant:'유아', senior:'경로' };
-    const pd = r.paxDetail || [];
-    const types = pd.length ? pd : [{ type:'adult', count: r.pax||1 }];
-
-    Utils.modal(`
-      <div class="modal-header"><h3 class="font-bold text-green-700">🎫 손목밴드 발권</h3></div>
-      <div class="modal-body space-y-3 pt-2">
-        <div class="bg-green-50 rounded-lg p-3 text-sm space-y-1">
-          <div class="flex justify-between"><span class="text-gray-500">예약번호</span><span class="font-mono font-bold text-blue-600">${r.reservationNo}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">예약자</span><span class="font-bold">${r.name}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">지역/일자</span><span>${r.regionName} ${r.date}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">회차</span><span>${r.time||'-'} 출발</span></div>
-          <div class="flex justify-between"><span class="text-gray-500">인원</span><span>${r.pax}명</span></div>
-        </div>
-        <div>
-          <label class="text-xs text-gray-500 font-medium block mb-1">발권 권종 선택</label>
-          <select id="issue-wb-type" class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400">
-            ${types.map(t=>`<option value="${t.type}">${typeLabel[t.type]||t.type} (${t.count}명)</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label class="text-xs text-gray-500 font-medium block mb-1">발권 수량</label>
-          <input type="number" id="issue-wb-count" value="${r.pax||1}" min="1" max="${r.pax||10}"
-            class="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400">
-        </div>
-        <div class="flex gap-2">
-          <button onclick="Utils.closeModal()" class="flex-1 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50">취소</button>
-          <button onclick="AdminModule._doIssueWristbandFromRes('${dbId}','${r.time||''}','${r.regionName||''}')"
-            class="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-green-700">🎫 발권하기</button>
-        </div>
-      </div>`);
-  };
-
-  const _doIssueWristbandFromRes = async (reservationId, round, regionName) => {
-    const type  = document.getElementById('issue-wb-type')?.value || 'adult';
-    const count = parseInt(document.getElementById('issue-wb-count')?.value || '1');
-    const user  = Store.get('adminUser') || {};
+  // 예약 목록에서는 출력 화면으로 이동만 한다. 발급 상태를 직접 바꾸지 않는다.
+  const issueWristbandFromReservation = (dbId, displayId) => {
     Utils.closeModal();
-    Utils.loading(true);
-    const res = await API.post('/api/wristbands/issue', {
-      reservationId, round, type, count,
-      issuedBy: user.name || '관리자',
-    });
-    Utils.loading(false);
-    if (res.success) {
-      const ids = res.data?.wristbandIds || [];
-      Utils.toast(`발권 완료! 밴드 ${ids.length}개 발급 (${ids.join(', ')})`, 'success', 4000);
-      // 예약 목록 새로고침
-      reservationsPage().then(html => { document.getElementById('app').innerHTML = html; });
-    } else {
-      Utils.toast('발권 실패: ' + (res.error||''), 'error');
-    }
+    Router.go('/field/issuance?reservation=' + encodeURIComponent(displayId || dbId));
   };
+  // 캐시된 이전 모달에서 호출되어도 DB만 발급하는 API로 진행하지 않는다.
+  const _doIssueWristbandFromRes = () => Utils.toast('새 발권·출력 화면을 열어 주세요. 예약 상태는 변경하지 않았습니다.', 'warning');
 
-  const cancelReservation = (id, dbId) => {
-    Utils.confirm(`예약 ${id}를 취소하시겠습니까?\n취소 후에는 환불 정책에 따라 처리됩니다.`, async () => {
-      // API 취소 처리
-      const targetId = dbId || id;
-      const res = await API.put(`/api/reservations/${targetId}`, { status: 'cancelled' });
-      // UI 업데이트
-      const row = document.getElementById(`res-row-${id}`);
-      if (row) {
-        const statusCell = row.querySelector('td:nth-child(9)');
-        if (statusCell) statusCell.innerHTML = '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">취소</span>';
-        const actCell = row.querySelector('td:nth-child(10)');
-        if (actCell) actCell.innerHTML = '<span class="text-xs text-gray-400">환불전</span>';
-      }
-      Utils.toast(`예약 ${id}가 취소되었습니다.`, 'success');
-    });
+  const _reservationAction = async (id, dbId, kind) => {
+    const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const undo = kind === 'undo';
+    let result;
+    try { result = await API.get('/api/issuance/reservations/' + encodeURIComponent(dbId || id) + '/review'); }
+    catch(e) { Utils.toast('예약 확인에 실패했습니다. 상태는 변경하지 않았습니다.', 'error'); return; }
+    if (!result.success) { Utils.toast(escape(result.error || '예약 확인에 실패했습니다.'), 'error'); return; }
+    const r = result.data;
+    if (undo && r.status !== 'checkedin') { Utils.toast('발권완료 예약만 되돌릴 수 있습니다. 이미 취소한 예약은 별도 확인이 필요합니다.', 'warning'); return; }
+    if (!undo && !['confirmed','payment_done','pending'].includes(r.status)) { Utils.toast('발권 실수는 발권 되돌리기를 사용해 주세요. 예약취소와는 별도입니다.', 'warning'); return; }
+    const title = undo ? '발권 되돌리기' : '예약 취소';
+    const explanation = undo
+      ? '예약·결제·좌석은 유지하고 발권만 해제합니다. 이미 나온 팔찌는 회수·폐기해야 합니다.'
+      : '고객의 예약 자체를 취소합니다. 발권 실수를 되돌리는 기능이 아니며, 실제 환불은 별도 처리합니다.';
+    const overlay = Utils.modal(`
+      <div class="modal-header"><h3 class="font-bold">${title}</h3></div>
+      <div class="modal-body space-y-3">
+        <p class="font-bold">${escape(r.reservationNo)} · ${escape(r.name)}</p>
+        <p>${escape(r.date)} / ${r.pax}명</p><p>${explanation}</p>
+        <label class="block">처리 사유<textarea data-reason maxlength="300" class="w-full border rounded p-2" placeholder="3자 이상 입력"></textarea></label>
+        <label class="block"><input data-ack type="checkbox"> ${undo ? '아직 탑승하지 않았으며, 인쇄 대기열 정리와 팔찌 미전달 또는 회수·폐기를 확인했습니다.' : '고객의 예약을 취소하는 것이 맞습니다.'}</label>
+        <p data-error class="text-red-600" role="alert"></p>
+        <div class="flex gap-2"><button data-close class="btn-outline px-4 py-2">닫기</button><button data-save disabled class="btn-primary px-4 py-2 disabled:opacity-50">${title} 확정</button></div>
+      </div>`);
+    const button=overlay.querySelector('[data-save]'), reason=overlay.querySelector('[data-reason]'), ack=overlay.querySelector('[data-ack]');
+    let busy=false;
+    const enabled=()=>{button.disabled=busy || reason.value.trim().length<3 || !ack.checked;};
+    reason.oninput=enabled;ack.onchange=enabled;
+    overlay.querySelector('[data-close]').onclick=()=>{if(!busy)overlay.remove();};
+    button.onclick=async()=>{
+      if(busy || button.disabled)return;busy=true;enabled();
+      try{
+        const body={revision:r.revision,reason:reason.value.trim(),...(undo?{recoveryChecked:true}:{cancelConfirmed:true})};
+        const res=await API.post('/api/issuance/reservations/'+encodeURIComponent(r.id)+'/'+kind,body);
+        if(!res.success)throw Error(res.error||'처리 실패. 현재 상태를 다시 조회해 주세요.');
+        overlay.remove();
+        Utils.toast(undo?'발권만 되돌렸습니다. 예약과 결제는 유지됩니다.':'예약을 취소했습니다. 실제 환불은 별도 확인해 주세요.','success');
+        await filterReservations();
+      }catch(e){overlay.querySelector('[data-error]').textContent=e.message||'통신 오류입니다. 상태를 새로 조회해 주세요.';}
+      finally{busy=false;enabled();}
+    };
   };
+  const cancelReservation = (id, dbId) => _reservationAction(id, dbId, 'cancel');
+  const undoReservationIssuance = (id, dbId) => _reservationAction(id, dbId, 'undo');
 
   const exportReservations = () => {
     const user = _adminState.user || { role: 'super', regionId: null };
@@ -8527,7 +8519,7 @@ const backupPage = async () => {
     toggleSpecialDiscount, addSpecialDiscount, editSpecialDiscount, saveSpecialDiscount,
     updateSeatRatio, saveSeatRatio, saveGroupDiscount, saveSensConfig, testSms, _doTestSms,
     showWristbandDetail, searchWristbands, voidWristband, _doVoidWristband, scanCheckWristband, reissueWristband, _doReissueWristband,
-    viewReservation, cancelReservation, exportReservations, filterReservations, resetReservationFilter, issueWristbandFromReservation, _doIssueWristbandFromRes,
+    viewReservation, cancelReservation, undoReservationIssuance, exportReservations, filterReservations, resetReservationFilter, issueWristbandFromReservation, _doIssueWristbandFromRes,
     saveWristbandText,
     addPopup, editPopup, savePopup, deletePopup,
     addNotice, editNotice, saveNotice, hideNotice, deleteNotice, closeNoticeModal,

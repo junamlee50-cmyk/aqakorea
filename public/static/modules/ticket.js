@@ -25,43 +25,24 @@ const TicketPage = {
       boarded:   { label: '탑승완료', color: 'bg-indigo-500',icon: '🚌' },
       cancelled: { label: '취소됨',   color: 'bg-red-500',   icon: '❌' },
     };
+    if (r.paymentStatus === 'pending' && r.status === 'confirmed') {
+      statusMap.confirmed = { label: '예약접수 · 결제 대기', color: 'bg-amber-600', icon: '⏳' };
+    }
     const st = statusMap[r.status] || { label: r.status, color: 'bg-gray-500', icon: '📋' };
 
     // 캔버스 QR 생성용 데이터
     const qrData = BookingState.number(r);
     const canIssue = BookingState.canIssue(r);
 
-    // QR 코드 렌더링 — 라이브러리 로딩 완료 대기
-    const _renderQR = (attempt = 0) => {
-      const canvas = document.getElementById('ticket-qr-canvas');
-      if (!canvas) return; // 취소된 예약은 캔버스 없음
-      if (window.QRCode) {
-        QRCode.toCanvas(canvas, qrData, {
-          width: 200,
-          margin: 2,
-          color: { dark: '#0a2d6b', light: '#ffffff' },
-        }, (err) => {
-          if (err) {
-            console.error('QR 생성 오류:', err);
-            // 실패 시 이미지 API 폴백
-            const img = document.createElement('img');
-            img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&color=0a2d6b`;
-            img.className = 'rounded-xl shadow w-48 h-48';
-            canvas.replaceWith(img);
-          }
-        });
-      } else if (attempt < 20) {
-        // 최대 2초 대기
-        setTimeout(() => _renderQR(attempt + 1), 100);
-      } else {
-        // QRCode 라이브러리 없으면 이미지 API로 폴백
-        const img = document.createElement('img');
-        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&color=0a2d6b`;
-        img.className = 'rounded-xl shadow w-48 h-48';
-        canvas.replaceWith(img);
-      }
-    };
-    setTimeout(() => _renderQR(), 150);
+    const adminContext = new URLSearchParams(location.search).get('from') === 'admin'
+      && ['super','regional','staff'].includes((Store.get('adminUser') || {}).role);
+    const adminReturn = '/admin/reservations?detail=' + encodeURIComponent(qrData);
+    const printRoute = '/field/issuance?reservation=' + encodeURIComponent(qrData);
+    // qrcodejs는 DOM 컨테이너를 받는다. toCanvas API와 혼용하지 않는다.
+    setTimeout(() => {
+      const host = document.getElementById('ticket-qr-canvas');
+      if (host && host.dataset.reservation === qrData) Utils.generateQR('ticket-qr-canvas', qrData);
+    }, 150);
 
     return `
 ${BookingState.testBanner()}
@@ -89,7 +70,7 @@ ${BookingState.testBanner()}
         ${!canIssue
           ? `<div class="text-center text-gray-400"><div class="text-5xl mb-2">🚫</div><div class="text-sm">현재 상태에서는 탑승권을 사용할 수 없습니다</div></div>`
           : `<div class="flex flex-col items-center">
-               <canvas id="ticket-qr-canvas" class="rounded-xl shadow"></canvas>
+               <div id="ticket-qr-canvas" data-reservation="${qrData}" style="padding:16px;background:white" class="rounded-xl shadow"></div>
                <div class="text-xs text-gray-400 mt-2">매표소에서 스캔</div>
              </div>`
         }
@@ -178,14 +159,14 @@ ${BookingState.testBanner()}
 
       <!-- 하단 버튼 -->
       <div class="px-4 pb-4 flex gap-2">
-        <button onclick="Router.go('/reservation/check')"
+        <button onclick="Router.go('${adminContext ? adminReturn : '/reservation/check'}')"
           class="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl text-sm font-medium hover:bg-gray-50">
-          ← 뒤로
+          ${adminContext ? '← 예약 상세로' : '← 예약 조회로'}
         </button>
-        <button onclick="window.print()"
+        ${adminContext && canIssue ? `<button onclick="Router.go('${printRoute}')"
           class="flex-1 bg-navy-800 text-white py-3 rounded-xl text-sm font-bold hover:bg-navy-700">
-          🖨 인쇄
-        </button>
+          팔찌 발권·출력
+        </button>` : ''}
       </div>
     </div>
 

@@ -279,6 +279,9 @@ const FieldModule = {
   // ── 확인 체크인 (팔찌 없이 상태만 변경) ───────────────────────
   doCheckin: async (rsv) => {
     if (!rsv) return;
+    if((rsv.regionId || Store.get('user')?.region || 'buyeo')==='buyeo'){
+      return Router.go('/field/issuance?reservation='+encodeURIComponent(rsv.reservation_no || rsv.id));
+    }
     const reservationId = rsv.reservation_no || rsv.id;
     Utils.loading(true);
     const res = await API.post('/api/wristbands/issue', {
@@ -294,6 +297,10 @@ const FieldModule = {
 
   // ── 팔찌 인쇄 (개인별) ─────────────────────────────────────────
   showWristbandIssue: (rsv) => {
+    if((rsv?.regionId || Store.get('user')?.region || 'buyeo')==='buyeo'){
+      const number=typeof rsv==='string'?rsv:rsv?.reservation_no||rsv?.reservationNo||rsv?.id||'';
+      Utils.closeModal();return Router.go('/field/issuance'+(number?'?reservation='+encodeURIComponent(number):''));
+    }
     if (typeof rsv === 'string') rsv = { reservation_no: rsv, name: '', regionName: '', date: '', time: '', pax: 1, paxDetail: [], passengers: [] };
     if (!rsv) rsv = {};
 
