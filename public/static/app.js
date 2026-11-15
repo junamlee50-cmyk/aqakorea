@@ -278,7 +278,8 @@
     // ── 관리자 페이지 접속 시에만 세션 복원 (일반 고객 페이지는 복원 안 함) ──
     try {
       const path = window.location.pathname;
-      const isAdminPath = path.startsWith('/admin') || path.startsWith('/stats') || path.startsWith('/field');
+      const isAdminTicket = path.startsWith('/ticket/') && new URLSearchParams(window.location.search).get('from') === 'admin';
+      const isAdminPath = path.startsWith('/admin') || path.startsWith('/stats') || path.startsWith('/field') || isAdminTicket;
       if (isAdminPath) {
         const savedUser = localStorage.getItem('amk_admin_user');
         const savedTime = localStorage.getItem('amk_admin_login_time');

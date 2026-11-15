@@ -415,18 +415,18 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=daf0342f3432"></script>
-<script src="/static/modules/customer.js?v=daf0342f3432"></script>
-<script src="/static/modules/payment.js?v=daf0342f3432"></script>
-<script src="/static/modules/field.js?v=daf0342f3432"></script>
-<script src="/static/modules/admin.js?v=daf0342f3432"></script>
-<script src="/static/modules/stats.js?v=daf0342f3432"></script>
-<script src="/static/modules/seo.js?v=daf0342f3432"></script>
-<script src="/static/modules/ticket.js?v=daf0342f3432"></script>
-<script src="/static/modules/wristband-layout.js?v=daf0342f3432"></script>
-<script src="/static/modules/wristband-engine.js?v=daf0342f3432"></script>
-<script src="/static/modules/wristband-desk.js?v=daf0342f3432"></script>
-<script src="/static/app.js?v=daf0342f3432"></script>
+<script src="/static/modules/core.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/customer.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/payment.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/field.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/admin.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/stats.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/seo.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/ticket.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/wristband-layout.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/wristband-engine.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/wristband-desk.js?v=38a719a1ef0d"></script>
+<script src="/static/app.js?v=38a719a1ef0d"></script>
 <script>
 // PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
 if ('serviceWorker' in navigator) {
