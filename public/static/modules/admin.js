@@ -3515,6 +3515,7 @@ const AdminModule = (() => {
 
     // 할인 필터 (클라이언트 사이드)
     const fDiscount = document.getElementById('res-filter-discount')?.value || '';
+    try { sessionStorage.setItem('amk-res-filter', JSON.stringify({region:fRegion,date:fDate,status:fStatus,keyword:fKeyword,discount:fDiscount})); } catch (e) {}
     const UNIFORM = ['military','police','fire'];
     if (fDiscount === 'group')      pool = pool.filter(r => r.groupDiscountRate > 0);
     else if (fDiscount === 'special') pool = pool.filter(r => r.specialDiscountType);
@@ -3638,6 +3639,17 @@ const AdminModule = (() => {
       </div>
     `;
     const detail = new URLSearchParams(location.search).get('detail');
+    // 고객 QR 화면 등에서 돌아올 때 검색·필터 조건 복원
+    setTimeout(() => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem('amk-res-filter') || 'null');
+        if (!saved || !document.getElementById('res-tbody')) return;
+        const map = { region:'res-filter-region', date:'res-filter-date', status:'res-filter-status', keyword:'res-filter-keyword', discount:'res-filter-discount' };
+        let any = false;
+        for (const [k, id] of Object.entries(map)) { const el = document.getElementById(id); if (el && saved[k]) { el.value = saved[k]; any = true; } }
+        if (any) filterReservations();
+      } catch (e) {}
+    }, 0);
     if (detail) setTimeout(() => {
       if (location.pathname === '/admin/reservations' && document.getElementById('res-tbody')) viewReservation(detail);
     }, 0);
@@ -3645,7 +3657,7 @@ const AdminModule = (() => {
   };
 
   const resetReservationFilter = () => {
-    ['res-filter-region','res-filter-date','res-filter-status','res-filter-keyword'].forEach(id => {
+    ['res-filter-region','res-filter-date','res-filter-status','res-filter-keyword','res-filter-discount'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });

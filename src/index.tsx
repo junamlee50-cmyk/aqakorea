@@ -415,38 +415,50 @@ window.__PAGE_DATA__ = ${JSON.stringify(pageData || {})}
 <body class="bg-gray-50 font-sans">
 <div id="app">${pageData?.searchIntro || ''}</div>
 <div id="toast-container"></div>
-<script src="/static/modules/core.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/customer.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/payment.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/field.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/admin.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/stats.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/seo.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/ticket.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/wristband-layout.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/wristband-engine.js?v=38a719a1ef0d"></script>
-<script src="/static/modules/wristband-desk.js?v=38a719a1ef0d"></script>
-<script src="/static/app.js?v=38a719a1ef0d"></script>
+<script src="/static/modules/core.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/customer.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/payment.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/field.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/admin.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/stats.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/seo.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/ticket.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/wristband-layout.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/wristband-engine.js?v=fe5838ac1faa"></script>
+<script src="/static/modules/wristband-desk.js?v=fe5838ac1faa"></script>
+<script src="/static/app.js?v=fe5838ac1faa"></script>
 <script>
-// PWA Service Worker 등록 - 웹 변경 시 앱 자동 업데이트
+// PWA Service Worker 등록 - 새 버전은 안내 후 적용 (발권 중 강제 새로고침 금지)
 if ('serviceWorker' in navigator) {
+  var __amkBusy = function () {
+    // 발권 화면에서는 작업 중일 수 있으므로 자동 새로고침하지 않는다
+    return location.pathname.indexOf('/field/issuance') === 0 || location.pathname.indexOf('/demo') === 0;
+  };
+  var __amkNotice = function () {
+    if (document.getElementById('amk-update-notice')) return;
+    var d = document.createElement('div');
+    d.id = 'amk-update-notice';
+    d.setAttribute('role', 'status');
+    d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#173f95;color:#fff;padding:12px 16px;border-radius:10px;font:600 14px sans-serif;display:flex;gap:12px;align-items:center;justify-content:space-between;box-shadow:0 4px 16px #0004';
+    d.innerHTML = '<span>새 버전이 있습니다. 진행 중인 발권을 마친 뒤 새로고침해 주세요. (설정·출력 기록은 보존됩니다)</span><button style="background:#fff;color:#173f95;border:0;border-radius:6px;padding:8px 12px;font-weight:700" onclick="location.reload()">지금 새로고침</button>';
+    document.body.appendChild(d);
+  };
+  var __amkApply = function () { if (__amkBusy()) __amkNotice(); else window.location.reload(); };
   window.addEventListener('load', async () => {
     try {
       const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      reg.update().catch(function () {});
       reg.addEventListener('updatefound', () => {
         const newSW = reg.installing;
+        if (!newSW) return;
         newSW.addEventListener('statechange', () => {
-          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-            // 새 버전 감지 → 자동 새로고침 (앱에서 즉시 반영)
-            newSW.postMessage('skipWaiting');
-            window.location.reload();
-          }
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) __amkApply();
         });
       });
     } catch(e) {}
   });
-  // 컨트롤러 변경 시 자동 새로고침
-  navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+  var __amkHadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (__amkHadController) __amkApply(); });
 }
 </script>
 </body>
