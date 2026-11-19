@@ -28,6 +28,28 @@ test('결과 보고 유실 후 저장된 결과만 동기화하고 다시 인쇄
  broken=false;await engine.sync();assert.equal(f.printed,1);assert.equal(engine.job.items[0].state,'accepted');await engine.resume();assert.equal(f.printed,3);
 });
 test('정확한 밴드 크기·양끝 공백 클립·권종별 체크 위치·시험 표식',()=>{
- for(const type of ['adult','teen','child']){const p=ctx.WristbandLayout.commands({type,testMode:true,name:'시험',date:'2026-11-11',time:'14:00',reservationNo:'AMK-001',sequence:1,total:3},config);assert.equal(p.width,250);assert.equal(p.height,30);assert.equal(p.clip.x,25);assert.equal(p.clip.width,200);assert.ok(p.tick.x>25&&p.tick.x<225);assert.ok(p.text.some(t=>t.text.includes('탑승 불가')));}
+ for(const type of ['adult','teen','child']){const p=ctx.WristbandLayout.commands({type,testMode:true,name:'시험',date:'2026-11-11',time:'14:00',reservationNo:'AMK-001',sequence:1,total:3},config);assert.equal(p.width,250);assert.equal(p.height,30);assert.equal(p.clip.x,25);assert.equal(p.clip.width,200);assert.ok(p.tick.cx>25&&p.tick.cx<225);assert.ok(p.text.some(t=>t.text.includes('탑승 불가')));}
  assert.throws(()=>ctx.WristbandLayout.commands({type:'adult'},{...config,offsetX:26}));
+});
+
+test('실물 좌표: 체크 중심=절취선 0mm 기준 성인149·청소년119·소아93, 예약정보는 길이 30~83mm 안',()=>{
+ const L=ctx.WristbandLayout;
+ const base={testMode:true,name:'시험A',date:'2026-11-19',time:'23:50',reservationNo:'SBX-20261119-P1',sequence:1,total:1};
+ for(const [type,len] of [['adult',149],['teen',119],['child',93]]){
+  const p=L.commands({...base,type},config);
+  assert.equal(250-p.tick.cx,len,type+' 체크 길이좌표');
+ }
+ const p=L.commands({...base,type:'teen'},config);
+ for(const t of p.text){
+  const lenA=250-t.x, lenB=250-(t.x+t.max);   // 글자 시작·끝의 실물 길이
+  assert.ok(lenB>=30 && lenA<=83, `예약정보가 흰 여백(30~83mm) 밖: ${t.text} ${lenB.toFixed(1)}~${lenA.toFixed(1)}`);
+ }
+ assert.ok(p.clip.x===25 && p.clip.width===200);
+});
+test('보정값 0일 때 예약정보와 체크는 서로 독립(offset이 둘 다 같이 움직이는 것은 사용자 보정뿐)',()=>{
+ const L=ctx.WristbandLayout;
+ const a=L.commands({type:'teen',testMode:true,name:'A',date:'2026-11-19',time:'10:00',reservationNo:'R',sequence:1,total:1},config);
+ const b=L.commands({type:'child',testMode:true,name:'A',date:'2026-11-19',time:'10:00',reservationNo:'R',sequence:1,total:1},config);
+ assert.deepEqual(a.text,b.text);           // 권종이 달라도 예약정보 위치는 같다
+ assert.notEqual(a.tick.cx,b.tick.cx);
 });
