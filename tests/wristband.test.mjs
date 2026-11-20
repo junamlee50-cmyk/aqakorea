@@ -37,7 +37,8 @@ test('실물 좌표: 체크 중심=절취선 0mm 기준 성인149·청소년119�
  const base={testMode:true,name:'시험A',date:'2026-11-19',time:'23:50',reservationNo:'SBX-20261119-P1',sequence:1,total:1};
  for(const [type,len] of [['adult',149],['teen',119],['child',93]]){
   const p=L.commands({...base,type},config);
-  assert.equal(250-p.tick.cx,len,type+' 체크 길이좌표');
+  const exp=type==='teen'?len-1.3:len;   // 청소년만 실측 보정 -1.3mm
+  assert.ok(Math.abs(250-p.tick.cx-exp)<1e-9,type+' 체크 길이좌표');
  }
  const p=L.commands({...base,type:'teen'},config);
  for(const t of p.text){
@@ -63,7 +64,7 @@ test('진단 출력: 진단 예약(시험 모드)에서만 기준선·십자 표
  assert.equal(normal.diag,null); assert.equal(real.diag,null);
  assert.ok(diag.diag);
  // 체크·예약정보는 일반 시험과 완전히 동일
- assert.deepEqual(diag.tick,normal.tick);
+ assert.deepEqual(diag.tick,normal.tick);   // 같은 청소년이므로 보정 포함 동일
  assert.deepEqual(diag.text.map(t=>[t.x,t.y,t.max]),normal.text.map(t=>[t.x,t.y,t.max]));
  // 기준선 길이 위치 == 체크 설계 중심(119mm), 양쪽 흰 여백, 컬러 인쇄면(실제 폭 약 6~23.6mm) 밖
  for(const l of diag.diag.lines){assert.equal(250-l.x,119);}
@@ -71,9 +72,22 @@ test('진단 출력: 진단 예약(시험 모드)에서만 기준선·십자 표
  const real0=diag.diag.lines.map(l=>[l.y0+off,l.y1+off]);
  assert.ok(real0[0][1]<=5.5 && real0[1][0]>=24.5);
  // 십자: 체크와 같은 폭 위치, 예약정보 바로 옆(길이 77~83 사이)
- assert.equal(diag.diag.cross.y,diag.tick.cy);
+ assert.equal(diag.diag.cross.y,12.25);   // 십자는 설계 중심 폭 위치(보정 안 함)
  const len=250-diag.diag.cross.x; assert.ok(len>77 && len<83);
  // 양끝 25mm 무인쇄 영역 밖
  for(const l of diag.diag.lines) assert.ok(l.x>25&&l.x<225);
  assert.ok(diag.diag.cross.x>25&&diag.diag.cross.x<225);
+});
+
+test('청소년 ✓만 실측 보정(길이 -1.3, 폭 +1.3), 성인·소아·예약정보·기준선은 불변',()=>{
+ const L=ctx.WristbandLayout;
+ const base={testMode:true,name:'청소년A',date:'2026-11-20',time:'23:50',sequence:1,total:1,reservationNo:'SBX-20261120-DG3'};
+ const g=type=>L.commands({...base,type},config);
+ const teen=g('teen'),adult=g('adult'),child=g('child');
+ assert.ok(Math.abs(250-teen.tick.cx-117.7)<1e-9); assert.ok(Math.abs(teen.tick.cy-13.55)<1e-9);
+ assert.equal(250-adult.tick.cx,149); assert.equal(adult.tick.cy,12.25);
+ assert.equal(250-child.tick.cx,93); assert.equal(child.tick.cy,12.25);
+ for(const l of teen.diag.lines) assert.equal(250-l.x,119);
+ assert.equal(teen.diag.cross.y,12.25);
+ assert.deepEqual(teen.text,adult.text);
 });

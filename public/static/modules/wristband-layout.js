@@ -15,6 +15,7 @@
   const INFO={startLen:77,endLen:36};
   // 권종 체크 흰 네모의 실물 중심(길이 mm). 청소년 1장 시험으로 확인 예정.
   const TICK_LEN={adult:149,teen:119,child:93};
+  const TICK_SHIFT={teen:{len:-1.3,w:1.3}};   // 실측 보정(청소년만). len: 길이 mm(−=절취선 쪽), w: 캔버스 폭 mm(+=PNG 왼쪽)
   const TICK_Y=12.25;           // 체크 중심의 폭 방향 위치(기존 값 유지)
   // 시험환경 진단 출력 전용: 체크 설계 중심과 같은 길이/폭 위치를 흰 여백에 따로 표시한다.
   const isDiag=p=>p.testMode===true && /^SBX-\d{8}-DG\d*$/.test(String(p.reservationNo||''));
@@ -31,11 +32,14 @@
     text.push({text:String(p.date).replace(/-/g,'.'),x:x0+22,y:15.2,size:3.1,max:w-22});
     text.push({text:'예약 '+p.reservationNo,x:x0,y:21,size:2.9,max:w-9});
     text.push({text:`#${p.sequence}/${p.total}`,x:x0+w-8,y:21,size:3.2,max:8,bold:true});
-    const tick={cx:toX(TICK_LEN[p.type]),cy:TICK_Y};
+    // 실측(DG1 사진) 보정: 청소년 ✓만 사진 기준 왼쪽 1.3mm(캔버스 폭 +1.3), 아래쪽 1.3mm(길이 -1.3). 성인·소아는 그대로.
+    const sh=TICK_SHIFT[p.type]||{len:0,w:0};
+    const tick={cx:toX(TICK_LEN[p.type]+sh.len),cy:TICK_Y+sh.w};
+    const ref={cx:toX(TICK_LEN[p.type]),cy:TICK_Y};   // 진단 기준선·십자는 설계 중심에 고정(보정 안 함)
     // 기준선: 체크 중심과 같은 길이 위치, 밴드 양쪽 흰 여백(컬러 인쇄면 밖)에 각각 1개. 십자: 체크 중심과 같은 폭 위치.
     const diag=isDiag(p)?{
-      lines:[{x:tick.cx,y0:0,y1:2.5},{x:tick.cx,y0:22.5,y1:25}],
-      cross:{x:toX(DIAG_CROSS_LEN),y:tick.cy,arm:2}
+      lines:[{x:ref.cx,y0:0,y1:2.5},{x:ref.cx,y0:22.5,y1:25}],
+      cross:{x:toX(DIAG_CROSS_LEN),y:ref.cy,arm:2}
     }:null;
     return {width:250,height:30,clip:{x:25,y:1,width:200,height:28},offsetX:c.offsetX,offsetY:c.offsetY+2.5,
       tick,info:{x0,w,startLen:INFO.startLen,endLen:INFO.endLen},text,diag};
