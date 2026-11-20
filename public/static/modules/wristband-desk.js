@@ -21,7 +21,9 @@
   }
   const bridge={
     async preflight(name){const d=await bridgeCall('/api/printers');if(!d.supportedLayouts?.includes('buyeo-v2-30x250'))throw Error('이전 연결 프로그램을 종료하고 30mm용 1.1 버전을 실행해 주세요.');if(!d.printers.some(p=>p.name===name && p.available))throw Error('선택한 프린터가 없거나 오프라인입니다. Windows 프린터 설정을 확인해 주세요.');},
-    async print(job){const png=root.WristbandLayout.portrait(job.person,job.config).toDataURL('image/png');return bridgeCall('/api/print',{...job,png});}
+    async print(job){const png=root.WristbandLayout.portrait(job.person,job.config).toDataURL('image/png');
+      if(root.WristbandLayout.isDiag&&root.WristbandLayout.isDiag(job.person)){try{await fetchJSON('/api/issuance/jobs/'+job.jobId+'/items/'+job.attemptId+'/diag-png',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(localStorage.getItem('amk_admin_token')||'')},body:JSON.stringify({png})});}catch(e){throw Error('진단 PNG 보관 실패: 출력하지 않았습니다.');}}
+      return bridgeCall('/api/print',{...job,png});}
   };
   function api(path,body){
     const headers={'Content-Type':'application/json'};

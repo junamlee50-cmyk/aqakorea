@@ -53,3 +53,27 @@ test('보정값 0일 때 예약정보와 체크는 서로 독립(offset이 둘 �
  assert.deepEqual(a.text,b.text);           // 권종이 달라도 예약정보 위치는 같다
  assert.notEqual(a.tick.cx,b.tick.cx);
 });
+
+test('진단 출력: 진단 예약(시험 모드)에서만 기준선·십자 표시, 운영 양식은 그대로',()=>{
+ const L=ctx.WristbandLayout;
+ const base={type:'teen',name:'청소년A',date:'2026-11-20',time:'23:50',sequence:1,total:1};
+ const normal=L.commands({...base,testMode:true,reservationNo:'SBX-20261120-T1'},config);
+ const real=L.commands({...base,testMode:false,reservationNo:'SBX-20261120-DG1'},config);
+ const diag=L.commands({...base,testMode:true,reservationNo:'SBX-20261120-DG1'},config);
+ assert.equal(normal.diag,null); assert.equal(real.diag,null);
+ assert.ok(diag.diag);
+ // 체크·예약정보는 일반 시험과 완전히 동일
+ assert.deepEqual(diag.tick,normal.tick);
+ assert.deepEqual(diag.text.map(t=>[t.x,t.y,t.max]),normal.text.map(t=>[t.x,t.y,t.max]));
+ // 기준선 길이 위치 == 체크 설계 중심(119mm), 양쪽 흰 여백, 컬러 인쇄면(실제 폭 약 6~23.6mm) 밖
+ for(const l of diag.diag.lines){assert.equal(250-l.x,119);}
+ const off=diag.offsetY;
+ const real0=diag.diag.lines.map(l=>[l.y0+off,l.y1+off]);
+ assert.ok(real0[0][1]<=5.5 && real0[1][0]>=24.5);
+ // 십자: 체크와 같은 폭 위치, 예약정보 바로 옆(길이 77~83 사이)
+ assert.equal(diag.diag.cross.y,diag.tick.cy);
+ const len=250-diag.diag.cross.x; assert.ok(len>77 && len<83);
+ // 양끝 25mm 무인쇄 영역 밖
+ for(const l of diag.diag.lines) assert.ok(l.x>25&&l.x<225);
+ assert.ok(diag.diag.cross.x>25&&diag.diag.cross.x<225);
+});

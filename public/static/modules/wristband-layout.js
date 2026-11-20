@@ -16,6 +16,9 @@
   // 권종 체크 흰 네모의 실물 중심(길이 mm). 청소년 1장 시험으로 확인 예정.
   const TICK_LEN={adult:149,teen:119,child:93};
   const TICK_Y=12.25;           // 체크 중심의 폭 방향 위치(기존 값 유지)
+  // 시험환경 진단 출력 전용: 체크 설계 중심과 같은 길이/폭 위치를 흰 여백에 따로 표시한다.
+  const isDiag=p=>p.testMode===true && /^SBX-\d{8}-DG\d*$/.test(String(p.reservationNo||''));
+  const DIAG_CROSS_LEN=80;      // 예약정보(길이 36~77) 바로 옆 흰 공간(78~82mm)
   function commands(p,c){
     validate(c);
     if(!labels[p.type]) throw Error('지원하지 않는 권종입니다.');
@@ -28,8 +31,14 @@
     text.push({text:String(p.date).replace(/-/g,'.'),x:x0+22,y:15.2,size:3.1,max:w-22});
     text.push({text:'예약 '+p.reservationNo,x:x0,y:21,size:2.9,max:w-9});
     text.push({text:`#${p.sequence}/${p.total}`,x:x0+w-8,y:21,size:3.2,max:8,bold:true});
+    const tick={cx:toX(TICK_LEN[p.type]),cy:TICK_Y};
+    // 기준선: 체크 중심과 같은 길이 위치, 밴드 양쪽 흰 여백(컬러 인쇄면 밖)에 각각 1개. 십자: 체크 중심과 같은 폭 위치.
+    const diag=isDiag(p)?{
+      lines:[{x:tick.cx,y0:0,y1:2.5},{x:tick.cx,y0:22.5,y1:25}],
+      cross:{x:toX(DIAG_CROSS_LEN),y:tick.cy,arm:2}
+    }:null;
     return {width:250,height:30,clip:{x:25,y:1,width:200,height:28},offsetX:c.offsetX,offsetY:c.offsetY+2.5,
-      tick:{cx:toX(TICK_LEN[p.type]),cy:TICK_Y},info:{x0,w,startLen:INFO.startLen,endLen:INFO.endLen},text};
+      tick,info:{x0,w,startLen:INFO.startLen,endLen:INFO.endLen},text,diag};
   }
   function render(p,c,documentRef=root.document){
     const plan=commands(p,c), scale=c.dpi/25.4, canvas=documentRef.createElement('canvas');
@@ -38,6 +47,12 @@
     g.scale(scale,scale);g.save();g.beginPath();g.rect(plan.clip.x,plan.clip.y,plan.clip.width,plan.clip.height);g.clip();g.translate(plan.offsetX,plan.offsetY);
     g.strokeStyle='#000';g.lineWidth=0.7;g.lineCap='round';g.beginPath();
     g.moveTo(plan.tick.cx-2.25,plan.tick.cy);g.lineTo(plan.tick.cx-0.65,plan.tick.cy+2);g.lineTo(plan.tick.cx+2.25,plan.tick.cy-2);g.stroke();
+    if(plan.diag){
+      g.lineWidth=0.6;g.lineCap='butt';g.beginPath();
+      for(const l of plan.diag.lines){g.moveTo(l.x,l.y0);g.lineTo(l.x,l.y1);}
+      const k=plan.diag.cross;g.moveTo(k.x-k.arm,k.y);g.lineTo(k.x+k.arm,k.y);g.moveTo(k.x,k.y-k.arm);g.lineTo(k.x,k.y+k.arm);
+      g.stroke();
+    }
     g.fillStyle='#000';g.textBaseline='alphabetic';
     for(const t of plan.text){
       let size=t.size;
@@ -54,6 +69,6 @@
     if(c.rotation===180){g.translate(0,out.height);g.rotate(-Math.PI/2);}else{g.translate(out.width,0);g.rotate(Math.PI/2);}
     g.drawImage(wide,0,0);return out;
   }
-  const api={validate,commands,render,portrait,labels,toX,INFO,TICK_LEN};root.WristbandLayout=api;
+  const api={validate,commands,render,portrait,labels,toX,INFO,TICK_LEN,isDiag};root.WristbandLayout=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

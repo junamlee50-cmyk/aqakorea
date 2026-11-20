@@ -35,7 +35,7 @@
         let result;
         try{
           result=job.config.transport==='simulation'?{state:'simulated',detail:'모의 출력 (프린터 미사용)'}:
-            await this.bridge.print({attemptId:item.id,printerName:job.printerName,person:item.person,config:job.config});
+            await this.bridge.print({attemptId:item.id,jobId:job.id,printerName:job.printerName,person:item.person,config:job.config});
         }catch(e){result={state:'unknown',detail:e.message||'전송 결과 확인 불가'};}
         if(!['accepted','simulated','failed','unknown'].includes(result.state)) result={state:'unknown',detail:'알 수 없는 인쇄 응답'};
         // 보고가 끊기면 다음 인원도 멈춘다. 새로고침/재스캔은 재전송하지 않는다.
