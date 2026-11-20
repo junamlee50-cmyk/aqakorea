@@ -37,7 +37,7 @@ test('실물 좌표: 체크 중심=절취선 0mm 기준 성인149·청소년119�
  const base={testMode:true,name:'시험A',date:'2026-11-19',time:'23:50',reservationNo:'SBX-20261119-P1',sequence:1,total:1};
  for(const [type,len] of [['adult',149],['teen',119],['child',93]]){
   const p=L.commands({...base,type},config);
-  const exp=type==='teen'?len-1.3:len;   // 청소년만 실측 보정 -1.3mm
+  const exp=type==='teen'?len-0.8:len;   // 청소년만 누적 실측 보정 -0.8mm
   assert.ok(Math.abs(250-p.tick.cx-exp)<1e-9,type+' 체크 길이좌표');
  }
  const p=L.commands({...base,type:'teen'},config);
@@ -79,12 +79,12 @@ test('진단 출력: 진단 예약(시험 모드)에서만 기준선·십자 표
  assert.ok(diag.diag.cross.x>25&&diag.diag.cross.x<225);
 });
 
-test('청소년 ✓만 실측 보정(길이 -1.3, 폭 +1.3), 성인·소아·예약정보·기준선은 불변',()=>{
+test('청소년 ✓만 누적 실측 보정(길이 -0.8, 폭 +2.3), 성인·소아·예약정보·기준선은 불변',()=>{
  const L=ctx.WristbandLayout;
  const base={testMode:true,name:'청소년A',date:'2026-11-20',time:'23:50',sequence:1,total:1,reservationNo:'SBX-20261120-DG3'};
  const g=type=>L.commands({...base,type},config);
  const teen=g('teen'),adult=g('adult'),child=g('child');
- assert.ok(Math.abs(250-teen.tick.cx-117.7)<1e-9); assert.ok(Math.abs(teen.tick.cy-13.55)<1e-9);
+ assert.ok(Math.abs(250-teen.tick.cx-118.2)<1e-9); assert.ok(Math.abs(teen.tick.cy-14.55)<1e-9);
  assert.equal(250-adult.tick.cx,149); assert.equal(adult.tick.cy,12.25);
  assert.equal(250-child.tick.cx,93); assert.equal(child.tick.cy,12.25);
  for(const l of teen.diag.lines) assert.equal(250-l.x,119);
